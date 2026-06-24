@@ -39,8 +39,9 @@ onAuthStateChanged(auth, async (user) => {
 
             if (adminDocSnap.exists()) {
                 const adminData = adminDocSnap.data();
-                if (adminData.role === 'Super Admin' || adminData.role === 'Staff Admin') {
-                    console.log("[ADMIN DEBUG] Access Granted. Role:", adminData.role);
+                const role = adminData.role;
+                if (role === 'Super Admin' || role === 'Staff Admin' || role === 'Software admin' || role === 'Software Admin') {
+                    console.log("[ADMIN DEBUG] Access Granted. Role:", role);
                     showDashboard();
                 } else {
                     throw new Error("Account exists but lacks admin privileges.");
