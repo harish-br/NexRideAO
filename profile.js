@@ -12,6 +12,7 @@ const valEmail = document.getElementById('val-email');
 const phoneBadge = document.getElementById('val-phone-badge');
 const phoneVerifiedText = document.getElementById('val-phone-verified-text');
 const piEditBtn = document.getElementById('pi-edit-btn');
+const profileUserNameDisplay = document.getElementById('profile-user-name-display');
 
 // Update Profile DOM
 const updateProfilePage = document.getElementById('update-profile-page');
@@ -48,6 +49,7 @@ if (auth) {
 
 function resetToDefault() {
     valName.textContent = "Add your name";
+    if (profileUserNameDisplay) profileUserNameDisplay.textContent = "User";
     valGender.textContent = "Select gender";
     valEmail.textContent = "Add email";
     valEmail.style.color = '#1A73E8';
@@ -65,7 +67,10 @@ async function fetchUserProfile(uid) {
         
         if (docSnap.exists()) {
             const data = docSnap.data();
-            if (data.name) valName.textContent = data.name;
+            if (data.name) {
+                valName.textContent = data.name;
+                if (profileUserNameDisplay) profileUserNameDisplay.textContent = data.name;
+            }
             if (data.gender) valGender.textContent = data.gender;
             if (data.email) {
                 valEmail.textContent = data.email;
@@ -157,6 +162,7 @@ upContinueBtn.addEventListener('click', async () => {
         
         // Update Personal Info UI locally
         valName.textContent = newName;
+        if (profileUserNameDisplay) profileUserNameDisplay.textContent = newName;
         valGender.textContent = newGender;
         valEmail.textContent = newEmail;
         valEmail.style.color = '#111111';
