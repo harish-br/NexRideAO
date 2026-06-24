@@ -179,7 +179,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         console.log("[DEBUG] Calling signInWithPhoneNumber...");
-        const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+        
+        // Timeout wrapper for iOS Safari hang bug
+        const signInPromise = signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Timeout: Firebase Auth took too long to respond. Please check your internet connection or try again.")), 15000)
+        );
+        
+        const result = await Promise.race([signInPromise, timeoutPromise]);
         
         console.log("[DEBUG] Firebase OTP Send Response SUCCESS.");
         window.confirmationResult = result;
