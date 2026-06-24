@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
           console.error("[DEBUG] OTP Send Error:", error.code, error.message);
           continueBtn.classList.remove('loading');
           continueBtn.disabled = false;
-          alert("Firebase Error (" + error.code + "):\n" + error.message + "\n\n(Tip: Enter 0000000000 to bypass Firebase locally)");
+          alert("Firebase Error (" + error.code + "):\n" + error.message);
           
           // Reset reCAPTCHA so user can try again
           if (window.recaptchaVerifier) {
