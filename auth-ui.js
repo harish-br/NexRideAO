@@ -179,6 +179,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         console.log("[DEBUG] Calling signInWithPhoneNumber...");
+        console.log("START OTP");
+        console.log("AUTH:", auth ? "Exists (Valid object)" : "UNDEFINED/NULL");
+        console.log("PHONE:", phoneNumber);
+        console.log("VERIFIER:", appVerifier ? "Exists (Valid object)" : "UNDEFINED/NULL");
         
         // Timeout wrapper for iOS Safari hang bug
         const signInPromise = signInWithPhoneNumber(auth, phoneNumber, appVerifier);
@@ -188,6 +192,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         const result = await Promise.race([signInPromise, timeoutPromise]);
         
+        console.log("SUCCESS", result ? "Valid Result" : "NULL Result");
         console.log("[DEBUG] Firebase OTP Send Response SUCCESS.");
         window.confirmationResult = result;
         
