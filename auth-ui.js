@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (auth) {
         console.log("[DEBUG] Initializing invisible RecaptchaVerifier...");
         window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'normal', 
+          'size': 'invisible', 
           'callback': (response) => {
             console.log("[DEBUG] reCAPTCHA solved automatically. Token:", response);
           },
@@ -73,7 +73,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.warn("[DEBUG] reCAPTCHA expired. Please solve again.");
           }
         });
-        window.recaptchaVerifier.render();
         console.log("[DEBUG] Recaptcha initialized successfully");
       }
     } catch (error) {
