@@ -196,7 +196,7 @@ upContinueBtn.addEventListener('click', async () => {
         closeUpdateProfile();
     } catch (err) {
         console.error("Error saving to Firestore:", err);
-        showError("Failed to save changes. Check your connection.");
+        showError("Error: " + (err.message || "Failed to save."));
     } finally {
         upContinueBtn.textContent = "Continue";
         upContinueBtn.style.opacity = "1";
