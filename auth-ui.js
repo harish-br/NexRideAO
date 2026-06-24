@@ -147,44 +147,55 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log("[DEBUG] OTP send started...");
       continueBtn.disabled = true;
       
-      if (!window.recaptchaVerifier) {
-        setupRecaptcha();
-      }
-      const appVerifier = window.recaptchaVerifier;
+      try {
+        if (!window.recaptchaVerifier) {
+          setupRecaptcha();
+        }
+        const appVerifier = window.recaptchaVerifier;
+        
+        if (!appVerifier) {
+          throw new Error("Security check failed to load. Please refresh the page and try again.");
+        }
 
-      signInWithPhoneNumber(auth, phoneNumber, appVerifier)
-        .then((result) => {
-          console.log("[DEBUG] Firebase OTP Send Response:", result);
-          confirmationResult = result;
-          continueBtn.classList.remove('loading');
-          otpSentNumber.textContent = `+91 ${mobileVal.substring(0, 5)} ${mobileVal.substring(5)}`;
-          
-          // Reset OTP inputs
-          otpInputs.forEach(input => {
-            input.value = '';
-            input.classList.remove('error');
+        signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+          .then((result) => {
+            console.log("[DEBUG] Firebase OTP Send Response:", result);
+            confirmationResult = result;
+            continueBtn.classList.remove('loading');
+            otpSentNumber.textContent = `+91 ${mobileVal.substring(0, 5)} ${mobileVal.substring(5)}`;
+            
+            // Reset OTP inputs
+            otpInputs.forEach(input => {
+              input.value = '';
+              input.classList.remove('error');
+            });
+            otpError.classList.add('hidden');
+
+            authPage.classList.add('hidden');
+            otpPage.classList.remove('hidden');
+            
+            // Toast Notification
+            alert("OTP sent successfully to " + phoneNumber);
+            
+            startResendCountdown();
+            setTimeout(() => otpInputs[0].focus(), 100);
+          }).catch((error) => {
+            console.error("[DEBUG] OTP Send Error:", error.code, error.message);
+            continueBtn.classList.remove('loading');
+            continueBtn.disabled = false;
+            alert("Firebase Error (" + error.code + "):\n" + error.message);
+            
+            // Reset reCAPTCHA so user can try again
+            if (window.recaptchaVerifier && typeof grecaptcha !== 'undefined') {
+              window.recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId)).catch(e => console.error("Recaptcha reset error", e));
+            }
           });
-          otpError.classList.add('hidden');
-
-          authPage.classList.add('hidden');
-          otpPage.classList.remove('hidden');
-          
-          // Toast Notification
-          alert("OTP sent successfully to " + phoneNumber);
-          
-          startResendCountdown();
-          setTimeout(() => otpInputs[0].focus(), 100);
-        }).catch((error) => {
-          console.error("[DEBUG] OTP Send Error:", error.code, error.message);
-          continueBtn.classList.remove('loading');
-          continueBtn.disabled = false;
-          alert("Firebase Error (" + error.code + "):\n" + error.message);
-          
-          // Reset reCAPTCHA so user can try again
-          if (window.recaptchaVerifier) {
-            window.recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId));
-          }
-        });
+      } catch (err) {
+        console.error("[DEBUG] Synchronous OTP Send Error:", err);
+        continueBtn.classList.remove('loading');
+        continueBtn.disabled = false;
+        alert("Error: " + err.message);
+      }
     });
   }
 
@@ -210,16 +221,22 @@ document.addEventListener('DOMContentLoaded', () => {
       otpError.classList.add('hidden');
       
       const phoneNumber = '+91' + mobileInput.value;
-      const appVerifier = window.recaptchaVerifier;
-      
-      signInWithPhoneNumber(auth, phoneNumber, appVerifier)
-        .then((result) => {
-          confirmationResult = result;
-          otpInputs[0].focus();
-        }).catch((error) => {
-          console.error("Resend SMS failed", error);
-          alert("Firebase Error: " + error.message);
-        });
+      try {
+        const appVerifier = window.recaptchaVerifier;
+        if (!appVerifier) throw new Error("Security check missing. Please refresh.");
+        
+        signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+          .then((result) => {
+            confirmationResult = result;
+            otpInputs[0].focus();
+          }).catch((error) => {
+            console.error("Resend SMS failed", error);
+            alert("Firebase Error: " + error.message);
+          });
+      } catch (err) {
+        console.error("Synchronous Resend Error:", err);
+        alert("Error: " + err.message);
+      }
     });
   }
 
@@ -284,42 +301,51 @@ document.addEventListener('DOMContentLoaded', () => {
       verifyOtpBtn.disabled = true;
       console.log("[DEBUG] Verification started with OTP:", otp);
       
-      if (confirmationResult) {
-        confirmationResult.confirm(otp).then((result) => {
-          console.log("[DEBUG] Verification result SUCCESS:", result);
+      try {
+        if (confirmationResult) {
+          confirmationResult.confirm(otp).then((result) => {
+            console.log("[DEBUG] Verification result SUCCESS:", result);
+            verifyOtpBtn.classList.remove('loading');
+            verifyOtpBtn.disabled = false;
+            
+            // Transition UI for all users upon successful OTP match
+            authPage.classList.add('hidden');
+            otpPage.classList.add('hidden');
+            if(appContainer) appContainer.style.display = 'flex';
+            
+          }).catch((error) => {
+            console.error("[DEBUG] Verification error:", error.code, error.message);
+            verifyOtpBtn.classList.remove('loading');
+            verifyOtpBtn.disabled = false;
+            otpInputs.forEach(input => input.classList.add('error'));
+            
+            let errorMessage = "Invalid OTP. Please try again.";
+            if (error.code === 'auth/invalid-verification-code') {
+              errorMessage = "Invalid OTP. Please check and try again.";
+            } else if (error.code === 'auth/code-expired') {
+              errorMessage = "OTP expired. Please request a new OTP.";
+            } else if (error.code === 'auth/too-many-requests') {
+              errorMessage = "Too many attempts. Please try again later.";
+            } else {
+              errorMessage = "Verification failed: " + error.message;
+            }
+            
+            otpError.textContent = errorMessage;
+            otpError.classList.remove('hidden');
+          });
+        } else {
+          console.warn("[DEBUG] confirmationResult is null");
           verifyOtpBtn.classList.remove('loading');
           verifyOtpBtn.disabled = false;
-          
-          // Transition UI for all users upon successful OTP match
-          authPage.classList.add('hidden');
-          otpPage.classList.add('hidden');
-          if(appContainer) appContainer.style.display = 'flex';
-          
-        }).catch((error) => {
-          console.error("[DEBUG] Verification error:", error.code, error.message);
-          verifyOtpBtn.classList.remove('loading');
-          verifyOtpBtn.disabled = false;
-          otpInputs.forEach(input => input.classList.add('error'));
-          
-          let errorMessage = "Invalid OTP. Please try again.";
-          if (error.code === 'auth/invalid-verification-code') {
-            errorMessage = "Invalid OTP. Please check and try again.";
-          } else if (error.code === 'auth/code-expired') {
-            errorMessage = "OTP expired. Please request a new OTP.";
-          } else if (error.code === 'auth/too-many-requests') {
-            errorMessage = "Too many attempts. Please try again later.";
-          } else {
-            errorMessage = "Verification failed: " + error.message;
-          }
-          
-          otpError.textContent = errorMessage;
-          otpError.classList.remove('hidden');
-        });
-      } else {
-        console.warn("[DEBUG] confirmationResult is null");
+          alert("Session expired. Please request a new OTP.");
+        }
+      } catch (err) {
+        console.error("[DEBUG] Synchronous Verify Error:", err);
         verifyOtpBtn.classList.remove('loading');
         verifyOtpBtn.disabled = false;
-        alert("Session expired. Please request a new OTP.");
+        otpInputs.forEach(input => input.classList.add('error'));
+        otpError.textContent = "An error occurred: " + err.message;
+        otpError.classList.remove('hidden');
       }
     });
   }
