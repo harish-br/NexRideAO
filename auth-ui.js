@@ -4,9 +4,26 @@ import {
   signInWithPhoneNumber, 
   onAuthStateChanged, 
   signOut,
-  setPersistence,
-  browserLocalPersistence
+  browserLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence,
+  indexedDBLocalPersistence,
+  setPersistence
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
+
+// --- GLOBAL ERROR CAPTURE ---
+window.onerror = (msg, src, line, col, err) => {
+  console.error("GLOBAL ERROR:", msg, err);
+};
+window.onunhandledrejection = event => {
+  console.error("UNHANDLED PROMISE:", event.reason);
+};
+
+// --- PWA & SAFARI DETECTION ---
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+const isPWA = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+console.log("[DEBUG] isSafari:", isSafari);
+console.log("[DEBUG] isPWA:", isPWA);
 
 let resendAttempts = 0;
 const MAX_RESEND_ATTEMPTS = 3;
@@ -17,11 +34,16 @@ window.confirmationResult = window.confirmationResult || null;
 document.addEventListener('DOMContentLoaded', async () => {
   console.log("[DEBUG] Initializing Auth UI...");
 
-  // Set Local Persistence immediately to survive mobile browser suspends
+  // Set Persistence safely for iOS Safari PWAs
   try {
     if (auth) {
-      await setPersistence(auth, browserLocalPersistence);
-      console.log("[DEBUG] Auth persistence set to browserLocalPersistence");
+      if (isPWA && isSafari) {
+        console.log("[DEBUG] Detected iOS PWA. Using inMemoryPersistence to bypass Safari IndexedDB blocks.");
+        await setPersistence(auth, inMemoryPersistence);
+      } else {
+        await setPersistence(auth, browserLocalPersistence);
+        console.log("[DEBUG] Auth persistence set to browserLocalPersistence");
+      }
     }
   } catch (err) {
     console.error("[DEBUG] Failed to set auth persistence:", err);
