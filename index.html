@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>NexRide</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <div id="app" style="display: none;">
+    <!-- Top Half: Map -->
+    <div id="map-container">
+      <div id="map"></div>
+    </div>
+
+    <!-- Bottom Half: Content -->
+    <div id="content-container">
+      <button id="my-location-btn" class="my-location-btn" aria-label="Current Location">
+        <img src="./location.svg?v=4" alt="Location" width="22" height="22" />
+      </button>
+      <div class="drag-handle-area"></div>
+      <div class="inner-box">
+        <img src="./Thiruvalluvar.png" alt="Thiruvalluvar" class="kural-img" />
+        <p class="thirukkural-text">தெய்வத்தான் ஆகா தெனினும் முயற்சிதன்<br />மெய்வருத்தக் கூலி தரும்.</p>
+      </div>
+      <div class="inner-box-2">
+        <div class="transit-options">
+          <div class="transit-item">
+            <div class="transit-icon-box">
+              <img src="./bus card.jpg" alt="Bus" class="transit-icon-img" />
+            </div>
+            <span class="transit-label">Bus</span>
+          </div>
+          <div class="transit-item">
+            <div class="transit-icon-box">
+              <img src="./epass.png?v=2" alt="E-Pass" class="epass-icon-img" />
+            </div>
+            <span class="transit-label">E-Pass</span>
+          </div>
+          <div class="transit-item">
+            <div class="transit-icon-box">
+              <img src="./report.png?v=1" alt="Report" class="report-icon-img" />
+            </div>
+            <span class="transit-label">Report</span>
+          </div>
+          <div class="transit-item">
+            <div class="transit-icon-box">
+              <img src="./fees-icon.png?v=1" alt="Fees" class="fees-icon-img" />
+            </div>
+            <span class="transit-label">Fees</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dashboard Option Card -->
+      <div class="dashboard-box">
+        <span class="dashboard-title">Dashboard</span>
+      </div>
+
+      <!-- Women Safety Promo Card -->
+      <div class="promo-box">
+        <img src="./womensafety.png" alt="Women Safety" class="promo-img" />
+      </div>
+    </div>
+    <!-- Live Page Overlay -->
+    <div id="live-page" class="page-overlay hidden">
+      <div class="live-info">
+        <div class="assigned-bus-title">Assigned Bus: <span id="assigned-bus-number">32</span></div>
+        <div class="bus-status" id="bus-status">Bus in halt</div>
+      </div>
+
+      <!-- Vertical Tracking Timeline -->
+      <div class="route-container">
+        <!-- Background Track -->
+        <div class="tracking-track" id="tracking-track"></div>
+
+        <!-- Dynamic Bus Tracker (moves down) -->
+        <div class="bus-tracker" id="dynamic-bus">
+          <img src="./Subject.png" alt="Bus Icon" class="tracking-bus-img" />
+          <div class="tracking-arrow">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+              style="filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.2)); margin-top: -2px;">
+              <path d="M3.5 5.5L12 18.5L20.5 5.5H3.5Z" fill="white" stroke="white" stroke-width="4"
+                stroke-linejoin="round" />
+              <path d="M3.5 5.5L12 18.5L20.5 5.5H3.5Z" fill="#3B82F6" stroke="#3B82F6" stroke-width="1.5"
+                stroke-linejoin="round" transform-origin="12 10" transform="scale(0.88)" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Stops List (Dynamic from DB later) -->
+        <div id="stops-list" class="stops-list">
+          <!-- Stop 1 (Boarding Stop) -->
+          <div class="stop-item active">
+            <div class="stop-icon-wrapper">
+              <div class="tracking-dot green"></div>
+            </div>
+            <div class="stop-info">
+              <span class="boarding-text">Your Boarding Stop</span>
+              <div class="stop-name-row">
+                <div class="stop-title-wrap">
+                  <div class="heading-towards hidden">Heading towards</div>
+                  <span class="stop-name highlight">GURUVAREDDIYUR</span>
+                </div>
+                <span class="stop-time"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stop 2 -->
+          <div class="stop-item">
+            <div class="stop-icon-wrapper">
+              <div class="tracking-dot gray"></div>
+            </div>
+            <div class="stop-info">
+              <div class="stop-name-row">
+                <div class="stop-title-wrap">
+                  <div class="heading-towards hidden">Heading towards</div>
+                  <span class="stop-name">KUTTAIMUNIYAPPAN KOVIL</span>
+                </div>
+                <span class="stop-time"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stop 3 -->
+          <div class="stop-item">
+            <div class="stop-icon-wrapper">
+              <div class="tracking-dot gray"></div>
+            </div>
+            <div class="stop-info">
+              <div class="stop-name-row">
+                <div class="stop-title-wrap">
+                  <div class="heading-towards hidden">Heading towards</div>
+                  <span class="stop-name">RANA NAGAR</span>
+                </div>
+                <span class="stop-time"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stop 4 -->
+          <div class="stop-item">
+            <div class="stop-icon-wrapper">
+              <div class="tracking-dot gray"></div>
+            </div>
+            <div class="stop-info">
+              <div class="stop-name-row">
+                <div class="stop-title-wrap">
+                  <div class="heading-towards hidden">Heading towards</div>
+                  <span class="stop-name">PALANI AANDAVAR TEMPLE</span>
+                </div>
+                <span class="stop-time"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stop 5 -->
+          <div class="stop-item">
+            <div class="stop-icon-wrapper">
+              <div class="tracking-dot gray"></div>
+            </div>
+            <div class="stop-info">
+              <div class="stop-name-row">
+                <div class="stop-title-wrap">
+                  <div class="heading-towards hidden">Heading towards</div>
+                  <span class="stop-name">NANDHA ENGINEERING COLLEGE</span>
+                </div>
+                <span class="stop-time"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Profile Page Overlay -->
+    <div id="profile-page" class="page-overlay hidden">
+      <div class="profile-header">
+        <div class="profile-name-container">
+          <h2 class="profile-user-name">Harish BR</h2>
+          <div class="profile-verification-status" id="user-verification-status">
+            <!-- Content will be populated by JS -->
+          </div>
+        </div>
+        <div class="profile-avatar">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="8" r="4" />
+            <ellipse cx="12" cy="17" rx="7" ry="3.5" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="profile-options-list vertical-list">
+        <!-- 1. Profile -->
+        <div class="profile-list-item" id="btn-personal-info">
+          <div class="pli-icon">
+            <img src="./profile.svg" alt="Profile">
+          </div>
+          <div class="pli-content">
+            <span class="pli-title">Personal info</span>
+            <span class="pli-subtitle">Update your name, photo and personal details</span>
+          </div>
+        </div>
+
+        <!-- 2. Help & Support -->
+        <div class="profile-list-item">
+          <div class="pli-icon">
+            <img src="./user-tag.svg" alt="Help & Support">
+          </div>
+          <div class="pli-content">
+            <span class="pli-title">Help & Support</span>
+            <span class="pli-subtitle">Get instant help, FAQs and customer support</span>
+          </div>
+        </div>
+
+        <!-- 3. Safety -->
+        <div class="profile-list-item">
+          <div class="pli-icon">
+            <img src="./shield-tick.svg" alt="Safety">
+          </div>
+          <div class="pli-content">
+            <span class="pli-title">Safety</span>
+            <span class="pli-subtitle">Emergency and safety features for your rides</span>
+          </div>
+        </div>
+
+        <!-- 4. About Us -->
+        <div class="profile-list-item" id="about-us-btn">
+          <div class="pli-icon">
+            <img src="./info-circle.svg" alt="About Us">
+          </div>
+          <div class="pli-content">
+            <span class="pli-title">About Us</span>
+            <span class="pli-subtitle">Learn more about NexRide and our mission</span>
+          </div>
+        </div>
+
+        <!-- 5. Refer Friends -->
+        <div class="profile-list-item">
+          <div class="pli-icon">
+            <img src="./send-square2.svg" alt="Refer Friends">
+          </div>
+          <div class="pli-content">
+            <span class="pli-title">Refer friends, unlock deals</span>
+          </div>
+        </div>
+
+        <!-- 6. Logout -->
+        <div class="profile-list-item" id="logout-btn">
+          <div class="pli-icon">
+            <img src="./logout.svg" alt="Logout">
+          </div>
+          <div class="pli-content">
+            <span class="pli-title">Logout</span>
+            <span class="pli-subtitle">Securely sign out from your account</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Personal Info Page Overlay -->
+    <div id="personal-info-page" class="page-overlay push-overlay hidden">
+      <div class="pi-header">
+        <button id="pi-back-btn" class="pi-back-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <button id="pi-edit-btn" class="pi-edit-btn">Edit</button>
+      </div>
+
+      <div class="pi-content">
+        <h1 class="pi-title">Personal info</h1>
+
+        <div class="pi-avatar-container">
+          <div class="pi-avatar-custom">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="8" r="4.5" fill="#1A73E8" />
+              <ellipse cx="12" cy="17" rx="8" ry="4" fill="#1A73E8" />
+            </svg>
+          </div>
+        </div>
+
+        <div class="pi-info-list">
+          <!-- Name -->
+          <div class="pi-row editable-row" id="row-name">
+            <div class="pi-row-content">
+              <span class="pi-label">Name</span>
+              <span class="pi-value" id="val-name">Add your name</span>
+            </div>
+            <div class="pi-chevron">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A3A3A3" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Gender -->
+          <div class="pi-row editable-row" id="row-gender">
+            <div class="pi-row-content">
+              <span class="pi-label">Gender</span>
+              <span class="pi-value" id="val-gender">Select gender</span>
+            </div>
+            <div class="pi-chevron">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A3A3A3" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Phone -->
+          <div class="pi-row disabled-row" id="row-phone">
+            <div class="pi-row-content">
+              <span class="pi-label">Phone number</span>
+              <div class="pi-value-group">
+                <span class="pi-value" id="val-phone"></span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" class="pi-verified" id="val-phone-badge"
+                  style="display: none;">
+                  <path fill="#1A73E8"
+                    d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.918-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.337 2.25c-.416-.165-.866-.25-1.336-.25-2.21 0-3.918 1.79-3.918 4 0 .495.084.965.238 1.4-1.273.65-2.148 2.02-2.148 3.6 0 1.52.81 2.84 2.015 3.51-.08.4-.117.81-.117 1.24 0 2.21 1.71 3.998 3.918 3.998.535 0 1.048-.112 1.517-.308C9.406 21.844 10.638 22.5 12 22.5s2.594-.656 3.16-1.636c.47.196.983.308 1.518.308 2.21 0 3.918-1.79 3.918-4 0-.43-.037-.84-.117-1.24 1.205-.67 2.015-1.99 2.015-3.511z" />
+                  <path fill="#FFFFFF" d="M10.453 16.52l-4.22-4.22 1.41-1.41 2.81 2.81 6.13-6.13 1.41 1.41z" />
+                </svg>
+                <span class="pi-verified-text" id="val-phone-verified-text" style="display: none;">Verified</span>
+              </div>
+            </div>
+            <div class="pi-chevron" style="visibility: hidden;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A3A3A3" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Email -->
+          <div class="pi-row editable-row" id="row-email">
+            <div class="pi-row-content">
+              <span class="pi-label">Email</span>
+              <div class="pi-value-group">
+                <span class="pi-value" id="val-email" style="color: #1A73E8;">Add email</span>
+              </div>
+            </div>
+            <div class="pi-chevron">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A3A3A3" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Nav Bar -->
+    <nav id="bottom-nav">
+      <div class="nav-item active" id="nav-home">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <g clip-path="url(#clip0_3261_13119)">
+            <path
+              d="M20.12 10.49C19.9 11.29 19.2 11.83 18.37 11.83C17.54 11.83 16.84 11.3 16.62 10.49L16.28 9.24999C16.11 8.64999 15.65 8.18999 15.05 8.01999L13.78 7.67999C13 7.45999 12.47 6.75999 12.47 5.93999C12.47 5.11999 13 4.40999 13.82 4.17999L14.2 4.07999L13.55 3.57999C12.11 2.45999 10.08 2.45999 8.63997 3.57999L2.63997 8.24999C1.65997 9.00999 1.08997 10.17 1.08997 11.41V18.56C1.08997 20.77 2.87997 22.56 5.08997 22.56H17.09C19.3 22.56 21.09 20.77 21.09 18.56V11.41C21.09 10.64 20.85 9.90999 20.45 9.27999L20.12 10.49ZM11.84 18.56C11.84 18.97 11.5 19.31 11.09 19.31C10.68 19.31 10.34 18.97 10.34 18.56V15.56C10.34 15.15 10.68 14.81 11.09 14.81C11.5 14.81 11.84 15.15 11.84 15.56V18.56Z" />
+            <path
+              d="M22.87 5.95994C22.87 6.04994 22.82 6.25994 22.58 6.33994L21.31 6.68994C20.22 6.98994 19.4 7.80994 19.1 8.89994L18.76 10.1399C18.68 10.4199 18.46 10.4499 18.36 10.4499C18.26 10.4499 18.04 10.4199 17.96 10.1399L17.62 8.88994C17.32 7.80994 16.49 6.98994 15.41 6.68994L14.16 6.34994C13.89 6.26994 13.86 6.03994 13.86 5.94994C13.86 5.84994 13.89 5.61994 14.16 5.53994L15.42 5.20994C16.5 4.89994 17.32 4.07994 17.62 2.99994L17.98 1.68994C18.07 1.46994 18.27 1.43994 18.36 1.43994C18.45 1.43994 18.66 1.46994 18.74 1.66994L19.1 2.98994C19.4 4.06994 20.23 4.88994 21.31 5.19994L22.6 5.54994C22.86 5.64994 22.87 5.87994 22.87 5.95994Z" />
+          </g>
+          <defs>
+            <clipPath id="clip0_3261_13119">
+              <rect width="24" height="24" fill="white" />
+            </clipPath>
+          </defs>
+        </svg>
+        <span>Home</span>
+      </div>
+      <div class="nav-item" id="nav-live">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <g clip-path="url(#clip0_4418_8039)">
+            <path
+              d="M11.97 2C6.44997 2 1.96997 6.48 1.96997 12C1.96997 17.52 6.44997 22 11.97 22C17.49 22 21.97 17.52 21.97 12C21.97 6.48 17.5 2 11.97 2ZM12 16.23C9.65997 16.23 7.76997 14.34 7.76997 12C7.76997 9.66 9.65997 7.77 12 7.77C14.34 7.77 16.23 9.66 16.23 12C16.23 14.34 14.34 16.23 12 16.23Z" />
+          </g>
+          <defs>
+            <clipPath id="clip0_4418_8039">
+              <rect width="24" height="24" fill="white" />
+            </clipPath>
+          </defs>
+        </svg>
+        <span>Live</span>
+      </div>
+      <div class="nav-item" id="nav-profile">
+        <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+          <path
+            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+        </svg>
+        <span>Profile</span>
+      </div>
+    </nav>
+  </div>
+
+  <!-- Google Maps JS API -->
+  <script>
+    (g => { var h, a, k, p = "The Google Maps JavaScript API", c = "google", l = "importLibrary", q = "__ib__", m = document, b = window; b = b[c] || (b[c] = {}); var d = b.maps || (b.maps = {}), r = new Set, e = new URLSearchParams, u = () => h || (h = new Promise(async (f, n) => { await (a = m.createElement("script")); e.set("libraries", [...r] + ""); for (k in g) e.set(k.replace(/[A-Z]/g, t => "_" + t[0].toLowerCase()), g[k]); e.set("callback", c + ".maps." + q); a.src = `https://maps.${c}apis.com/maps/api/js?` + e; d[q] = f; a.onerror = () => h = n(Error(p + " could not load.")); a.nonce = m.querySelector("script[nonce]")?.nonce || ""; m.head.append(a) })); d[l] ? console.warn(p + " only loads once. Ignoring:", g) : d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n)) })({
+      key: "%VITE_GOOGLE_MAPS_API_KEY%",
+      v: "weekly",
+    });
+  </script>
+  <!-- Update Profile Page Overlay -->
+  <div id="update-profile-page" class="page-overlay push-overlay hidden">
+    <div class="up-header">
+      <button id="up-back-btn" class="up-back-btn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      <h2 class="up-title">Update Profile</h2>
+      <div style="width: 24px;"></div> <!-- spacer -->
+    </div>
+
+    <div class="up-content">
+      <div class="up-form-group">
+        <label class="up-label">Full Name (Helps driver to confirm it is you)*</label>
+        <input type="text" id="up-input-name" class="up-input" placeholder="Enter Full Name" />
+      </div>
+
+      <div class="up-form-group">
+        <label class="up-label">Mobile Number</label>
+        <input type="text" id="up-input-phone" class="up-input up-input-disabled" disabled placeholder="Phone Number" />
+      </div>
+
+      <div class="up-form-group">
+        <label class="up-label">Email ID</label>
+        <input type="email" id="up-input-email" class="up-input" placeholder="Enter Your Email" />
+      </div>
+
+      <div class="up-form-group">
+        <label class="up-label">Gender</label>
+        <div class="up-select-wrapper">
+          <select id="up-input-gender" class="up-select">
+            <option value="Male">MALE</option>
+            <option value="Female">FEMALE</option>
+            <option value="Other">OTHER</option>
+            <option value="Prefer not to say">PREFER NOT TO SAY</option>
+          </select>
+          <svg class="up-select-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111111"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+      </div>
+
+      <span id="up-error-msg" class="up-error-msg hidden"></span>
+    </div>
+
+    <div class="up-bottom-container">
+      <button id="up-continue-btn" class="up-continue-btn">Continue</button>
+    </div>
+  </div>
+  </div>
+
+  <!-- About Us Page Overlay -->
+  <div id="about-us-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; overflow-y: auto; height: 100vh; z-index: 2000;">
+    <!-- Header -->
+    <div class="top-bar"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
+      <button id="back-about-us" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
+        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">About Us</span>
+      </div>
+    </div>
+
+    <!-- Content Container -->
+    <div style="padding: 24px 20px; padding-bottom: 80px;">
+      <!-- Description Text -->
+      <div style="margin-bottom: 32px;">
+        <p style="font-weight: 600; color: #111827; line-height: 1.6; font-size: 14px; margin: 0; text-align: justify;">
+          NexRide is a smart mobility platform designed to modernize bus transportation through intelligent technology.
+          We provide real-time bus tracking and seamless route management. Our platform enhances coordination between
+          passengers, drivers, and transport operators. NexRide improves travel efficiency, safety, and convenience for
+          everyday commuters. We are committed to building the future of connected and reliable transportation.
+        </p>
+      </div>
+
+      <!-- Buttons Section -->
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 24px;">
+        <button id="terms-btn"
+          style="background: transparent; color: #6B7280; font-weight: 600; border: none; box-shadow: none; cursor: pointer;">Terms & Conditions</button>
+        <button id="privacy-btn"
+          style="background: transparent; color: #6B7280; font-weight: 600; border: none; box-shadow: none; cursor: pointer;">Privacy Policy</button>
+      </div>
+
+
+
+    </div>
+  </div>
+
+  <!-- Terms Page Overlay -->
+  <div id="terms-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; overflow-y: auto; height: 100vh; z-index: 3000;">
+    <!-- Header -->
+    <div class="top-bar" style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
+      <button id="back-terms" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
+        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Terms and Conditions</span>
+      </div>
+    </div>
+    <!-- Content Container -->
+    <div style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
+        <p><strong>TERMS AND CONDITIONS</strong></p>
+        <p>This mobile application/platform i.e. NexRide (the “App”) is owned and operated by NexRide (the “Platform”). By accessing or using this App, You agree to be bound by these Terms and Conditions (“Terms”). If You do not agree to these Terms, please refrain from using this App.</p>
+        <p>This document is an electronic record generated by a computer system and does not require physical or digital signatures.</p>
+        <p>NexRide provides technology-based software services enabling Users (“Users”) to access transportation-related services including live bus tracking, route discovery, stop information, ETA updates, and travel assistance (“Services”). These Terms govern the relationship between You and NexRide regarding the use of the App and Services.</p>
+
+        <p><strong>1. REGISTRATION AND ACCOUNT</strong></p>
+        <p>1.1 Certain features of the App may require account registration using accurate and updated information.</p>
+        <p>1.2 Users are responsible for maintaining the confidentiality of their login credentials and all activities performed through their account.</p>
+        <p>1.3 NexRide reserves the right to suspend or terminate accounts containing false, misleading, or unauthorized information.</p>
+
+        <p><strong>2. SERVICES</strong></p>
+        <p>2.1 The App enables Users to view live bus locations, routes, stop details, and estimated arrival times.</p>
+        <p>2.2 NexRide makes reasonable efforts to ensure accurate real-time information; however, data accuracy may be affected by GPS limitations, network interruptions, traffic conditions, or operational delays.</p>
+        <p>2.3 Service availability may vary depending on location, operator availability, and technical conditions.</p>
+
+        <p><strong>3. USER OBLIGATIONS</strong></p>
+        <p>3.1 Users shall use the App only for lawful and authorized purposes.</p>
+        <p>3.2 Users shall not attempt to disrupt, damage, reverse engineer, or gain unauthorized access to the App or its systems.</p>
+        <p>3.3 Misuse of the platform may result in restricted access or account termination.</p>
+
+        <p><strong>4. LIMITATION OF LIABILITY</strong></p>
+        <p>4.1 NexRide shall not be liable for delays, route changes, missed buses, traffic disruptions, or service interruptions caused by third-party operators or external factors.</p>
+        <p>4.2 NexRide functions as a technology platform and does not directly operate transport vehicles unless otherwise stated.</p>
+
+        <p><strong>5. PRIVACY AND DATA</strong></p>
+        <p>5.1 NexRide may collect necessary data including location and travel-related information to improve service quality and user experience.</p>
+        <p>5.2 User data shall be handled in accordance with applicable privacy and data protection standards.</p>
+
+        <p><strong>6. MODIFICATION OF SERVICES</strong></p>
+        <p>6.1 NexRide reserves the right to modify, suspend, or discontinue any service or feature without prior notice.</p>
+
+        <p><strong>7. ACCEPTANCE</strong></p>
+        <p>By continuing to use NexRide, You acknowledge that You have read, understood, and agreed to these Terms and Conditions.</p>
+    </div>
+  </div>
+
+  <!-- Privacy Page Overlay -->
+  <div id="privacy-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; overflow-y: auto; height: 100vh; z-index: 3000;">
+    <!-- Header -->
+    <div class="top-bar" style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
+      <button id="back-privacy" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
+        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Privacy Policy</span>
+      </div>
+    </div>
+    <!-- Content Container -->
+    <div style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
+        <p><strong>PRIVACY POLICY</strong></p>
+        <p>This Privacy Policy describes how NexRide (the “App”, “Platform”, “We”, “Us”, or “Our”) collects, uses, stores, and protects the information of users (“You” or “Users”) while accessing or using our services. By using NexRide, You agree to the collection and use of information in accordance with this Privacy Policy.</p>
+        <p>This document is an electronic record generated by a computer system and does not require any physical or digital signature.</p>
+        <p>NexRide is committed to protecting user privacy and ensuring that personal information is handled securely and responsibly.</p>
+
+        <p><strong>1. INFORMATION WE COLLECT</strong></p>
+        <p>1.1 NexRide may collect personal information including, but not limited to, name, mobile number, email address, and account-related details during registration or usage of the App.</p>
+        <p>1.2 We may collect location-related information, including real-time GPS data, to provide live tracking, route assistance, ETA calculations, and other location-based services.</p>
+        <p>1.3 We may automatically collect device-related information such as device model, operating system, IP address, app version, and usage analytics for service improvement.</p>
+        
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+        <p><strong>2. USE OF INFORMATION</strong></p>
+        <p>2.1 Information collected is used to provide, maintain, and improve NexRide services.</p>
+        <p>2.2 User data may be used to enable live bus tracking, route planning, service optimization, and better travel assistance.</p>
+        <p>2.3 Information may also be used to enhance platform security, detect misuse, and improve user experience.</p>
+        
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+        <p><strong>3. DATA SHARING</strong></p>
+        <p>3.1 NexRide does not sell, rent, or trade personal information to third parties.</p>
+        <p>3.2 Information may be shared with trusted service providers or partners only when necessary for service delivery, technical support, or legal compliance.</p>
+        <p>3.3 We may disclose information if required by law, regulation, or lawful government request.</p>
+
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+        <p><strong>4. DATA SECURITY</strong></p>
+        <p>4.1 NexRide implements reasonable technical and organizational measures to protect user data against unauthorized access, misuse, alteration, or disclosure.</p>
+        <p>4.2 While we strive to protect all information, no digital system can guarantee absolute security.</p>
+
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+        <p><strong>5. LOCATION DATA</strong></p>
+        <p>5.1 Certain NexRide features require access to device location to provide accurate real-time services.</p>
+        <p>5.2 Users may disable location permissions at any time; however, some features may not function properly without location access.</p>
+
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+        <p><strong>6. DATA RETENTION</strong></p>
+        <p>6.1 User information shall be retained only for as long as necessary to provide services, comply with legal obligations, or resolve disputes.</p>
+        <p>6.2 Unnecessary or outdated data may be deleted or anonymized periodically.</p>
+
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+        <p><strong>7. USER RIGHTS</strong></p>
+        <p>7.1 Users may request access, correction, or deletion of their personal information, subject to applicable laws and service requirements.</p>
+        <p>7.2 Users may contact NexRide for privacy-related concerns or requests.</p>
+
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+        <p><strong>8. CHANGES TO PRIVACY POLICY</strong></p>
+        <p>8.1 NexRide reserves the right to modify or update this Privacy Policy at any time.</p>
+        <p>8.2 Continued use of the App after updates constitutes acceptance of the revised Privacy Policy.</p>
+
+        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+        <p><strong>9. ACCEPTANCE</strong></p>
+        <p>By accessing or using NexRide, You acknowledge that You have read, understood, and agreed to this Privacy Policy.</p>
+    </div>
+  </div>
+
+  <!-- Auth Page Overlay (Mobile Number) -->
+  <div id="auth-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; height: 100vh; z-index: 5000; display: flex; flex-direction: column;">
+    
+    <!-- Back Button Header -->
+    <div style="padding: 24px 20px 16px; display: flex; align-items: center;">
+      <button id="back-from-auth" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      </button>
+    </div>
+
+    <div style="flex: 1; padding: 0 24px 0;">
+      <!-- Headings directly above input -->
+      <h1 style="font-size: 26px; font-weight: 800; color: #111827; margin: 0 0 8px 0; letter-spacing: -0.5px; text-align: left;">Let’s Get Started</h1>
+      <p style="font-size: 15px; color: #6B7280; margin: 0 0 24px 0; text-align: left;">Enter your mobile number to continue</p>
+      
+      <!-- Input Area -->
+      <div class="phone-input-group">
+        <div class="country-code">
+          <span>+91</span>
+        </div>
+        <input type="tel" id="mobile-input" pattern="[0-9]*" inputmode="numeric" maxlength="10" placeholder="Mobile Number" />
+      </div>
+    </div>
+
+    <!-- Bottom Action -->
+    <div id="auth-bottom-wrapper" class="bottom-action-wrapper" style="padding: 24px; padding-bottom: 40px;">
+      <div id="recaptcha-container" style="margin-bottom: 16px; display: flex; justify-content: center;"></div>
+      <p style="font-size: 13px; color: #6B7280; line-height: 1.5; text-align: center; margin: 0 0 16px 0;">
+        By continuing, you agree to our <span id="auth-terms-link" style="color: #2563EB; font-weight: 600; cursor: pointer;">Terms & Conditions</span> and <span id="auth-privacy-link" style="color: #2563EB; font-weight: 600; cursor: pointer;">Privacy Policy</span>
+      </p>
+      <button id="auth-continue-btn" class="btn-gradient" disabled>Continue</button>
+    </div>
+  </div>
+
+  <!-- OTP Verification Overlay -->
+  <div id="otp-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; height: 100vh; z-index: 6000; display: flex; flex-direction: column;">
+    <!-- Header -->
+    <div style="padding: 24px 20px; display: flex; align-items: center;">
+      <button id="back-to-auth" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      </button>
+    </div>
+
+    <div style="padding: 0 24px;">
+      <h1 style="font-size: 26px; font-weight: 800; color: #111827; margin: 0 0 8px 0; letter-spacing: -0.5px;">OTP Verification</h1>
+      <p style="font-size: 15px; color: #6B7280; margin: 0; line-height: 1.5;">Enter the 6-digit OTP sent to <br><strong style="color: #111827;" id="otp-sent-number">+91 XXXXX XXXXX</strong></p>
+
+      <!-- OTP Inputs -->
+      <div class="otp-container" style="display: flex; justify-content: space-between; margin-top: 32px; margin-bottom: 12px;">
+        <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
+        <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
+        <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
+        <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
+        <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
+        <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
+      </div>
+      <div id="otp-error" class="error-text hidden" style="text-align: center;">Invalid OTP. Please try again</div>
+    </div>
+
+    <!-- Bottom Actions -->
+    <div id="otp-bottom-wrapper" class="bottom-action-wrapper" style="margin-top: auto; padding: 24px; padding-bottom: 40px; text-align: center;">
+      <div style="margin-bottom: 24px; font-size: 14px; color: #6B7280;">
+        <span id="resend-countdown">Resend OTP in 30s</span>
+        <span id="resend-btn" class="hidden" style="color: #2563EB; font-weight: 600; cursor: pointer;">Resend OTP</span>
+      </div>
+      <button id="verify-otp-btn" class="btn-gradient">Verify OTP</button>
+    </div>
+  </div>
+
+  <script type="module" src="./auth-ui.js?v=3"></script>
+  <script type="module" src="./main.js"></script>
+  <script type="module" src="./live-tracking.js"></script>
+  <script type="module" src="./sheet.js"></script>
+  <script type="module" src="./profile.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Bus Simulator Driver Page</title>
+  <style>
+    :root {
+      --primary: #3B82F6;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --surface: #ffffff;
+      --bg: #F8FAFC;
+      --text: #0F172A;
+      --text-light: #64748B;
+      --border: #E2E8F0;
+    }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    header {
+      background: var(--surface);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      z-index: 10;
+    }
+    .header-left {
+      display: flex;
+      flex-direction: column;
+    }
+    h1 { margin: 0; font-size: 20px; font-weight: 700; }
+    .bus-num { color: var(--text-light); font-size: 14px; font-weight: 600; margin-top: 4px; }
+    .status-badge { padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px; background: var(--border); color: var(--text-light); }
+    .status-running { background: #DCFCE7; color: var(--success); }
+    .status-paused { background: #FEF3C7; color: var(--warning); }
+    .status-completed { background: #DBEAFE; color: var(--primary); }
+
+    .layout { display: flex; flex: 1; overflow: hidden; }
+    .map-container { flex: 2; position: relative; background: #e2e8f0; }
+    #map { width: 100%; height: 100%; }
+    
+    .panel {
+      flex: 1;
+      min-width: 320px;
+      max-width: 420px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+    
+    .section { padding: 20px; border-bottom: 1px solid var(--border); }
+    .section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text); }
+
+    .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    button { padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.2s; color: white; }
+    button:active { opacity: 0.8; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    #btn-start { background: var(--success); grid-column: span 2; }
+    #btn-pause { background: var(--warning); display: none; }
+    #btn-resume { background: var(--primary); display: none; }
+    #btn-reset { background: var(--danger); display: none; grid-column: span 2; }
+
+    /* Mode Toggle */
+    .mode-toggle { display: flex; background: var(--bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+    .mode-toggle input { display: none; }
+    .mode-toggle label { flex: 1; text-align: center; padding: 10px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-light); transition: 0.2s; }
+    .mode-toggle input:checked + label { background: var(--primary); color: white; }
+
+    .stat-label { font-size: 12px; color: var(--text-light); font-weight: 600; }
+    .manual-controls-wrap { margin-top: 16px; display: none; }
+    
+    input[type=range] { width: 100%; margin: 8px 0; }
+    select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: var(--bg); margin-top: 4px; outline: none; }
+
+    .stats-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: var(--bg); border-radius: 8px; }
+    .stat-value { font-size: 13px; font-weight: 700; color: var(--text); text-align: right; }
+    
+    .progress-container { margin-top: 12px; }
+    .progress-bar-bg { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; margin-top: 8px; }
+    .progress-bar-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+
+    .logs-container { flex: 1; padding: 20px; display: flex; flex-direction: column; background: #0F172A; color: #F8FAFC; overflow-y: auto; font-family: monospace; font-size: 12px; }
+    .log-entry { margin-bottom: 6px; line-height: 1.4; }
+    .log-time { color: #94A3B8; margin-right: 8px; }
+    
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .map-container { flex: 1; }
+      .panel { flex: 1; max-width: 100%; border-left: none; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-left">
+      <h1>Driver Simulation</h1>
+      <div class="bus-num">TN-33-BUS-001</div>
+    </div>
+    <div id="status-badge" class="status-badge">Idle</div>
+  </header>
+
+  <div class="layout">
+    <div class="map-container">
+      <div id="map"></div>
+    </div>
+    
+    <div class="panel">
+      <!-- Mode Selection -->
+      <div class="section">
+        <div class="section-title">Mode Selection</div>
+        <div class="mode-toggle">
+          <input type="radio" id="mode-auto" name="sim-mode" value="auto" checked>
+          <label for="mode-auto">Auto (Normal)</label>
+          <input type="radio" id="mode-manual" name="sim-mode" value="manual">
+          <label for="mode-manual">Manual</label>
+        </div>
+
+        <!-- Auto Controls -->
+        <div id="auto-controls" class="controls-grid" style="margin-top: 16px;">
+          <button id="btn-start">Start Simulation</button>
+          <button id="btn-pause">Pause</button>
+          <button id="btn-resume">Resume</button>
+          <button id="btn-reset">Reset</button>
+        </div>
+
+        <!-- Manual Controls -->
+        <div id="manual-controls" class="manual-controls-wrap">
+          <div style="margin-bottom: 12px;">
+            <label class="stat-label">Bus Position Simulator (%)</label>
+            <input type="range" id="manual-slider" min="0" max="100" value="0" step="0.1" disabled>
+          </div>
+          
+          <div style="margin-bottom: 12px;">
+            <label class="stat-label">Stop Quick Select</label>
+            <select id="manual-stop-select" disabled>
+              <option value="0">Guruvareddiyur</option>
+              <option value="1">Kuttaimuniyappan Kovil</option>
+              <option value="2">Rana Nagar</option>
+              <option value="3">Palani Aandavar Temple</option>
+              <option value="4">Nandha Engineering College</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="stat-label" style="display:block; margin-bottom:8px;">Live Status Presets (Relative to Next Stop)</label>
+            <div class="controls-grid" style="grid-template-columns: 1fr 1fr;">
+              <button class="preset-btn" data-preset="boarding" style="grid-column: span 2; background: #8B5CF6;" disabled>At Boarding Stop</button>
+              <button class="preset-btn" data-preset="300m" style="background: #3B82F6;" disabled>300m Away</button>
+              <button class="preset-btn" data-preset="100m" style="background: #10B981;" disabled>100m Away</button>
+              <button class="preset-btn" data-preset="arrived" style="background: #F59E0B;" disabled>Arrived (0m)</button>
+              <button class="preset-btn" data-preset="departed" style="background: #64748B;" disabled>Departed (+20m)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Stats -->
+      <div class="section">
+        <div class="section-title">Live & Debug Stats</div>
+        <div class="stats-grid">
+          <div class="stat-row">
+            <span class="stat-label">Current Stop</span>
+            <span class="stat-value" id="stat-current-stop">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Next Stop</span>
+            <span class="stat-value" id="stat-next-stop">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Distance to Next</span>
+            <span class="stat-value" id="stat-distance-next">-</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Polyline Index</span>
+            <span class="stat-value" id="stat-poly-index">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Speed</span>
+            <span class="stat-value" id="stat-speed">0 km/h</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Coordinates</span>
+            <span class="stat-value" id="stat-coords">0.000, 0.000</span>
+          </div>
+        </div>
+        
+        <div class="progress-container">
+          <div style="display: flex; justify-content: space-between;">
+            <span class="stat-label">Route Progress</span>
+            <span class="stat-value" id="stat-progress-text">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="stat-progress-fill" class="progress-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Logs -->
+      <div class="logs-container" id="logs-box">
+        <div class="log-entry">
+          <span class="log-time">[System]</span> Ready to start simulation.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google Maps JS API -->
+  <script>
+    (g => { var h, a, k, p = "The Google Maps JavaScript API", c = "google", l = "importLibrary", q = "__ib__", m = document, b = window; b = b[c] || (b[c] = {}); var d = b.maps || (b.maps = {}), r = new Set, e = new URLSearchParams, u = () => h || (h = new Promise(async (f, n) => { await (a = m.createElement("script")); e.set("libraries", [...r] + ""); for (k in g) e.set(k.replace(/[A-Z]/g, t => "_" + t[0].toLowerCase()), g[k]); e.set("callback", c + ".maps." + q); a.src = `https://maps.${c}apis.com/maps/api/js?` + e; d[q] = f; a.onerror = () => h = n(Error(p + " could not load.")); a.nonce = m.querySelector("script[nonce]")?.nonce || ""; m.head.append(a) })); d[l] ? console.warn(p + " only loads once. Ignoring:", g) : d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n)) })({
+      key: "%VITE_GOOGLE_MAPS_API_KEY%",
+      v: "weekly"
+    });
+  </script>
+  
+  <script type="module" src="./driver.js"></script>
+</body>
+</html>

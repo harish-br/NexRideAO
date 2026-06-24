@@ -1,0 +1,14 @@
+{
+  "name": "nexride-ao-2",
+  "version": "1.0.0",
+  "description": "NexRide App Prototype",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^1.1.0",
+    "vite": "^5.0.0"
+  }
+}
