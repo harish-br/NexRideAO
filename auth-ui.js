@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!window.recaptchaVerifier && auth) {
         console.log("[DEBUG] Initializing RecaptchaVerifier...");
         window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'invisible',
+          'size': 'normal',
           'callback': (response) => {
             console.log("[DEBUG] reCAPTCHA solved. Token:", response);
           },
@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.warn("[DEBUG] reCAPTCHA expired. Please solve again.");
           }
         });
+        window.recaptchaVerifier.render();
         console.log("[DEBUG] Recaptcha initialized successfully");
       }
     } catch (error) {
