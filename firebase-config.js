@@ -6,7 +6,7 @@ import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase
 
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    authDomain: window.location.hostname === 'localhost' ? import.meta.env.VITE_FIREBASE_AUTH_DOMAIN : window.location.hostname,
     databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
     storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
