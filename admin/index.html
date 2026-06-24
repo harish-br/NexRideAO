@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AO Software Admin</title>
   <link rel="stylesheet" href="./admin.css" />
+  <link rel="stylesheet" href="./manage-buses.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
@@ -39,11 +40,10 @@
       <div class="nav-left">
         <div class="brand-logo">AO</div>
         <ul class="nav-links">
-          <li><a href="#" class="active">Dashboard</a></li>
-          <li><a href="#">Manage Buses</a></li>
+          <li><a href="#" class="active" id="nav-dashboard">Dashboard</a></li>
+          <li><a href="#" id="nav-manage-buses">Manage Buses</a></li>
           <li><a href="#">Places</a></li>
           <li><a href="#">Routes</a></li>
-          <li><a href="#">Buses & Timings</a></li>
           <li><a href="#">Approvals</a></li>
           <li><a href="#">Audit Logs</a></li>
           <li><a href="#">Settings</a></li>
@@ -59,11 +59,14 @@
       </div>
     </nav>
 
-    <!-- MAIN CONTENT -->
+    <!-- MAIN CONTENT AREA -->
     <main class="dashboard-content">
-      <div class="page-header">
-        <h1>Dashboard</h1>
-      </div>
+
+      <!-- DASHBOARD VIEW -->
+      <div id="dashboard-view">
+        <div class="page-header">
+          <h1>Dashboard</h1>
+        </div>
 
       <!-- STAT CARDS ROW 1 -->
       <div class="stats-grid">
@@ -123,11 +126,145 @@
           </div>
         </div>
 
-      </div>
+      </div> <!-- END DASHBOARD VIEW -->
+
+      <!-- MANAGE BUSES VIEW -->
+      <div id="manage-buses-view" class="hidden">
+        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+          <h1>Manage Buses</h1>
+          <button id="add-bus-btn" class="primary-btn" style="width: auto; padding: 10px 24px;">+ Add New Bus</button>
+        </div>
+
+        <div class="table-controls">
+          <div class="search-bar" style="border: 1px solid var(--border-color);">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" id="bus-search-input" placeholder="Search by bus number / route / driver..." style="width: 250px;" />
+          </div>
+          <select id="bus-filter-select" class="filter-select">
+            <option value="all">Filter: All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="maintenance">Maintenance</option>
+          </select>
+        </div>
+
+        <div class="table-container mt-6">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Bus No</th>
+                <th>Route</th>
+                <th>Driver</th>
+                <th>Capacity</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="buses-table-body">
+              <!-- Dynamic Rows -->
+            </tbody>
+          </table>
+        </div>
+      </div> <!-- END MANAGE BUSES VIEW -->
 
     </main>
   </div>
 
+  <!-- BUS EDITOR MODAL (Hidden by default) -->
+  <div id="bus-editor-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="bus-modal-title">Add New Bus</h2>
+        <button id="close-modal-btn" class="close-btn">&times;</button>
+      </div>
+      
+      <div class="modal-body">
+        <form id="bus-editor-form">
+          <input type="hidden" id="bus-edit-id" />
+          
+          <h3 class="section-title">Basic Info</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Bus Number *</label>
+              <input type="text" id="modal-bus-no" required placeholder="e.g. 32" />
+            </div>
+            <div class="form-group">
+              <label>Bus Name</label>
+              <input type="text" id="modal-bus-name" placeholder="Optional" />
+            </div>
+            <div class="form-group">
+              <label>Registration Number</label>
+              <input type="text" id="modal-bus-reg" placeholder="e.g. TN 33 AB 1234" />
+            </div>
+            <div class="form-group">
+              <label>Bus Type</label>
+              <select id="modal-bus-type" class="filter-select" style="width: 100%;">
+                <option value="College">College</option>
+                <option value="Public">Public</option>
+                <option value="Private">Private</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Seat Capacity</label>
+              <input type="number" id="modal-bus-capacity" placeholder="e.g. 52" />
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select id="modal-bus-status" class="filter-select" style="width: 100%;">
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Maintenance">Maintenance</option>
+              </select>
+            </div>
+          </div>
+
+          <h3 class="section-title mt-6">Driver Info</h3>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Driver Name</label>
+              <input type="text" id="modal-driver-name" placeholder="e.g. Ravi Kumar" />
+            </div>
+            <div class="form-group">
+              <label>Driver Contact</label>
+              <input type="text" id="modal-driver-contact" placeholder="+91 XXXXX XXXXX" />
+            </div>
+            <div class="form-group">
+              <label>Emergency Contact</label>
+              <input type="text" id="modal-driver-emergency" placeholder="Optional" />
+            </div>
+            <div class="form-group">
+              <label>License Number</label>
+              <input type="text" id="modal-driver-license" placeholder="Optional" />
+            </div>
+          </div>
+
+          <h3 class="section-title mt-6">Route & Stops</h3>
+          <div class="form-group">
+            <label>Route Name</label>
+            <input type="text" id="modal-route-name" placeholder="e.g. Guruvareddiyur to Nandha" />
+          </div>
+          
+          <div class="stops-manager">
+            <div class="stops-header">
+              <label>Stops Lineup</label>
+              <button type="button" id="add-stop-btn" class="secondary-btn btn-small">+ Add Stop</button>
+            </div>
+            <div id="stops-container">
+              <!-- Dynamic Stops will be injected here -->
+            </div>
+          </div>
+
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" id="cancel-modal-btn" class="secondary-btn">Cancel</button>
+        <button type="button" id="save-bus-btn" class="primary-btn" style="width:auto; padding: 10px 24px;">Submit for Approval</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="./admin.js"></script>
+  <script type="module" src="./manage-buses.js"></script>
 </body>
 </html>

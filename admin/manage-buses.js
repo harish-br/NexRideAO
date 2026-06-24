@@ -1,0 +1,174 @@
+import { firestore } from '../firebase-config.js';
+import { collection, onSnapshot, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+
+// Navigation Elements
+const navDashboard = document.getElementById('nav-dashboard');
+const navManageBuses = document.getElementById('nav-manage-buses');
+const dashboardView = document.getElementById('dashboard-view');
+const manageBusesView = document.getElementById('manage-buses-view');
+
+// Manage Buses UI Elements
+const addBusBtn = document.getElementById('add-bus-btn');
+const busEditorModal = document.getElementById('bus-editor-modal');
+const closeModalBtn = document.getElementById('close-modal-btn');
+const cancelModalBtn = document.getElementById('cancel-modal-btn');
+const saveBusBtn = document.getElementById('save-bus-btn');
+const busesTableBody = document.getElementById('buses-table-body');
+const busEditorForm = document.getElementById('bus-editor-form');
+
+// Stops Logic Elements
+const addStopBtn = document.getElementById('add-stop-btn');
+const stopsContainer = document.getElementById('stops-container');
+
+// View Switching
+function switchView(view) {
+  if (view === 'dashboard') {
+    dashboardView.classList.remove('hidden');
+    manageBusesView.classList.add('hidden');
+    navDashboard.classList.add('active');
+    navManageBuses.classList.remove('active');
+  } else if (view === 'manage-buses') {
+    dashboardView.classList.add('hidden');
+    manageBusesView.classList.remove('hidden');
+    navDashboard.classList.remove('active');
+    navManageBuses.classList.add('active');
+  }
+}
+
+navDashboard.addEventListener('click', (e) => { e.preventDefault(); switchView('dashboard'); });
+navManageBuses.addEventListener('click', (e) => { e.preventDefault(); switchView('manage-buses'); });
+
+// Modal Logic
+function openModal() {
+  busEditorForm.reset();
+  stopsContainer.innerHTML = ''; // clear stops
+  document.getElementById('bus-modal-title').textContent = 'Add New Bus';
+  busEditorModal.classList.remove('hidden');
+}
+
+function closeModal() {
+  busEditorModal.classList.add('hidden');
+}
+
+addBusBtn.addEventListener('click', openModal);
+closeModalBtn.addEventListener('click', closeModal);
+cancelModalBtn.addEventListener('click', closeModal);
+
+// Dynamic Stops Logic
+let stopCount = 0;
+
+function createStopElement() {
+  stopCount++;
+  const stopDiv = document.createElement('div');
+  stopDiv.className = 'stop-item';
+  stopDiv.innerHTML = `
+    <div style="font-weight: 600; font-size: 14px; color: var(--text-secondary);">#${stopCount}</div>
+    <input type="text" placeholder="Stop Name (e.g. Rana Nagar)" class="stop-name" required />
+    <input type="time" placeholder="Arrival" class="stop-arrival" required />
+    <input type="time" placeholder="Departure" class="stop-departure" required />
+    <button type="button" class="remove-stop-btn">&times; Remove</button>
+  `;
+  
+  stopDiv.querySelector('.remove-stop-btn').addEventListener('click', () => {
+    stopDiv.remove();
+  });
+  
+  return stopDiv;
+}
+
+addStopBtn.addEventListener('click', () => {
+  stopsContainer.appendChild(createStopElement());
+});
+
+// Fetch Buses and Render Table
+const busesRef = collection(firestore, 'buses');
+onSnapshot(busesRef, (snapshot) => {
+  busesTableBody.innerHTML = ''; // clear existing
+  if (snapshot.empty) {
+    busesTableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: var(--text-secondary);">No buses found. Click Add New Bus to create one.</td></tr>`;
+    return;
+  }
+  
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    const tr = document.createElement('tr');
+    
+    // Status badge class
+    let badgeClass = 'badge-gray';
+    let status = data.status || 'Inactive';
+    if (status.toLowerCase() === 'active') badgeClass = 'badge-green';
+    else if (status.toLowerCase() === 'maintenance') badgeClass = 'badge-red';
+    
+    tr.innerHTML = `
+      <td style="font-weight:600;">${data.busNumber || '-'}</td>
+      <td>${data.route || '-'}</td>
+      <td>${data.driverName || '-'}</td>
+      <td>${data.capacity || '-'}</td>
+      <td><span class="status-badge ${badgeClass}">${status}</span></td>
+      <td>
+        <button class="action-btn view-edit-btn" data-id="${doc.id}">View/Edit</button>
+      </td>
+    `;
+    busesTableBody.appendChild(tr);
+  });
+});
+
+// Submit Bus for Approval
+saveBusBtn.addEventListener('click', async () => {
+  // Validate Form
+  if (!busEditorForm.checkValidity()) {
+    busEditorForm.reportValidity();
+    return;
+  }
+  
+  saveBusBtn.textContent = 'Submitting...';
+  saveBusBtn.disabled = true;
+  
+  try {
+    // Gather Stops
+    const stops = [];
+    const stopElements = stopsContainer.querySelectorAll('.stop-item');
+    stopElements.forEach((el, index) => {
+      stops.push({
+        order: index + 1,
+        stopName: el.querySelector('.stop-name').value,
+        arrivalTime: el.querySelector('.stop-arrival').value,
+        departureTime: el.querySelector('.stop-departure').value
+      });
+    });
+    
+    // Build Payload
+    const payload = {
+      type: 'BUS_UPDATE',
+      status: 'Pending',
+      submittedAt: serverTimestamp(),
+      data: {
+        busNumber: document.getElementById('modal-bus-no').value,
+        busName: document.getElementById('modal-bus-name').value,
+        registrationNumber: document.getElementById('modal-bus-reg').value,
+        busType: document.getElementById('modal-bus-type').value,
+        capacity: document.getElementById('modal-bus-capacity').value,
+        status: document.getElementById('modal-bus-status').value,
+        driverName: document.getElementById('modal-driver-name').value,
+        driverContact: document.getElementById('modal-driver-contact').value,
+        driverEmergency: document.getElementById('modal-driver-emergency').value,
+        driverLicense: document.getElementById('modal-driver-license').value,
+        route: document.getElementById('modal-route-name').value,
+        stops: stops
+      }
+    };
+    
+    // Write to Pending Approvals instead of Buses collection
+    await addDoc(collection(firestore, 'pending_approvals'), payload);
+    
+    alert('Bus update submitted successfully! It is now pending approval by a Super Admin.');
+    closeModal();
+    
+  } catch (error) {
+    console.error("Error submitting for approval:", error);
+    alert('Failed to submit: ' + error.message);
+  } finally {
+    saveBusBtn.textContent = 'Submit for Approval';
+    saveBusBtn.disabled = false;
+  }
+});
