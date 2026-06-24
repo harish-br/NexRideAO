@@ -106,6 +106,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- SESSION LOGIC via onAuthStateChanged ---
   if (auth) {
     onAuthStateChanged(auth, (user) => {
+      // Bypass auth entirely on localhost for development
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log("[DEBUG] Localhost detected. Bypassing auth for dev beta.");
+        authPage.classList.add('hidden');
+        otpPage.classList.add('hidden');
+        if(appContainer) appContainer.style.display = 'flex';
+        return;
+      }
+
       if (user && !user.isAnonymous) {
         console.log("[DEBUG] User is logged in securely with phone:", user.phoneNumber);
         authPage.classList.add('hidden');
