@@ -34,7 +34,7 @@ onAuthStateChanged(auth, async (user) => {
         // User is logged in, verify if they are an admin
         try {
             console.log("[ADMIN DEBUG] Verifying Admin role for UID:", user.uid);
-            const adminDocRef = doc(firestore, 'admins', user.uid);
+            const adminDocRef = doc(firestore, 'software_admin', user.uid);
             const adminDocSnap = await getDoc(adminDocRef);
 
             if (adminDocSnap.exists()) {
