@@ -400,33 +400,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         console.log("[DEBUG] after verify. result SUCCESS:", user.uid);
         
-        // Save profile data on first login
-        if (firestore && user) {
-          try {
-            const userRef = doc(firestore, 'users', user.uid);
-            const userSnap = await getDoc(userRef);
-            
-            if (!userSnap.exists()) {
-              await setDoc(userRef, {
-                uid: user.uid,
-                phone: user.phoneNumber,
-                name: "User",
-                photoURL: null,
-                createdAt: serverTimestamp(),
-                lastLogin: serverTimestamp()
-              });
-              console.log("[DEBUG] New user profile created in Firestore.");
-            } else {
-              await setDoc(userRef, {
-                lastLogin: serverTimestamp()
-              }, { merge: true });
-              console.log("[DEBUG] Existing user lastLogin updated in Firestore.");
-            }
-          } catch (dbErr) {
-            console.error("[DEBUG] Failed to save user to Firestore:", dbErr);
-          }
-        }
-        
         // Transition UI for all users upon successful OTP match
         console.log("[DEBUG] navigation start: transitioning to app container");
         authPage.classList.add('hidden');

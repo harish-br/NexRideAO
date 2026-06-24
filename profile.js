@@ -76,7 +76,20 @@ async function fetchUserProfile(uid) {
                 valEmail.textContent = data.email;
                 valEmail.style.color = '#111111';
             }
+            // Update lastLogin
+            await setDoc(docRef, { lastLogin: serverTimestamp() }, { merge: true });
         } else {
+            // Create default user profile in database
+            await setDoc(docRef, {
+                uid: uid,
+                phone: currentUser && currentUser.phoneNumber ? currentUser.phoneNumber : "",
+                name: "User",
+                photoURL: null,
+                createdAt: serverTimestamp(),
+                lastLogin: serverTimestamp()
+            });
+            console.log("[DEBUG] Default user profile created in Firestore.");
+            
             // New User flow: Automatically push the Update Profile screen
             openUpdateProfile();
         }
