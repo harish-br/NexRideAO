@@ -1,0 +1,377 @@
+/* admin.css */
+
+:root {
+  --bg-color: #FAFAFA;
+  --nav-bg: #2563EB; /* Vibrant Blue */
+  --nav-text: #FFFFFF;
+  --nav-active: rgba(255, 255, 255, 0.2);
+  --text-primary: #111827;
+  --text-secondary: #6B7280;
+  --border-color: #E5E7EB;
+  --card-bg: #FFFFFF;
+  --color-green: #059669;
+  --color-red: #DC2626;
+  --color-green-bg: #D1FAE5;
+  --font-family: 'Inter', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.mt-4 { margin-top: 1rem; }
+.mt-6 { margin-top: 1.5rem; }
+.mt-8 { margin-top: 2rem; }
+
+/* -----------------------------
+   LOGIN PAGE
+----------------------------- */
+.admin-login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: var(--bg-color);
+}
+
+.login-card {
+  background: var(--card-bg);
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.login-header p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.form-group input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-family: var(--font-family);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus {
+  border-color: var(--nav-bg);
+}
+
+.error-msg {
+  color: var(--color-red);
+  font-size: 14px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.primary-btn {
+  width: 100%;
+  background-color: var(--nav-bg);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.primary-btn:hover {
+  background-color: #1D4ED8;
+}
+
+/* -----------------------------
+   DASHBOARD NAV
+----------------------------- */
+.admin-dashboard-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.top-navbar {
+  background-color: var(--nav-bg);
+  color: var(--nav-text);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 64px;
+}
+
+.nav-left, .nav-right {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.brand-logo {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -1px;
+}
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  gap: 8px;
+}
+
+.nav-links a {
+  color: var(--nav-text);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 999px;
+  transition: background-color 0.2s;
+}
+
+.nav-links a:hover, .nav-links a.active {
+  background-color: var(--nav-active);
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  background-color: white;
+  border-radius: 999px;
+  padding: 6px 16px;
+  width: 250px;
+}
+
+.search-icon {
+  color: var(--text-secondary);
+  margin-right: 8px;
+}
+
+.search-bar input {
+  border: none;
+  outline: none;
+  font-size: 14px;
+  width: 100%;
+  font-family: var(--font-family);
+}
+
+.logout-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.5);
+  color: white;
+  padding: 6px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.logout-btn:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+/* -----------------------------
+   DASHBOARD CONTENT
+----------------------------- */
+.dashboard-content {
+  padding: 40px 64px;
+  flex: 1;
+}
+
+.page-header h1 {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--text-primary);
+  margin-bottom: 32px;
+  letter-spacing: -1px;
+}
+
+/* STATS GRID */
+.stats-grid {
+  display: flex;
+  gap: 24px;
+}
+
+.stat-card {
+  background: var(--card-bg);
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  flex: 1;
+  min-width: 200px;
+  border: 1px solid var(--border-color);
+}
+
+.stat-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.text-green { color: var(--color-green); }
+.text-red { color: var(--color-red); }
+
+/* WIDGETS GRID */
+.widgets-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.widget-card {
+  background: var(--card-bg);
+  padding: 32px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  border: 1px solid var(--border-color);
+}
+
+.widget-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  letter-spacing: -0.5px;
+}
+
+/* RECENT UPDATES */
+.updates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.update-item {
+  display: flex;
+  gap: 16px;
+}
+
+.update-icon {
+  font-size: 18px;
+  color: var(--text-primary);
+  margin-top: 2px;
+}
+
+.update-title {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.update-desc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.update-meta {
+  font-size: 12px;
+  color: #9CA3AF;
+}
+
+/* SYSTEM STATUS */
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.status-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.status-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.badge-green {
+  background-color: var(--color-green-bg);
+  color: var(--color-green);
+}
+
+.status-info {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+  .top-navbar {
+    flex-direction: column;
+    height: auto;
+    padding: 16px;
+    gap: 16px;
+  }
+  .nav-links {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .search-bar {
+    width: 100%;
+  }
+  .dashboard-content {
+    padding: 24px;
+  }
+  .stats-grid {
+    flex-wrap: wrap;
+  }
+  .widgets-grid {
+    grid-template-columns: 1fr;
+  }
+}
