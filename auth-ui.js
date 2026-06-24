@@ -14,6 +14,31 @@ const MAX_RESEND_ATTEMPTS = 3;
 // Ensure confirmationResult survives basic re-renders by attaching to window
 window.confirmationResult = window.confirmationResult || null;
 
+// Override console.log for debug panel
+const originalLog = console.log;
+const originalError = console.error;
+
+const updateDebugPanel = (msg, isError = false) => {
+  const panel = document.getElementById('mobile-debug-panel');
+  if (panel && msg && typeof msg === 'string' && msg.includes('[DEBUG]')) {
+    const div = document.createElement('div');
+    div.textContent = msg;
+    if (isError) div.style.color = '#ff4444';
+    panel.appendChild(div);
+    panel.scrollTop = panel.scrollHeight;
+  }
+};
+
+console.log = function(...args) {
+  originalLog.apply(console, args);
+  updateDebugPanel(args.join(' '));
+};
+
+console.error = function(...args) {
+  originalError.apply(console, args);
+  updateDebugPanel(args.join(' '), true);
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
   console.log("[DEBUG] Initializing Auth UI...");
 
