@@ -1,11 +1,32 @@
 import { auth } from './firebase-config.js';
-import { RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
+import { 
+  RecaptchaVerifier, 
+  signInWithPhoneNumber, 
+  onAuthStateChanged, 
+  signOut,
+  setPersistence,
+  browserLocalPersistence
+} from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 
-let confirmationResult = null;
 let resendAttempts = 0;
 const MAX_RESEND_ATTEMPTS = 3;
 
-document.addEventListener('DOMContentLoaded', () => {
+// Ensure confirmationResult survives basic re-renders by attaching to window
+window.confirmationResult = window.confirmationResult || null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log("[DEBUG] Initializing Auth UI...");
+
+  // Set Local Persistence immediately to survive mobile browser suspends
+  try {
+    if (auth) {
+      await setPersistence(auth, browserLocalPersistence);
+      console.log("[DEBUG] Auth persistence set to browserLocalPersistence");
+    }
+  } catch (err) {
+    console.error("[DEBUG] Failed to set auth persistence:", err);
+  }
+
   // Overlays
   const authPage = document.getElementById('auth-page');
   const otpPage = document.getElementById('otp-page');
@@ -35,18 +56,24 @@ document.addEventListener('DOMContentLoaded', () => {
   // Set up Firebase Recaptcha
   const setupRecaptcha = () => {
     try {
-      if (!window.recaptchaVerifier && auth) {
-        console.log("[DEBUG] Initializing RecaptchaVerifier...");
+      if (window.recaptchaVerifier) {
+        // Clear old instance before recreating to prevent memory leaks/stale state
+        window.recaptchaVerifier.clear();
+        window.recaptchaVerifier = null;
+      }
+      
+      if (auth) {
+        console.log("[DEBUG] Initializing invisible RecaptchaVerifier...");
         window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'normal',
+          'size': 'invisible', // Reverted to invisible per user request
           'callback': (response) => {
-            console.log("[DEBUG] reCAPTCHA solved. Token:", response);
+            console.log("[DEBUG] reCAPTCHA solved automatically. Token:", response);
           },
           'expired-callback': () => {
             console.warn("[DEBUG] reCAPTCHA expired. Please solve again.");
+            // Reset state if needed
           }
         });
-        window.recaptchaVerifier.render();
         console.log("[DEBUG] Recaptcha initialized successfully");
       }
     } catch (error) {
@@ -58,12 +85,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (auth) {
     onAuthStateChanged(auth, (user) => {
       if (user && !user.isAnonymous) {
-        // User is logged in securely with phone
+        console.log("[DEBUG] User is logged in securely with phone:", user.phoneNumber);
         authPage.classList.add('hidden');
         otpPage.classList.add('hidden');
         if(appContainer) appContainer.style.display = 'flex';
       } else {
-        // Not logged in or anonymous
+        console.log("[DEBUG] User not logged in. Showing auth page.");
         if(appContainer) appContainer.style.display = 'none';
         authPage.classList.remove('hidden');
         setupRecaptcha();
@@ -79,14 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const validateMobileForm = () => {
     const mobileVal = mobileInput.value.replace(/\D/g, ''); // Strip non-digits
     mobileInput.value = mobileVal; // Enforce numbers only in UI
-
-    const isValidNumber = mobileVal.length === 10;
-
-    if (isValidNumber) {
-      continueBtn.disabled = false;
-    } else {
-      continueBtn.disabled = true;
-    }
+    continueBtn.disabled = mobileVal.length !== 10;
   };
 
   if (mobileInput) {
@@ -136,70 +156,88 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 1000);
   };
 
+  // --- SEND OTP FLOW ---
   if (continueBtn) {
-    continueBtn.addEventListener('click', () => {
+    continueBtn.addEventListener('click', async () => {
       const mobileVal = mobileInput.value;
       const phoneNumber = '+91' + mobileVal;
       
+      console.log("[DEBUG] --- Sending OTP ---");
       console.log("[DEBUG] phone number formatted:", phoneNumber);
       
       continueBtn.classList.add('loading');
-      
-      console.log("[DEBUG] OTP send started...");
       continueBtn.disabled = true;
       
       try {
         if (!window.recaptchaVerifier) {
           setupRecaptcha();
         }
-        const appVerifier = window.recaptchaVerifier;
         
+        const appVerifier = window.recaptchaVerifier;
         if (!appVerifier) {
-          throw new Error("Security check failed to load. Please refresh the page and try again.");
+          throw new Error("Security check failed to initialize. Please refresh the page.");
         }
 
-        signInWithPhoneNumber(auth, phoneNumber, appVerifier)
-          .then((result) => {
-            console.log("[DEBUG] Firebase OTP Send Response:", result);
-            confirmationResult = result;
-            continueBtn.classList.remove('loading');
-            otpSentNumber.textContent = `+91 ${mobileVal.substring(0, 5)} ${mobileVal.substring(5)}`;
-            
-            // Reset OTP inputs
-            otpInputs.forEach(input => {
-              input.value = '';
-              input.classList.remove('error');
-            });
-            otpError.classList.add('hidden');
+        console.log("[DEBUG] Calling signInWithPhoneNumber...");
+        const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+        
+        console.log("[DEBUG] Firebase OTP Send Response SUCCESS.");
+        window.confirmationResult = result;
+        
+        otpSentNumber.textContent = `+91 ${mobileVal.substring(0, 5)} ${mobileVal.substring(5)}`;
+        
+        // Reset OTP inputs
+        otpInputs.forEach(input => {
+          input.value = '';
+          input.classList.remove('error');
+        });
+        otpError.classList.add('hidden');
 
-            authPage.classList.add('hidden');
-            otpPage.classList.remove('hidden');
-            
-            // Toast Notification
-            alert("OTP sent successfully to " + phoneNumber);
-            
-            startResendCountdown();
-            setTimeout(() => otpInputs[0].focus(), 100);
-          }).catch((error) => {
-            console.error("[DEBUG] OTP Send Error:", error.code, error.message);
-            continueBtn.classList.remove('loading');
-            continueBtn.disabled = false;
-            alert("Firebase Error (" + error.code + "):\n" + error.message);
-            
-            // Reset reCAPTCHA so user can try again
-            if (window.recaptchaVerifier && typeof grecaptcha !== 'undefined') {
-              window.recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId)).catch(e => console.error("Recaptcha reset error", e));
-            }
-          });
-      } catch (err) {
-        console.error("[DEBUG] Synchronous OTP Send Error:", err);
+        // Navigate to OTP Screen
+        console.log("[DEBUG] Navigation start: transitioning to OTP page");
+        authPage.classList.add('hidden');
+        otpPage.classList.remove('hidden');
+        
+        // Optional Toast
+        console.log("[DEBUG] OTP sent successfully to", phoneNumber);
+        
+        startResendCountdown();
+        setTimeout(() => otpInputs[0].focus(), 100);
+
+      } catch (error) {
+        console.error("[DEBUG] OTP Send Error:", error.code, error.message);
+        
+        let errorMsg = "Failed to send OTP: " + error.message;
+        if (error.code === 'auth/too-many-requests') {
+          errorMsg = "Too many attempts. Please try again later or use a different number.";
+        } else if (error.code === 'auth/billing-not-enabled') {
+          errorMsg = "Firebase billing issue detected. Please check project settings.";
+        } else if (error.code === 'auth/captcha-check-failed') {
+          errorMsg = "Security check failed. Check if domain is authorized in Firebase.";
+        }
+        
+        alert(errorMsg);
+        
+        // Reset reCAPTCHA so user can try again
+        try {
+          if (window.recaptchaVerifier && typeof grecaptcha !== 'undefined') {
+            await window.recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId));
+          } else {
+             setupRecaptcha(); // Re-initialize if completely broken
+          }
+        } catch (resetErr) {
+          console.error("[DEBUG] Failed to reset reCAPTCHA:", resetErr);
+          setupRecaptcha();
+        }
+      } finally {
+        console.log("[DEBUG] Removing loading state from Send OTP button");
         continueBtn.classList.remove('loading');
         continueBtn.disabled = false;
-        alert("Error: " + err.message);
       }
     });
   }
 
+  // --- BACK BUTTON LOGIC ---
   if (backToAuthBtn) {
     backToAuthBtn.addEventListener('click', () => {
       otpPage.classList.add('hidden');
@@ -208,12 +246,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- RESEND OTP FLOW ---
   if (resendBtn) {
-    resendBtn.addEventListener('click', () => {
+    resendBtn.addEventListener('click', async () => {
       if (resendAttempts >= MAX_RESEND_ATTEMPTS) return;
+      
+      console.log("[DEBUG] --- Resending OTP ---");
       resendAttempts++;
       
-      // Simulate sending OTP again via Firebase
       startResendCountdown();
       otpInputs.forEach(input => {
         input.value = '';
@@ -222,26 +262,28 @@ document.addEventListener('DOMContentLoaded', () => {
       otpError.classList.add('hidden');
       
       const phoneNumber = '+91' + mobileInput.value;
+      resendBtn.classList.add('loading');
+      
       try {
         const appVerifier = window.recaptchaVerifier;
-        if (!appVerifier) throw new Error("Security check missing. Please refresh.");
+        if (!appVerifier) throw new Error("Security check missing. Please go back and refresh.");
         
-        signInWithPhoneNumber(auth, phoneNumber, appVerifier)
-          .then((result) => {
-            confirmationResult = result;
-            otpInputs[0].focus();
-          }).catch((error) => {
-            console.error("Resend SMS failed", error);
-            alert("Firebase Error: " + error.message);
-          });
-      } catch (err) {
-        console.error("Synchronous Resend Error:", err);
-        alert("Error: " + err.message);
+        console.log("[DEBUG] Calling signInWithPhoneNumber for Resend...");
+        const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+        
+        console.log("[DEBUG] Resend OTP Send Response SUCCESS.");
+        window.confirmationResult = result;
+        otpInputs[0].focus();
+      } catch (error) {
+        console.error("[DEBUG] Resend SMS failed", error);
+        alert("Failed to resend OTP: " + error.message);
+      } finally {
+        resendBtn.classList.remove('loading');
       }
     });
   }
 
-  // Auto-advance OTP inputs
+  // --- AUTO-ADVANCE OTP INPUTS ---
   otpInputs.forEach((input, index) => {
     input.addEventListener('input', (e) => {
       // Allow only numbers
@@ -286,9 +328,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Verify OTP
+  // --- VERIFY OTP FLOW ---
   if (verifyOtpBtn) {
-    verifyOtpBtn.addEventListener('click', () => {
+    verifyOtpBtn.addEventListener('click', async () => {
       const otp = Array.from(otpInputs).map(input => input.value).join('');
       
       if (otp.length < 6) {
@@ -298,69 +340,71 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      console.log("[DEBUG] --- Verifying OTP ---");
+      console.log("[DEBUG] before verify. OTP:", otp);
+      
       verifyOtpBtn.classList.add('loading');
       verifyOtpBtn.disabled = true;
-      console.log("[DEBUG] Verification started with OTP:", otp);
       
       try {
-        if (confirmationResult) {
-          confirmationResult.confirm(otp).then((result) => {
-            console.log("[DEBUG] Verification result SUCCESS:", result);
-            verifyOtpBtn.classList.remove('loading');
-            verifyOtpBtn.disabled = false;
-            
-            // Transition UI for all users upon successful OTP match
-            authPage.classList.add('hidden');
-            otpPage.classList.add('hidden');
-            if(appContainer) appContainer.style.display = 'flex';
-            
-          }).catch((error) => {
-            console.error("[DEBUG] Verification error:", error.code, error.message);
-            verifyOtpBtn.classList.remove('loading');
-            verifyOtpBtn.disabled = false;
-            otpInputs.forEach(input => input.classList.add('error'));
-            
-            let errorMessage = "Invalid OTP. Please try again.";
-            if (error.code === 'auth/invalid-verification-code') {
-              errorMessage = "Invalid OTP. Please check and try again.";
-            } else if (error.code === 'auth/code-expired') {
-              errorMessage = "OTP expired. Please request a new OTP.";
-            } else if (error.code === 'auth/too-many-requests') {
-              errorMessage = "Too many attempts. Please try again later.";
-            } else {
-              errorMessage = "Verification failed: " + error.message;
-            }
-            
-            otpError.textContent = errorMessage;
-            otpError.classList.remove('hidden');
-          });
-        } else {
-          console.warn("[DEBUG] confirmationResult is null");
-          verifyOtpBtn.classList.remove('loading');
-          verifyOtpBtn.disabled = false;
-          alert("Session expired. Please request a new OTP.");
+        if (!window.confirmationResult) {
+          throw new Error("Session expired. Please request a new OTP.");
         }
-      } catch (err) {
-        console.error("[DEBUG] Synchronous Verify Error:", err);
+        
+        console.log("[DEBUG] Calling confirmationResult.confirm()...");
+        const result = await window.confirmationResult.confirm(otp);
+        
+        console.log("[DEBUG] after verify. result SUCCESS:", result.user.uid);
+        
+        // Transition UI for all users upon successful OTP match
+        console.log("[DEBUG] navigation start: transitioning to app container");
+        authPage.classList.add('hidden');
+        otpPage.classList.add('hidden');
+        if(appContainer) appContainer.style.display = 'flex';
+        
+      } catch (error) {
+        console.error("[DEBUG] Verification error:", error);
+        
+        otpInputs.forEach(input => input.classList.add('error'));
+        
+        let errorMessage = "Invalid OTP. Please try again.";
+        if (error.message.includes('Session expired')) {
+           errorMessage = error.message;
+        } else if (error.code === 'auth/invalid-verification-code') {
+          errorMessage = "Invalid OTP. Please check and try again.";
+        } else if (error.code === 'auth/code-expired') {
+          errorMessage = "OTP expired. Please request a new OTP.";
+        } else if (error.code === 'auth/too-many-requests') {
+          errorMessage = "Too many attempts. Please try again later.";
+        } else if (error.code === 'auth/network-request-failed') {
+          errorMessage = "Network error. Please check your internet connection.";
+        } else {
+          errorMessage = "Verification failed: " + error.message;
+        }
+        
+        otpError.textContent = errorMessage;
+        otpError.classList.remove('hidden');
+      } finally {
+        console.log("[DEBUG] Removing loading state from Verify OTP button");
         verifyOtpBtn.classList.remove('loading');
         verifyOtpBtn.disabled = false;
-        otpInputs.forEach(input => input.classList.add('error'));
-        otpError.textContent = "An error occurred: " + err.message;
-        otpError.classList.remove('hidden');
       }
     });
   }
 
   // --- LOGOUT LOGIC ---
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
+    logoutBtn.addEventListener('click', async () => {
+      console.log("[DEBUG] --- Logging Out ---");
       if (auth) {
-        signOut(auth).then(() => {
+        try {
+          await signOut(auth);
+          console.log("[DEBUG] Sign out successful");
           if (profilePage) profilePage.classList.add('hidden');
           // onAuthStateChanged handles showing the auth screen
-        }).catch((error) => {
-          console.error("Sign out error", error);
-        });
+        } catch (error) {
+          console.error("[DEBUG] Sign out error", error);
+        }
       }
     });
   }
