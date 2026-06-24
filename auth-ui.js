@@ -1,4 +1,4 @@
-import { auth } from './firebase-config.js';
+import { auth, firestore } from './firebase-config.js';
 import { 
   RecaptchaVerifier, 
   signInWithPhoneNumber, 
@@ -10,6 +10,7 @@ import {
   indexedDBLocalPersistence,
   setPersistence
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
+import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 // --- GLOBAL ERROR CAPTURE ---
 window.onerror = (msg, src, line, col, err) => {
@@ -395,8 +396,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         console.log("[DEBUG] Calling confirmationResult.confirm()...");
         const result = await window.confirmationResult.confirm(otp);
+        const user = result.user;
         
-        console.log("[DEBUG] after verify. result SUCCESS:", result.user.uid);
+        console.log("[DEBUG] after verify. result SUCCESS:", user.uid);
+        
+        // Save profile data on first login
+        if (firestore && user) {
+          try {
+            const userRef = doc(firestore, 'users', user.uid);
+            const userSnap = await getDoc(userRef);
+            
+            if (!userSnap.exists()) {
+              await setDoc(userRef, {
+                uid: user.uid,
+                phone: user.phoneNumber,
+                name: "User",
+                photoURL: null,
+                createdAt: serverTimestamp(),
+                lastLogin: serverTimestamp()
+              });
+              console.log("[DEBUG] New user profile created in Firestore.");
+            } else {
+              await setDoc(userRef, {
+                lastLogin: serverTimestamp()
+              }, { merge: true });
+              console.log("[DEBUG] Existing user lastLogin updated in Firestore.");
+            }
+          } catch (dbErr) {
+            console.error("[DEBUG] Failed to save user to Firestore:", dbErr);
+          }
+        }
         
         // Transition UI for all users upon successful OTP match
         console.log("[DEBUG] navigation start: transitioning to app container");
