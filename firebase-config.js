@@ -22,7 +22,10 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
         app = initializeApp(firebaseConfig);
         db = getDatabase(app);
         auth = getAuth(app);
-        firestore = getFirestore(app);
+        
+        // Connect to the specific named database 'nexrideao' instead of '(default)'
+        firestore = getFirestore(app, "nexrideao");
+        
         console.log("Firebase initialized successfully");
     } catch (error) {
         console.error("Firebase initialization failed:", error);
