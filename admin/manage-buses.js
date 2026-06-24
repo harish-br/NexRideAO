@@ -42,7 +42,14 @@ navManageBuses.addEventListener('click', (e) => { e.preventDefault(); switchView
 function openModal() {
   busEditorForm.reset();
   stopsContainer.innerHTML = ''; // clear stops
-  document.getElementById('bus-modal-title').textContent = 'Add New Bus';
+  document.getElementById('bus-modal-title').textContent = 'Bus Control Center';
+  
+  // Reset tabs to first tab
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  document.querySelector('[data-tab="tab-overview"]').classList.add('active');
+  document.getElementById('tab-overview').classList.remove('hidden');
+
   busEditorModal.classList.remove('hidden');
 }
 
@@ -53,6 +60,38 @@ function closeModal() {
 addBusBtn.addEventListener('click', openModal);
 closeModalBtn.addEventListener('click', closeModal);
 cancelModalBtn.addEventListener('click', closeModal);
+
+// Tab Switching Logic
+document.querySelectorAll('.tab-item').forEach(tab => {
+  tab.addEventListener('click', () => {
+    // Remove active class from all tabs and hide panels
+    document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    
+    // Add active class to clicked tab and show corresponding panel
+    tab.classList.add('active');
+    const targetPanel = document.getElementById(tab.getAttribute('data-tab'));
+    if (targetPanel) {
+      targetPanel.classList.remove('hidden');
+    }
+  });
+});
+
+// Dropdown Menu Logic
+document.addEventListener('click', (e) => {
+  // Close all open dropdowns if clicking outside
+  if (!e.target.matches('.action-menu-btn')) {
+    document.querySelectorAll('.action-menu').forEach(menu => menu.classList.remove('show'));
+  } else {
+    // Toggle the clicked menu
+    const menu = e.target.closest('.action-menu');
+    // Close others
+    document.querySelectorAll('.action-menu').forEach(m => {
+      if (m !== menu) m.classList.remove('show');
+    });
+    if (menu) menu.classList.toggle('show');
+  }
+});
 
 // Dynamic Stops Logic
 let stopCount = 0;
@@ -106,7 +145,16 @@ onSnapshot(busesRef, (snapshot) => {
       <td>${data.capacity || '-'}</td>
       <td><span class="status-badge ${badgeClass}">${status}</span></td>
       <td>
-        <button class="action-btn view-edit-btn" data-id="${doc.id}">View/Edit</button>
+        <button class="action-btn view-edit-btn" data-id="${doc.id}">Edit</button>
+        <div class="action-menu">
+          <button class="action-menu-btn">⋮</button>
+          <div class="action-menu-content">
+            <a href="#" class="duplicate-btn">Duplicate</a>
+            <a href="#" class="archive-btn">Archive</a>
+            <a href="#" class="history-btn">View History</a>
+            <a href="#" class="delete-btn" style="color:var(--color-red);">Delete</a>
+          </div>
+        </div>
       </td>
     `;
     busesTableBody.appendChild(tr);
@@ -154,7 +202,21 @@ saveBusBtn.addEventListener('click', async () => {
         driverEmergency: document.getElementById('modal-driver-emergency').value,
         driverLicense: document.getElementById('modal-driver-license').value,
         route: document.getElementById('modal-route-name').value,
-        stops: stops
+        stops: stops,
+        schedules: {
+          morningDeparture: document.getElementById('modal-sch-morning-dep').value,
+          morningArrival: document.getElementById('modal-sch-morning-arr').value,
+          eveningDeparture: document.getElementById('modal-sch-evening-dep').value,
+          eveningArrival: document.getElementById('modal-sch-evening-arr').value
+        },
+        liveTracking: {
+          crowdLevel: document.getElementById('modal-crowd-level').value,
+          status: document.getElementById('modal-live-status').value
+        },
+        alerts: {
+          type: document.getElementById('modal-alert-type').value,
+          message: document.getElementById('modal-alert-msg').value
+        }
       }
     };
     

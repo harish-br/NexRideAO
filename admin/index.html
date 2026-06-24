@@ -172,89 +172,177 @@
 
   <!-- BUS EDITOR MODAL (Hidden by default) -->
   <div id="bus-editor-modal" class="modal-overlay hidden">
-    <div class="modal-content">
+    <div class="modal-content modal-large">
       <div class="modal-header">
-        <h2 id="bus-modal-title">Add New Bus</h2>
+        <h2 id="bus-modal-title">Bus Control Center</h2>
         <button id="close-modal-btn" class="close-btn">&times;</button>
       </div>
       
-      <div class="modal-body">
-        <form id="bus-editor-form">
-          <input type="hidden" id="bus-edit-id" />
-          
-          <h3 class="section-title">Basic Info</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Bus Number *</label>
-              <input type="text" id="modal-bus-no" required placeholder="e.g. 32" />
-            </div>
-            <div class="form-group">
-              <label>Bus Name</label>
-              <input type="text" id="modal-bus-name" placeholder="Optional" />
-            </div>
-            <div class="form-group">
-              <label>Registration Number</label>
-              <input type="text" id="modal-bus-reg" placeholder="e.g. TN 33 AB 1234" />
-            </div>
-            <div class="form-group">
-              <label>Bus Type</label>
-              <select id="modal-bus-type" class="filter-select" style="width: 100%;">
-                <option value="College">College</option>
-                <option value="Public">Public</option>
-                <option value="Private">Private</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Seat Capacity</label>
-              <input type="number" id="modal-bus-capacity" placeholder="e.g. 52" />
-            </div>
-            <div class="form-group">
-              <label>Status</label>
-              <select id="modal-bus-status" class="filter-select" style="width: 100%;">
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-                <option value="Maintenance">Maintenance</option>
-              </select>
-            </div>
-          </div>
+      <div class="modal-body split-layout">
+        
+        <!-- LEFT SIDEBAR: TABS -->
+        <div class="modal-sidebar">
+          <ul class="tab-list">
+            <li class="tab-item active" data-tab="tab-overview">Overview</li>
+            <li class="tab-item" data-tab="tab-driver">Driver</li>
+            <li class="tab-item" data-tab="tab-route">Route & Stops</li>
+            <li class="tab-item" data-tab="tab-schedules">Schedules</li>
+            <li class="tab-item" data-tab="tab-live">Live & Crowd</li>
+            <li class="tab-item" data-tab="tab-alerts">Alerts</li>
+          </ul>
+        </div>
 
-          <h3 class="section-title mt-6">Driver Info</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Driver Name</label>
-              <input type="text" id="modal-driver-name" placeholder="e.g. Ravi Kumar" />
-            </div>
-            <div class="form-group">
-              <label>Driver Contact</label>
-              <input type="text" id="modal-driver-contact" placeholder="+91 XXXXX XXXXX" />
-            </div>
-            <div class="form-group">
-              <label>Emergency Contact</label>
-              <input type="text" id="modal-driver-emergency" placeholder="Optional" />
-            </div>
-            <div class="form-group">
-              <label>License Number</label>
-              <input type="text" id="modal-driver-license" placeholder="Optional" />
-            </div>
-          </div>
+        <!-- RIGHT CONTENT: TAB PANELS -->
+        <div class="modal-main-content">
+          <form id="bus-editor-form">
+            <input type="hidden" id="bus-edit-id" />
 
-          <h3 class="section-title mt-6">Route & Stops</h3>
-          <div class="form-group">
-            <label>Route Name</label>
-            <input type="text" id="modal-route-name" placeholder="e.g. Guruvareddiyur to Nandha" />
-          </div>
-          
-          <div class="stops-manager">
-            <div class="stops-header">
-              <label>Stops Lineup</label>
-              <button type="button" id="add-stop-btn" class="secondary-btn btn-small">+ Add Stop</button>
+            <!-- TAB 1: OVERVIEW -->
+            <div id="tab-overview" class="tab-panel active">
+              <h3 class="section-title">Basic Info</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Bus Number *</label>
+                  <input type="text" id="modal-bus-no" required placeholder="e.g. 32" />
+                </div>
+                <div class="form-group">
+                  <label>Bus Name</label>
+                  <input type="text" id="modal-bus-name" placeholder="Optional" />
+                </div>
+                <div class="form-group">
+                  <label>Registration Number</label>
+                  <input type="text" id="modal-bus-reg" placeholder="e.g. TN 33 AB 1234" />
+                </div>
+                <div class="form-group">
+                  <label>Bus Type</label>
+                  <select id="modal-bus-type" class="filter-select" style="width: 100%;">
+                    <option value="College">College</option>
+                    <option value="Public">Public</option>
+                    <option value="Private">Private</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Seat Capacity</label>
+                  <input type="number" id="modal-bus-capacity" placeholder="e.g. 52" />
+                </div>
+                <div class="form-group">
+                  <label>Status</label>
+                  <select id="modal-bus-status" class="filter-select" style="width: 100%;">
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Maintenance">Maintenance</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div id="stops-container">
-              <!-- Dynamic Stops will be injected here -->
-            </div>
-          </div>
 
-        </form>
+            <!-- TAB 2: DRIVER -->
+            <div id="tab-driver" class="tab-panel hidden">
+              <h3 class="section-title">Driver Info</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Driver Name</label>
+                  <input type="text" id="modal-driver-name" placeholder="e.g. Ravi Kumar" />
+                </div>
+                <div class="form-group">
+                  <label>Driver Contact</label>
+                  <input type="text" id="modal-driver-contact" placeholder="+91 XXXXX XXXXX" />
+                </div>
+                <div class="form-group">
+                  <label>Emergency Contact</label>
+                  <input type="text" id="modal-driver-emergency" placeholder="Optional" />
+                </div>
+                <div class="form-group">
+                  <label>License Number</label>
+                  <input type="text" id="modal-driver-license" placeholder="Optional" />
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 3: ROUTE & STOPS -->
+            <div id="tab-route" class="tab-panel hidden">
+              <h3 class="section-title">Route & Stops</h3>
+              <div class="form-group">
+                <label>Route Name</label>
+                <input type="text" id="modal-route-name" placeholder="e.g. Guruvareddiyur to Nandha" />
+              </div>
+              
+              <div class="stops-manager">
+                <div class="stops-header">
+                  <label>Stops Lineup</label>
+                  <button type="button" id="add-stop-btn" class="secondary-btn btn-small">+ Add Stop</button>
+                </div>
+                <div id="stops-container">
+                  <!-- Dynamic Stops will be injected here -->
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 4: SCHEDULES -->
+            <div id="tab-schedules" class="tab-panel hidden">
+              <h3 class="section-title">Schedules</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Morning Departure</label>
+                  <input type="time" id="modal-sch-morning-dep" />
+                </div>
+                <div class="form-group">
+                  <label>Morning Arrival</label>
+                  <input type="time" id="modal-sch-morning-arr" />
+                </div>
+                <div class="form-group">
+                  <label>Evening Departure</label>
+                  <input type="time" id="modal-sch-evening-dep" />
+                </div>
+                <div class="form-group">
+                  <label>Evening Arrival</label>
+                  <input type="time" id="modal-sch-evening-arr" />
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 5: LIVE & CROWD -->
+            <div id="tab-live" class="tab-panel hidden">
+              <h3 class="section-title">Live & Crowd Monitoring</h3>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Crowd Level</label>
+                  <select id="modal-crowd-level" class="filter-select" style="width: 100%;">
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Full">Full</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Live Status</label>
+                  <select id="modal-live-status" class="filter-select" style="width: 100%;">
+                    <option value="Running">Running</option>
+                    <option value="Halted">Halted</option>
+                    <option value="Offline">Offline</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- TAB 6: ALERTS -->
+            <div id="tab-alerts" class="tab-panel hidden">
+              <h3 class="section-title">Notification Alerts</h3>
+              <div class="form-group">
+                <label>Send Alert to Users</label>
+                <select id="modal-alert-type" class="filter-select" style="width: 100%; margin-bottom: 12px;">
+                  <option value="">-- Select Alert Type --</option>
+                  <option value="Delay Alert">Delay Alert</option>
+                  <option value="Route Change Alert">Route Change Alert</option>
+                  <option value="Bus Cancelled Alert">Bus Cancelled Alert</option>
+                  <option value="Emergency Alert">Emergency Alert</option>
+                </select>
+                <textarea id="modal-alert-msg" placeholder="Type custom alert message here..." style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-family: var(--font-family); resize: vertical; min-height: 80px;"></textarea>
+              </div>
+            </div>
+
+          </form>
+        </div>
       </div>
 
       <div class="modal-footer">
