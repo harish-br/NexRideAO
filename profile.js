@@ -77,10 +77,12 @@ async function fetchUserProfile(uid) {
                 valEmail.style.color = '#111111';
             }
             // Update lastLogin
-            await setDoc(docRef, { lastLogin: serverTimestamp() }, { merge: true });
+            const updatePromise = setDoc(docRef, { lastLogin: serverTimestamp() }, { merge: true });
+            const timeoutPromise1 = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
+            await Promise.race([updatePromise, timeoutPromise1]).catch(e => console.warn("Background update lastLogin timeout", e));
         } else {
             // Create default user profile in database
-            await setDoc(docRef, {
+            const createPromise = setDoc(docRef, {
                 uid: uid,
                 phone: currentUser && currentUser.phoneNumber ? currentUser.phoneNumber : "",
                 name: "User",
@@ -88,6 +90,9 @@ async function fetchUserProfile(uid) {
                 createdAt: serverTimestamp(),
                 lastLogin: serverTimestamp()
             });
+            const timeoutPromise2 = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
+            await Promise.race([createPromise, timeoutPromise2]).catch(e => console.warn("Background create profile timeout", e));
+            
             console.log("[DEBUG] Default user profile created in Firestore.");
             
             // New User flow: Automatically push the Update Profile screen
@@ -168,7 +173,15 @@ upContinueBtn.addEventListener('click', async () => {
         
         if (firestore && currentUser) {
             const docRef = doc(firestore, 'users', currentUser.uid);
-            await setDoc(docRef, data, { merge: true });
+            console.log("[DEBUG] Calling setDoc for user:", currentUser.uid);
+            
+            const savePromise = setDoc(docRef, data, { merge: true });
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Timeout: Could not reach Firebase. Check if your Firestore database is created in the console and your internet is stable.")), 10000)
+            );
+            
+            await Promise.race([savePromise, timeoutPromise]);
+            console.log("[DEBUG] setDoc successful!");
         } else {
             console.warn("Firestore/Auth not initialized. Simulating save locally.");
         }
