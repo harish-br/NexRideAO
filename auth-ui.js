@@ -88,18 +88,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       
       if (auth) {
-        console.log("[DEBUG] Initializing invisible RecaptchaVerifier on Continue Button...");
-        // BIND DIRECTLY TO THE BUTTON to fix Safari iOS Trusted Event limits
-        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'auth-continue-btn', {
+        console.log("[DEBUG] Initializing invisible RecaptchaVerifier...");
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
           'size': 'invisible', 
           'callback': (response) => {
             console.log("[DEBUG] reCAPTCHA solved automatically. Token:", response);
-            // ReCAPTCHA solved, proceed to send OTP!
-            onSignInSubmit();
           },
           'expired-callback': () => {
             console.warn("[DEBUG] reCAPTCHA expired. Please solve again.");
-            // Reset state if needed
           }
         });
         console.log("[DEBUG] Recaptcha initialized successfully");
@@ -185,80 +181,84 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   // --- SEND OTP FLOW ---
-  // The click is now intercepted by Firebase RecaptchaVerifier bound to the button.
-  // When the invisible reCAPTCHA passes, it triggers this callback:
-  const onSignInSubmit = async () => {
-    const mobileVal = mobileInput.value;
-    const phoneNumber = '+91' + mobileVal;
-    
-    console.log("[DEBUG] --- Sending OTP ---");
-    console.log("[DEBUG] phone number formatted:", phoneNumber);
-    
-    continueBtn.classList.add('loading');
-    continueBtn.disabled = true;
-    
-    try {
-      const appVerifier = window.recaptchaVerifier;
-      if (!appVerifier) {
-        throw new Error("Security check failed to initialize. Please refresh the page.");
-      }
-
-      console.log("[DEBUG] Calling signInWithPhoneNumber...");
-      const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+  if (continueBtn) {
+    continueBtn.addEventListener('click', async () => {
+      const mobileVal = mobileInput.value;
+      const phoneNumber = '+91' + mobileVal;
       
-      console.log("[DEBUG] Firebase OTP Send Response SUCCESS.");
-      window.confirmationResult = result;
+      console.log("[DEBUG] --- Sending OTP ---");
+      console.log("[DEBUG] phone number formatted:", phoneNumber);
       
-      otpSentNumber.textContent = `+91 ${mobileVal.substring(0, 5)} ${mobileVal.substring(5)}`;
+      continueBtn.classList.add('loading');
+      continueBtn.disabled = true;
       
-      // Reset OTP inputs
-      otpInputs.forEach(input => {
-        input.value = '';
-        input.classList.remove('error');
-      });
-      otpError.classList.add('hidden');
-
-      // Navigate to OTP Screen
-      console.log("[DEBUG] Navigation start: transitioning to OTP page");
-      authPage.classList.add('hidden');
-      otpPage.classList.remove('hidden');
-      
-      console.log("[DEBUG] OTP sent successfully to", phoneNumber);
-      
-      startResendCountdown();
-      setTimeout(() => otpInputs[0].focus(), 100);
-
-    } catch (error) {
-      console.error("[DEBUG] OTP Send Error:", error.code, error.message);
-      
-      let errorMsg = "Failed to send OTP: " + error.message;
-      if (error.code === 'auth/too-many-requests') {
-        errorMsg = "Too many attempts. Please try again later or use a different number.";
-      } else if (error.code === 'auth/billing-not-enabled') {
-        errorMsg = "Firebase billing issue detected. Please check project settings.";
-      } else if (error.code === 'auth/captcha-check-failed') {
-        errorMsg = "Security check failed. Check if domain is authorized in Firebase.";
-      }
-      
-      alert(errorMsg);
-      
-      // Reset reCAPTCHA so user can try again
       try {
-        if (window.recaptchaVerifier && typeof grecaptcha !== 'undefined') {
-          await window.recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId));
-        } else {
-           setupRecaptcha(); // Re-initialize if completely broken
+        if (!window.recaptchaVerifier) {
+          setupRecaptcha();
         }
-      } catch (resetErr) {
-        console.error("[DEBUG] Failed to reset reCAPTCHA:", resetErr);
-        setupRecaptcha();
+
+        const appVerifier = window.recaptchaVerifier;
+        if (!appVerifier) {
+          throw new Error("Security check failed to initialize. Please refresh the page.");
+        }
+
+        console.log("[DEBUG] Calling signInWithPhoneNumber...");
+        const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+        
+        console.log("[DEBUG] Firebase OTP Send Response SUCCESS.");
+        window.confirmationResult = result;
+        
+        otpSentNumber.textContent = `+91 ${mobileVal.substring(0, 5)} ${mobileVal.substring(5)}`;
+        
+        // Reset OTP inputs
+        otpInputs.forEach(input => {
+          input.value = '';
+          input.classList.remove('error');
+        });
+        otpError.classList.add('hidden');
+
+        // Navigate to OTP Screen
+        console.log("[DEBUG] Navigation start: transitioning to OTP page");
+        authPage.classList.add('hidden');
+        otpPage.classList.remove('hidden');
+        
+        console.log("[DEBUG] OTP sent successfully to", phoneNumber);
+        
+        startResendCountdown();
+        setTimeout(() => otpInputs[0].focus(), 100);
+
+      } catch (error) {
+        console.error("[DEBUG] OTP Send Error:", error.code, error.message);
+        
+        let errorMsg = "Failed to send OTP: " + error.message;
+        if (error.code === 'auth/too-many-requests') {
+          errorMsg = "Too many attempts. Please try again later or use a different number.";
+        } else if (error.code === 'auth/billing-not-enabled') {
+          errorMsg = "Firebase billing issue detected. Please check project settings.";
+        } else if (error.code === 'auth/captcha-check-failed') {
+          errorMsg = "Security check failed. Check if domain is authorized in Firebase.";
+        }
+        
+        alert(errorMsg);
+        
+        // Reset reCAPTCHA so user can try again
+        try {
+          if (window.recaptchaVerifier && typeof grecaptcha !== 'undefined') {
+            await window.recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId));
+          } else {
+             setupRecaptcha(); // Re-initialize if completely broken
+          }
+        } catch (resetErr) {
+          console.error("[DEBUG] Failed to reset reCAPTCHA:", resetErr);
+          setupRecaptcha();
+        }
+      } finally {
+        console.log("[DEBUG] Removing loading state from Send OTP button");
+        continueBtn.classList.remove('loading');
+        continueBtn.disabled = false;
       }
-    } finally {
-      console.log("[DEBUG] Removing loading state from Send OTP button");
-      continueBtn.classList.remove('loading');
-      continueBtn.disabled = false;
-    }
-  };
+    });
+  }
 
   // --- BACK BUTTON LOGIC ---
   if (backToAuthBtn) {
