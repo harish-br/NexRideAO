@@ -185,7 +185,8 @@
           </div>
         </div>
         <div class="profile-avatar">
-          <svg viewBox="0 0 24 24" fill="currentColor">
+          <img id="main-profile-img" class="hidden" alt="Profile Photo" />
+          <svg id="default-profile-svg" viewBox="0 0 24 24" fill="currentColor">
             <circle cx="12" cy="8" r="4" />
             <ellipse cx="12" cy="17" rx="7" ry="3.5" />
           </svg>
@@ -419,6 +420,24 @@
     </div>
 
     <div class="up-content">
+      <div class="up-photo-section">
+        <div class="up-photo-container" id="up-photo-container">
+          <img id="up-profile-preview" class="hidden" alt="Profile Preview" />
+          <svg id="up-default-svg" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="8" r="4" />
+            <ellipse cx="12" cy="17" rx="7" ry="3.5" />
+          </svg>
+          <div class="up-photo-overlay">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </div>
+        </div>
+        <input type="file" id="up-input-photo" accept="image/*" class="hidden" />
+      </div>
+
       <div class="up-form-group">
         <label class="up-label">Full Name (Helps driver to confirm it is you)*</label>
         <input type="text" id="up-input-name" class="up-input" placeholder="Enter Full Name" />

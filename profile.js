@@ -1,6 +1,7 @@
-import { auth, firestore } from './firebase-config.js';
+import { auth, firestore, storage } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
 
 let currentUser = null;
 
@@ -23,6 +24,15 @@ const upInputEmail = document.getElementById('up-input-email');
 const upInputGender = document.getElementById('up-input-gender');
 const upErrorMsg = document.getElementById('up-error-msg');
 const upContinueBtn = document.getElementById('up-continue-btn');
+
+// Photo DOM
+const mainProfileImg = document.getElementById('main-profile-img');
+const defaultProfileSvg = document.getElementById('default-profile-svg');
+const upPhotoContainer = document.getElementById('up-photo-container');
+const upInputPhoto = document.getElementById('up-input-photo');
+const upProfilePreview = document.getElementById('up-profile-preview');
+const upDefaultSvg = document.getElementById('up-default-svg');
+let selectedPhotoFile = null;
 
 // Initial Load / Auth State
 if (auth) {
@@ -54,6 +64,18 @@ function resetToDefault() {
     valEmail.textContent = "Add email";
     valEmail.style.color = '#1A73E8';
     valPhone.textContent = "";
+    
+    if (mainProfileImg) {
+        mainProfileImg.src = "";
+        mainProfileImg.classList.add('hidden');
+    }
+    if (defaultProfileSvg) defaultProfileSvg.classList.remove('hidden');
+    
+    if (upProfilePreview) {
+        upProfilePreview.src = "";
+        upProfilePreview.classList.add('hidden');
+    }
+    if (upDefaultSvg) upDefaultSvg.classList.remove('hidden');
     phoneBadge.style.display = 'none';
     phoneVerifiedText.style.display = 'none';
     upInputPhone.value = "";
@@ -75,6 +97,19 @@ async function fetchUserProfile(uid) {
             if (data.email) {
                 valEmail.textContent = data.email;
                 valEmail.style.color = '#111111';
+            }
+            if (data.photoURL) {
+                if (mainProfileImg) {
+                    mainProfileImg.src = data.photoURL;
+                    mainProfileImg.classList.remove('hidden');
+                }
+                if (defaultProfileSvg) defaultProfileSvg.classList.add('hidden');
+                
+                if (upProfilePreview) {
+                    upProfilePreview.src = data.photoURL;
+                    upProfilePreview.classList.remove('hidden');
+                }
+                if (upDefaultSvg) upDefaultSvg.classList.add('hidden');
             }
             // Update lastLogin
             const updatePromise = setDoc(docRef, { lastLogin: serverTimestamp() }, { merge: true });
@@ -113,6 +148,27 @@ piEditBtn.addEventListener('click', () => {
     }
     openUpdateProfile();
 });
+
+// Photo Upload Preview
+if (upPhotoContainer && upInputPhoto) {
+    upPhotoContainer.addEventListener('click', () => {
+        upInputPhoto.click();
+    });
+
+    upInputPhoto.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            selectedPhotoFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                upProfilePreview.src = e.target.result;
+                upProfilePreview.classList.remove('hidden');
+                upDefaultSvg.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
 
 upBackBtn.addEventListener('click', closeUpdateProfile);
 
@@ -171,6 +227,14 @@ upContinueBtn.addEventListener('click', async () => {
             }
         }
         
+        if (selectedPhotoFile && storage && currentUser) {
+            upContinueBtn.textContent = "Uploading photo...";
+            const photoRef = ref(storage, `profile_photos/${currentUser.uid}`);
+            await uploadBytes(photoRef, selectedPhotoFile);
+            const downloadURL = await getDownloadURL(photoRef);
+            data.photoURL = downloadURL;
+        }
+        
         if (firestore && currentUser) {
             const docRef = doc(firestore, 'users', currentUser.uid);
             console.log("[DEBUG] Calling setDoc for user:", currentUser.uid);
@@ -192,6 +256,14 @@ upContinueBtn.addEventListener('click', async () => {
         valGender.textContent = newGender;
         valEmail.textContent = newEmail;
         valEmail.style.color = '#111111';
+        
+        if (data.photoURL) {
+            if (mainProfileImg) {
+                mainProfileImg.src = data.photoURL;
+                mainProfileImg.classList.remove('hidden');
+            }
+            if (defaultProfileSvg) defaultProfileSvg.classList.add('hidden');
+        }
         
         closeUpdateProfile();
     } catch (err) {
