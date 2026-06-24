@@ -89,7 +89,10 @@ async function fetchUserProfile(uid) {
         
         if (docSnap.exists()) {
             const data = docSnap.data();
-            if (data.name) {
+            
+            const isNewUser = (!data.name || data.name === "User" || data.name === "Add your name");
+            
+            if (data.name && data.name !== "User") {
                 valName.textContent = data.name;
                 if (profileUserNameDisplay) profileUserNameDisplay.textContent = data.name;
             }
@@ -130,8 +133,16 @@ async function fetchUserProfile(uid) {
             
             console.log("[DEBUG] Default user profile created in Firestore.");
             
-            // New User flow: Automatically push the Update Profile screen
-            openUpdateProfile();
+            // New User flow: Automatically push the Update Profile screen forcefully
+            openUpdateProfile(true);
+        }
+        
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const isNewUser = (!data.name || data.name === "User" || data.name === "Add your name");
+            if (isNewUser) {
+                openUpdateProfile(true);
+            }
         }
     } catch (err) {
         console.error("Error fetching profile:", err);
@@ -172,8 +183,14 @@ if (upPhotoContainer && upInputPhoto) {
 
 upBackBtn.addEventListener('click', closeUpdateProfile);
 
-function openUpdateProfile() {
+function openUpdateProfile(force = false) {
     upErrorMsg.classList.add('hidden');
+    
+    if (force) {
+        upBackBtn.style.display = 'none'; // Hide back button for new users
+    } else {
+        upBackBtn.style.display = 'block'; // Show it for existing users
+    }
     
     // Pre-fill inputs
     upInputName.value = valName.textContent !== "Add your name" ? valName.textContent : "";
