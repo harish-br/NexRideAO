@@ -99,11 +99,11 @@
       <!-- BOTTOM WIDGETS -->
       <div class="widgets-grid mt-8">
         
-        <!-- RECENT UPDATES -->
+                <!-- RECENT UPDATES -->
         <div class="widget-card">
-          <h2>Recent Updates</h2>
-          <div class="updates-list">
-            <div style="color: var(--text-secondary); font-size: 14px;">No recent updates found.</div>
+          <h2>Recent Approvals Activity</h2>
+          <div class="updates-list" id="recent-updates-list">
+            <div style="color: var(--text-secondary); font-size: 14px;">Loading activity...</div>
           </div>
         </div>
 
@@ -112,22 +112,20 @@
           <h2>System Status</h2>
           
           <div class="status-row">
-            <span class="status-label">Database Sync:</span>
-            <span class="status-badge badge-green">Real-time Active</span>
+            <span class="status-label">Firebase Latency:</span>
+            <span class="status-badge badge-green" id="sys-latency">Checking...</span>
           </div>
           
           <div class="status-row mt-4">
-            <span class="status-label">Data Model:</span>
-            <span class="status-badge badge-green">100% Compatible</span>
+            <span class="status-label">Database Connection:</span>
+            <span class="status-badge badge-green" id="sys-connection">Checking...</span>
           </div>
 
-          <div class="status-info mt-6">
-            The dashboard is natively synced with Firestore. Any changes made here are instantly reflected in the live NexRide application without needing a manual refresh.
+          <div class="status-row mt-4">
+            <span class="status-label">Pending Approvals:</span>
+            <span class="status-badge badge-orange" id="sys-queue">Checking...</span>
           </div>
         </div>
-
-      </div>
-
       </div> <!-- END DASHBOARD VIEW -->
 
       
