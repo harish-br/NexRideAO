@@ -173,6 +173,7 @@ saveBusBtn.addEventListener('click', async () => {
       targetBusId: targetBusId,
       status: 'Pending',
       submittedAt: serverTimestamp(),
+      submittedByEmail: auth.currentUser ? auth.currentUser.email : 'admin',
       data: {
         busNumber: document.getElementById('modal-bus-no').value,
         registrationNumber: document.getElementById('modal-bus-reg').value,
