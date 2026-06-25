@@ -286,10 +286,20 @@ document.addEventListener('DOMContentLoaded', () => {
         newContactPhone.addEventListener(evt, validateForm);
       });
 
-      saveNewContactBtn.addEventListener('pointerdown', () => {
+      saveNewContactBtn.addEventListener('pointerdown', async () => {
         if(saveNewContactBtn.getAttribute('data-disabled') === 'true') return;
         
         saveNewContactBtn.setAttribute('data-disabled', 'true');
+        
+        // Show loading spinner
+        const originalText = saveNewContactBtn.innerHTML;
+        saveNewContactBtn.innerHTML = `
+          <svg style="animation: spin 1s linear infinite; height: 20px; width: 20px; margin-right: 8px; display: inline-block; vertical-align: middle;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity: 0.25;"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Saving...
+        `;
         
         const name = newContactName.value.trim();
         const phone = newContactPhone.value;
@@ -305,11 +315,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const user = auth.currentUser;
         try {
           if (user) {
-            setDoc(doc(db, 'users', user.uid), {
+            await setDoc(doc(db, 'users', user.uid), {
               trustedContacts: arrayUnion(newContact)
-            }, { merge: true }).catch(error => {
-              console.error("Error adding trusted contact (async):", error);
-            });
+            }, { merge: true });
           } else {
             localStorage.setItem('trustedContacts', JSON.stringify(currentContacts));
           }
@@ -318,6 +326,7 @@ document.addEventListener('DOMContentLoaded', () => {
           alert("Error: " + err.message);
         }
 
+        saveNewContactBtn.innerHTML = originalText;
         closeAddContactPage();
       });
     }
