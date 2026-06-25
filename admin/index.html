@@ -44,7 +44,7 @@
           <li><a href="#" id="nav-manage-buses">Manage Buses</a></li>
           <li><a href="#">Places</a></li>
           <li><a href="#">Routes</a></li>
-          <li><a href="#">Approvals</a></li>
+          <li><a href="#" id="nav-approvals">Approvals</a></li>
           <li><a href="#">Audit Logs</a></li>
           <li><a href="#">Settings</a></li>
           <li><a href="#">Legal</a></li>
@@ -168,6 +168,30 @@
           </table>
         </div>
       </div> <!-- END MANAGE BUSES VIEW -->
+
+      <!-- APPROVALS VIEW -->
+      <div id="approvals-view" class="hidden">
+        <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+          <h1>Pending Approvals</h1>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Target Bus</th>
+                <th>Submitted By / At</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="approvals-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div> <!-- END APPROVALS VIEW -->
 
     </main>
   </div>
@@ -319,5 +343,6 @@
 
   <script type="module" src="./admin.js"></script>
   <script type="module" src="./manage-buses.js"></script>
+  <script type="module" src="./approvals.js"></script>
 </body>
 </html>

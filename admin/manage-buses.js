@@ -20,29 +20,44 @@ const busEditorForm = document.getElementById('bus-editor-form');
 const addStopBtn = document.getElementById('add-stop-btn');
 const stopsContainer = document.getElementById('stops-container');
 
+const navApprovals = document.getElementById('nav-approvals');
+const approvalsView = document.getElementById('approvals-view');
+
 // View Switching
 function switchView(view) {
+  // Hide all
+  dashboardView.classList.add('hidden');
+  manageBusesView.classList.add('hidden');
+  if(approvalsView) approvalsView.classList.add('hidden');
+  
+  // Remove active state
+  navDashboard.classList.remove('active');
+  navManageBuses.classList.remove('active');
+  if(navApprovals) navApprovals.classList.remove('active');
+
+  // Show target
   if (view === 'dashboard') {
     dashboardView.classList.remove('hidden');
-    manageBusesView.classList.add('hidden');
     navDashboard.classList.add('active');
-    navManageBuses.classList.remove('active');
   } else if (view === 'manage-buses') {
-    dashboardView.classList.add('hidden');
     manageBusesView.classList.remove('hidden');
-    navDashboard.classList.remove('active');
     navManageBuses.classList.add('active');
+  } else if (view === 'approvals') {
+    if(approvalsView) approvalsView.classList.remove('hidden');
+    if(navApprovals) navApprovals.classList.add('active');
   }
 }
 
 navDashboard.addEventListener('click', (e) => { e.preventDefault(); switchView('dashboard'); });
 navManageBuses.addEventListener('click', (e) => { e.preventDefault(); switchView('manage-buses'); });
+if(navApprovals) navApprovals.addEventListener('click', (e) => { e.preventDefault(); switchView('approvals'); });
 
 // Modal Logic
-function openModal() {
+function openModal(editId = null) {
   busEditorForm.reset();
   stopsContainer.innerHTML = ''; // clear stops
-  document.getElementById('bus-modal-title').textContent = 'Bus Control Center';
+  document.getElementById('bus-edit-id').value = editId || '';
+  document.getElementById('bus-modal-title').textContent = editId ? 'Edit Bus Control Center' : 'Add New Bus Control Center';
   
   // Reset tabs to first tab
   document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
@@ -57,7 +72,7 @@ function closeModal() {
   busEditorModal.classList.add('hidden');
 }
 
-addBusBtn.addEventListener('click', openModal);
+addBusBtn.addEventListener('click', () => openModal(null));
 closeModalBtn.addEventListener('click', closeModal);
 cancelModalBtn.addEventListener('click', closeModal);
 
@@ -161,6 +176,15 @@ onSnapshot(busesRef, (snapshot) => {
     `;
     busesTableBody.appendChild(tr);
   });
+  
+  // Attach edit listeners
+  document.querySelectorAll('.view-edit-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const busId = e.target.getAttribute('data-id');
+      openModal(busId);
+      // NOTE: Here we would typically fetch the doc and populate the form
+    });
+  });
 });
 
 // Submit Bus for Approval
@@ -190,8 +214,11 @@ saveBusBtn.addEventListener('click', async () => {
     });
     
     // Build Payload
+    const targetBusId = document.getElementById('bus-edit-id').value || null;
+    
     const payload = {
-      type: 'BUS_UPDATE',
+      type: targetBusId ? 'BUS_UPDATE' : 'BUS_CREATE',
+      targetBusId: targetBusId,
       status: 'Pending',
       submittedAt: serverTimestamp(),
       data: {
