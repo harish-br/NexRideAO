@@ -105,6 +105,8 @@ function createStopElement() {
     <input type="text" placeholder="Stop Name (e.g. Rana Nagar)" class="stop-name" required />
     <input type="time" placeholder="Arrival" class="stop-arrival" required />
     <input type="time" placeholder="Departure" class="stop-departure" required />
+    <input type="number" step="any" placeholder="Latitude" class="stop-lat" />
+    <input type="number" step="any" placeholder="Longitude" class="stop-lng" />
     <button type="button" class="remove-stop-btn">&times; Remove</button>
   `;
   
@@ -181,7 +183,9 @@ saveBusBtn.addEventListener('click', async () => {
         order: index + 1,
         stopName: el.querySelector('.stop-name').value,
         arrivalTime: el.querySelector('.stop-arrival').value,
-        departureTime: el.querySelector('.stop-departure').value
+        departureTime: el.querySelector('.stop-departure').value,
+        latitude: el.querySelector('.stop-lat').value ? parseFloat(el.querySelector('.stop-lat').value) : null,
+        longitude: el.querySelector('.stop-lng').value ? parseFloat(el.querySelector('.stop-lng').value) : null
       });
     });
     
