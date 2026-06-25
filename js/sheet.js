@@ -342,6 +342,14 @@ document.addEventListener('DOMContentLoaded', () => {
       saveNewContactBtn.addEventListener('pointerdown', async () => {
         if(saveNewContactBtn.getAttribute('data-disabled') === 'true') return;
         
+        const name = newContactName.value.trim();
+        const rawPhone = newContactPhone.value.replace(/\D/g, '');
+        
+        if (!name || rawPhone.length !== 10) {
+          showToast("Invalid inputs", true);
+          return;
+        }
+        
         saveNewContactBtn.setAttribute('data-disabled', 'true');
         
         // Show loading spinner
@@ -351,45 +359,52 @@ document.addEventListener('DOMContentLoaded', () => {
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity: 0.25;"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          Saving...
+          Saving
         `;
         
         const user = auth.currentUser;
         if (!user) {
           showToast("Please login again", true);
           saveNewContactBtn.innerHTML = originalText;
-          return;
-        }
-        
-        const name = newContactName.value.trim();
-        const rawPhone = newContactPhone.value.replace(/\D/g, '');
-        
-        if (!name || rawPhone.length !== 10) {
-          saveNewContactBtn.innerHTML = originalText;
           saveNewContactBtn.setAttribute('data-disabled', 'false');
-          showToast("Invalid inputs", true);
           return;
         }
-
+        
         const phone = `+91${rawPhone}`;
 
         try {
-          await addDoc(collection(db, 'users', user.uid, 'trustedContacts'), {
+          console.log("Saving started");
+          const newDocRef = await addDoc(collection(db, 'users', user.uid, 'trustedContacts'), {
             name,
             phone,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           });
+          console.log("Firestore save success");
           
           showToast("Trusted contact saved successfully");
-          await loadTrustedContacts();
+          
+          // Optimistically update the UI so it's instantly visible
+          currentContacts.push({
+            id: newDocRef.id,
+            name: name,
+            phone: phone
+          });
+          renderContacts();
+
+          console.log("Navigating back");
           closeAddContactPage();
+          
+          // Refresh from Firestore in the background
+          loadTrustedContacts();
+          
         } catch (err) {
           console.error("Sync error in save logic:", err);
           showToast("Error: " + err.message, true);
+        } finally {
+          saveNewContactBtn.innerHTML = originalText;
+          saveNewContactBtn.setAttribute('data-disabled', 'false');
         }
-
-        saveNewContactBtn.innerHTML = originalText;
       });
     }
 
