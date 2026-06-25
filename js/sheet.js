@@ -287,7 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(saveNewContactBtn.disabled) return;
         
         saveNewContactBtn.disabled = true;
-        saveNewContactBtn.innerText = 'Saving...';
         
         const name = newContactName.value.trim();
         const phone = newContactPhone.value;
@@ -302,20 +301,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const user = auth.currentUser;
         if (user) {
-          try {
-            await setDoc(doc(db, 'users', user.uid), {
-              trustedContacts: arrayUnion(newContact)
-            }, { merge: true });
-          } catch (error) {
+          setDoc(doc(db, 'users', user.uid), {
+            trustedContacts: arrayUnion(newContact)
+          }, { merge: true }).catch(error => {
             console.error("Error adding trusted contact:", error);
-            alert("Could not save to database. Check your connection or permissions.");
-          }
+          });
         } else {
           localStorage.setItem('trustedContacts', JSON.stringify(currentContacts));
         }
 
-        saveNewContactBtn.innerText = 'Save Contact';
-        saveNewContactBtn.disabled = false;
         closeAddContactPage();
       });
     }
@@ -329,19 +323,21 @@ document.addEventListener('DOMContentLoaded', () => {
           const id = btnElem.getAttribute('data-id');
           
           const contactToRemove = currentContacts.find(c => c.id === id);
+          if (!contactToRemove) return;
+
+          const isConfirmed = window.confirm(`Are you sure you want to delete ${contactToRemove.name}?`);
+          if (!isConfirmed) return;
+
           currentContacts = currentContacts.filter(c => c.id !== id);
           renderContacts();
 
           const user = auth.currentUser;
-          if (user && contactToRemove) {
-            try {
-              await setDoc(doc(db, 'users', user.uid), {
-                trustedContacts: arrayRemove(contactToRemove)
-              }, { merge: true });
-            } catch (error) {
+          if (user) {
+            setDoc(doc(db, 'users', user.uid), {
+              trustedContacts: arrayRemove(contactToRemove)
+            }, { merge: true }).catch(error => {
               console.error("Error removing trusted contact:", error);
-              alert("Could not remove from database.");
-            }
+            });
           } else {
             localStorage.setItem('trustedContacts', JSON.stringify(currentContacts));
           }
