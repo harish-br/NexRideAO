@@ -267,26 +267,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const validateForm = () => {
         const nameValid = newContactName.value.trim().length > 0;
-        const phoneVal = newContactPhone.value.replace(/\D/g, '');
+        let phoneVal = newContactPhone.value.replace(/\D/g, '');
+        if (phoneVal.length > 10) phoneVal = phoneVal.slice(0, 10);
         newContactPhone.value = phoneVal;
         const phoneValid = phoneVal.length === 10;
         
         if(nameValid && phoneValid) {
-          saveNewContactBtn.disabled = false;
+          saveNewContactBtn.setAttribute('data-disabled', 'false');
           saveNewContactBtn.style.opacity = '1';
         } else {
-          saveNewContactBtn.disabled = true;
+          saveNewContactBtn.setAttribute('data-disabled', 'true');
           saveNewContactBtn.style.opacity = '0.5';
         }
       };
 
-      newContactName.addEventListener('input', validateForm);
-      newContactPhone.addEventListener('input', validateForm);
+      ['input', 'change'].forEach(evt => {
+        newContactName.addEventListener(evt, validateForm);
+        newContactPhone.addEventListener(evt, validateForm);
+      });
 
-      saveNewContactBtn.addEventListener('pointerdown', async () => {
-        if(saveNewContactBtn.disabled) return;
+      saveNewContactBtn.addEventListener('click', () => {
+        if(saveNewContactBtn.getAttribute('data-disabled') === 'true') return;
         
-        saveNewContactBtn.disabled = true;
+        saveNewContactBtn.setAttribute('data-disabled', 'true');
         
         const name = newContactName.value.trim();
         const phone = newContactPhone.value;
