@@ -385,7 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           console.log("Firestore save success");
           
-          showToast("Trusted contact saved successfully");
+          // Toast removed per user request
           
           // Optimistically update the UI so it's instantly visible
           currentContacts.push({
@@ -439,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderContacts();
             
             await deleteDoc(doc(db, 'users', user.uid, 'trustedContacts', id));
-            showToast("Contact deleted");
+            // Toast removed per user request
           } catch (error) {
             console.error("Error removing trusted contact:", error);
             showToast("Failed to delete contact", true);
