@@ -35,16 +35,10 @@ window.confirmationResult = window.confirmationResult || null;
 document.addEventListener('DOMContentLoaded', async () => {
   console.log("[DEBUG] Initializing Auth UI...");
 
-  // Set Persistence safely for iOS Safari PWAs
   try {
     if (auth) {
-      if (isPWA && isSafari) {
-        console.log("[DEBUG] Detected iOS PWA. Using inMemoryPersistence to bypass Safari IndexedDB blocks.");
-        await setPersistence(auth, inMemoryPersistence);
-      } else {
-        await setPersistence(auth, browserLocalPersistence);
-        console.log("[DEBUG] Auth persistence set to browserLocalPersistence");
-      }
+      await setPersistence(auth, browserLocalPersistence);
+      console.log("[DEBUG] Auth persistence forced to browserLocalPersistence");
     }
   } catch (err) {
     console.error("[DEBUG] Failed to set auth persistence:", err);
@@ -106,7 +100,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- SESSION LOGIC via onAuthStateChanged ---
   if (auth) {
+    console.log("App mounted");
+    console.log("Current user:", auth.currentUser);
+    
     onAuthStateChanged(auth, (user) => {
+      console.log("Restored user:", user);
+      
+      const splash = document.getElementById('splash-screen');
+      if (splash) splash.style.display = 'none';
+      
       // Bypass auth entirely on localhost for development
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         console.log("[DEBUG] Localhost detected. Bypassing auth for dev beta.");
@@ -130,6 +132,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   } else {
     // Fallback if Firebase fails to init
+    const splash = document.getElementById('splash-screen');
+    if (splash) splash.style.display = 'none';
     if(appContainer) appContainer.style.display = 'none';
     authPage.classList.remove('hidden');
   }
