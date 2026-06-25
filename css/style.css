@@ -19,7 +19,26 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-p, .text-muted, .subtitle, .description {
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  max-width: 100vw;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+p,
+.text-muted,
+.subtitle,
+.description {
   font-weight: 600 !important;
   color: #111827 !important;
   line-height: 1.6 !important;
@@ -41,24 +60,22 @@ body {
   font-size: 14px;
   line-height: 1.6;
   text-align: justify;
-  height: 100vh;
-  height: 100dvh;
-  /* Better mobile viewport height */
-  width: 100vw;
-  overflow: hidden;
   position: fixed;
-  /* Stop iOS body scrolling/bouncing */
   top: 0;
   left: 0;
-  /* Prevent pull-to-refresh on mobile */
+  width: 100vw;
+  height: 100dvh;
+  /* Stop iOS body scrolling/bouncing */
   overscroll-behavior-y: none;
 }
 
 #app {
   display: flex;
   flex-direction: column;
-  height: 100%;
   width: 100%;
+  max-width: 100vw;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
   position: relative;
   overflow: hidden;
   /* Clip anything that extends past 100dvh */
@@ -68,7 +85,7 @@ body {
   position: absolute;
   top: 0;
   left: 0;
-  height: 50vh;
+  height: 50dvh;
   width: 100%;
 }
 
@@ -79,10 +96,10 @@ body {
 
 #content-container {
   position: absolute;
-  top: 100vh;
+  top: 100dvh;
   /* Anchor to bottom of screen */
   left: 0;
-  height: 90vh;
+  height: 90dvh;
   /* Max expansion height */
   width: 100%;
   background: rgba(248, 248, 245, 0.9);
@@ -94,11 +111,12 @@ body {
   z-index: 10;
   display: flex;
   flex-direction: column;
-  padding: 24px 24px 180px 24px;
+  gap: 16px;
+  padding: 24px 24px calc(180px + env(safe-area-inset-bottom)) 24px;
   /* Ensure content stops above QR button */
   touch-action: none;
   /* Prevent default vertical scroll/refresh during drag */
-  transform: translateY(-50vh);
+  transform: translateY(-50dvh);
   /* Default resting position */
   will-change: transform;
 }
@@ -162,7 +180,7 @@ body {
 }
 
 header h1 {
-  font-size: 28px;
+  font-size: clamp(20px, 6vw, 28px);
   font-weight: 800;
   margin-top: 8px;
   margin-bottom: 24px;
@@ -261,21 +279,20 @@ header h1 {
 
 .inner-box,
 .inner-box-2 {
-  position: absolute;
-  left: 16px;
-  right: 16px;
+  position: relative;
+  width: 100%;
   border-radius: 15px;
   background-color: #FAFAF7;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
 }
 
 .inner-box {
-  top: 25px;
-  height: 68px;
+  height: auto;
+  min-height: 68px;
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  padding: 0 16px;
+  padding: 12px 16px;
   background-color: #2563EB;
   gap: 12px;
 }
@@ -288,7 +305,7 @@ header h1 {
 }
 
 .thirukkural-text {
-  font-size: 12px !important;
+  font-size: clamp(10px, 3vw, 12px) !important;
   font-weight: 600;
   text-align: left;
   color: #ffffff !important;
@@ -296,19 +313,16 @@ header h1 {
 }
 
 .inner-box-2 {
-  top: 109px;
-  /* 25px top + 68px height + 16px gap */
-  bottom: 24px;
-  height: 100px;
+  height: auto;
+  min-height: 100px;
+  padding: 12px 0;
 }
 
 .dashboard-box {
-  position: absolute;
-  top: 225px;
-  /* 109px + 100px + 16px gap */
-  left: 16px;
-  right: 16px;
-  height: 210px;
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 358 / 210;
   border-radius: 20px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
   overflow: hidden;
@@ -318,7 +332,7 @@ header h1 {
 }
 
 .dashboard-title {
-  font-size: 18px;
+  font-size: clamp(16px, 4.5vw, 18px);
   font-weight: 700;
   color: #111111;
   letter-spacing: 0.5px;
@@ -327,13 +341,9 @@ header h1 {
 }
 
 .promo-box {
-  position: absolute;
-  top: 451px;
-  /* 225px + 210px + 16px gap */
-  left: 25px;
-  right: 25px;
-  height: 210px;
-  /* Adjust this to change the card's height */
+  position: relative;
+  width: 100%;
+  height: 80%;
   border-radius: 20px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
   overflow: hidden;
@@ -342,9 +352,8 @@ header h1 {
 
 .promo-img {
   width: 100%;
-  height: 20;
+  height: 100%;
   object-fit: cover;
-  display: block;
 }
 
 .transit-options {
@@ -488,14 +497,14 @@ header h1 {
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 86px;
+  height: calc(86px + env(safe-area-inset-bottom));
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
   justify-content: space-evenly;
   align-items: center;
-  padding-bottom: 20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
   /* Safe area inset */
   border-top-left-radius: 0px;
   border-top-right-radius: 0px;
@@ -543,7 +552,7 @@ header h1 {
   top: 0;
   left: 0;
   width: 100%;
-  height: calc(100vh - 86px);
+  height: calc(100dvh - 86px - env(safe-area-inset-bottom));
   background: white;
   z-index: 50;
 }
@@ -579,7 +588,7 @@ header h1 {
 /* Profile Header - Uber Layout */
 .profile-header {
   position: absolute;
-  top: 32px;
+  top: calc(32px + env(safe-area-inset-top));
   left: 24px;
   right: 24px;
   display: flex;
@@ -639,13 +648,13 @@ header h1 {
 
 .profile-options-list {
   position: absolute;
-  top: 130px;
+  top: calc(130px + env(safe-area-inset-top));
   left: 0;
   right: 0;
   bottom: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 24px 40px 24px;
+  padding: 0 24px calc(40px + env(safe-area-inset-bottom)) 24px;
   gap: 14px;
   overflow-y: auto;
   -ms-overflow-style: none;

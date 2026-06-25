@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let snapPoints = {
     DEFAULT: -vhToPx(60), // Exactly bottom half
-    FULL: -vhToPx(95) // Caps at 70vh so the 25vh marker remains visible above it
+    FULL: -(window.innerHeight - 120) // Leaves exactly 120px gap at the top for all devices
   };
 
   let currentY = snapPoints.DEFAULT;
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     snapPoints = {
       DEFAULT: -vhToPx(50),
-      FULL: -vhToPx(70)
+      FULL: -(window.innerHeight - 120) // Consistent gap on resize
     };
 
     // Proportionally adjust current position if it was resting at a snap point

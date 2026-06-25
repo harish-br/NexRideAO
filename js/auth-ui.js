@@ -150,17 +150,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Open Terms & Privacy overlays from Auth Page
+  const verificationTermsPage = document.getElementById('verification-terms-page');
+  const verificationPrivacyPage = document.getElementById('verification-privacy-page');
+  const backVerificationTerms = document.getElementById('back-verification-terms');
+  const backVerificationPrivacy = document.getElementById('back-verification-privacy');
+
   if (authTermsLink) {
     authTermsLink.addEventListener('click', (e) => {
       e.preventDefault();
-      if(termsPage) termsPage.classList.remove('hidden');
+      if(verificationTermsPage) verificationTermsPage.classList.remove('hidden');
     });
   }
 
   if (authPrivacyLink) {
     authPrivacyLink.addEventListener('click', (e) => {
       e.preventDefault();
-      if(privacyPage) privacyPage.classList.remove('hidden');
+      if(verificationPrivacyPage) verificationPrivacyPage.classList.remove('hidden');
+    });
+  }
+
+  if (backVerificationTerms) {
+    backVerificationTerms.addEventListener('click', (e) => {
+      e.preventDefault();
+      verificationTermsPage.classList.add('hidden');
+    });
+  }
+
+  if (backVerificationPrivacy) {
+    backVerificationPrivacy.addEventListener('click', (e) => {
+      e.preventDefault();
+      verificationPrivacyPage.classList.add('hidden');
     });
   }
 
