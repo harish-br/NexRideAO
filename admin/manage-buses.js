@@ -192,9 +192,7 @@ saveBusBtn.addEventListener('click', async () => {
       submittedAt: serverTimestamp(),
       data: {
         busNumber: document.getElementById('modal-bus-no').value,
-        busName: document.getElementById('modal-bus-name').value,
         registrationNumber: document.getElementById('modal-bus-reg').value,
-        busType: document.getElementById('modal-bus-type').value,
         capacity: document.getElementById('modal-bus-capacity').value,
         status: document.getElementById('modal-bus-status').value,
         driverName: document.getElementById('modal-driver-name').value,
