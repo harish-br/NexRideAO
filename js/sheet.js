@@ -393,44 +393,44 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    function bindDeleteButtons() {
-      const deleteBtns = document.querySelectorAll('.tc-delete-btn');
-      deleteBtns.forEach(btn => {
-        btn.addEventListener('pointerdown', async (e) => {
-          const btnElem = e.target.closest('.tc-delete-btn');
-          if (!btnElem) return;
-          const id = btnElem.getAttribute('data-id');
-          
-          const contactToRemove = currentContacts.find(c => c.id === id);
-          if (!contactToRemove) return;
-
-          const isConfirmed = window.confirm(`Are you sure you want to delete ${contactToRemove.name}?`);
-          if (!isConfirmed) return;
-
-          const user = auth.currentUser;
-          if (user) {
-            try {
-              // Optimistic UI update
-              currentContacts = currentContacts.filter(c => c.id !== id);
-              renderContacts();
-              
-              await deleteDoc(doc(db, 'users', user.uid, 'trustedContacts', id));
-              showToast("Contact deleted");
-            } catch (error) {
-              console.error("Error removing trusted contact:", error);
-              showToast("Failed to delete contact", true);
-              await loadTrustedContacts(); // Revert on failure
-            }
-          } else {
-             showToast("Please login again", true);
-          }
-        });
-      });
-    }
-
     // Load initially when auth state resolves
     auth.onAuthStateChanged((user) => {
       loadTrustedContacts();
+    });
+  }
+
+  function bindDeleteButtons() {
+    const deleteBtns = document.querySelectorAll('.tc-delete-btn');
+    deleteBtns.forEach(btn => {
+      btn.addEventListener('pointerdown', async (e) => {
+        const btnElem = e.target.closest('.tc-delete-btn');
+        if (!btnElem) return;
+        const id = btnElem.getAttribute('data-id');
+        
+        const contactToRemove = currentContacts.find(c => c.id === id);
+        if (!contactToRemove) return;
+
+        const isConfirmed = window.confirm(`Are you sure you want to delete ${contactToRemove.name}?`);
+        if (!isConfirmed) return;
+
+        const user = auth.currentUser;
+        if (user) {
+          try {
+            // Optimistic UI update
+            currentContacts = currentContacts.filter(c => c.id !== id);
+            renderContacts();
+            
+            await deleteDoc(doc(db, 'users', user.uid, 'trustedContacts', id));
+            showToast("Contact deleted");
+          } catch (error) {
+            console.error("Error removing trusted contact:", error);
+            showToast("Failed to delete contact", true);
+            await loadTrustedContacts(); // Revert on failure
+          }
+        } else {
+           showToast("Please login again", true);
+        }
+      });
     });
   }
 
