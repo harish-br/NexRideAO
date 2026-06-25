@@ -2,55 +2,7 @@ import { firestore } from '../firebase-config.js';
 import { collection, onSnapshot, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 // Navigation Elements
-const navDashboard = document.getElementById('nav-dashboard');
-const navManageBuses = document.getElementById('nav-manage-buses');
-const dashboardView = document.getElementById('dashboard-view');
-const manageBusesView = document.getElementById('manage-buses-view');
 
-// Manage Buses UI Elements
-const addBusBtn = document.getElementById('add-bus-btn');
-const busEditorModal = document.getElementById('bus-editor-modal');
-const closeModalBtn = document.getElementById('close-modal-btn');
-const cancelModalBtn = document.getElementById('cancel-modal-btn');
-const saveBusBtn = document.getElementById('save-bus-btn');
-const busesTableBody = document.getElementById('buses-table-body');
-const busEditorForm = document.getElementById('bus-editor-form');
-
-// Stops Logic Elements
-const addStopBtn = document.getElementById('add-stop-btn');
-const stopsContainer = document.getElementById('stops-container');
-
-const navApprovals = document.getElementById('nav-approvals');
-const approvalsView = document.getElementById('approvals-view');
-
-// View Switching
-function switchView(view) {
-  // Hide all
-  dashboardView.classList.add('hidden');
-  manageBusesView.classList.add('hidden');
-  if(approvalsView) approvalsView.classList.add('hidden');
-  
-  // Remove active state
-  navDashboard.classList.remove('active');
-  navManageBuses.classList.remove('active');
-  if(navApprovals) navApprovals.classList.remove('active');
-
-  // Show target
-  if (view === 'dashboard') {
-    dashboardView.classList.remove('hidden');
-    navDashboard.classList.add('active');
-  } else if (view === 'manage-buses') {
-    manageBusesView.classList.remove('hidden');
-    navManageBuses.classList.add('active');
-  } else if (view === 'approvals') {
-    if(approvalsView) approvalsView.classList.remove('hidden');
-    if(navApprovals) navApprovals.classList.add('active');
-  }
-}
-
-navDashboard.addEventListener('click', (e) => { e.preventDefault(); switchView('dashboard'); });
-navManageBuses.addEventListener('click', (e) => { e.preventDefault(); switchView('manage-buses'); });
-if(navApprovals) navApprovals.addEventListener('click', (e) => { e.preventDefault(); switchView('approvals'); });
 
 // Modal Logic
 function openModal(editId = null) {

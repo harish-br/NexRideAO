@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <style>body { display: none; }</style>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AO Software Admin</title>
-  <link rel="stylesheet" href="./admin.css" />
-  <link rel="stylesheet" href="./manage-buses.css" />
+  <link rel="stylesheet" href="../admin.css" />
+  <link rel="stylesheet" href="../manage-buses.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
@@ -33,16 +34,16 @@
   </div>
 
   <!-- ADMIN DASHBOARD -->
-  <div id="admin-dashboard-page" class="admin-dashboard-container hidden">
+  <div id="admin-dashboard-page" class="admin-dashboard-container">
     
     <!-- TOP NAVBAR -->
     <nav class="top-navbar">
       <div class="nav-left">
         <div class="brand-logo">AO</div>
         <ul class="nav-links">
-          <li><a href="/admin/" class="active">Dashboard</a></li>
+          <li><a href="/admin/">Dashboard</a></li>
           <li><a href="/admin/manage-buses/">Manage Buses</a></li>
-          <li><a href="/admin/places/">Places</a></li>
+          <li><a href="/admin/places/" class="active">Places</a></li>
           <li><a href="/admin/routes/">Routes</a></li>
           <li><a href="/admin/approvals/">Approvals</a></li>
           <li><a href="#">Audit Logs</a></li>
@@ -62,78 +63,19 @@
     <!-- MAIN CONTENT AREA -->
     <main class="dashboard-content">
 
-      <!-- DASHBOARD VIEW -->
-      <div id="dashboard-view">
+      
+
+      
+
+      
+
+    
+      <div id="places-view">
         <div class="page-header">
-          <h1>Dashboard</h1>
+          <h1>Manage Places</h1>
         </div>
-
-      <!-- STAT CARDS ROW 1 -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-title">Total Places</div>
-          <div class="stat-value" id="stat-places">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-title">Total Routes</div>
-          <div class="stat-value" id="stat-routes">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-title">Scheduled Trips</div>
-          <div class="stat-value" id="stat-trips">0</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-title">Active Services</div>
-          <div class="stat-value text-green" id="stat-active">0</div>
-        </div>
+        <div style="padding: 24px; color: var(--text-secondary);">Coming soon...</div>
       </div>
-
-      <!-- STAT CARDS ROW 2 -->
-      <div class="stats-grid mt-4">
-        <div class="stat-card">
-          <div class="stat-title">Inactive Services</div>
-          <div class="stat-value text-red" id="stat-inactive">0</div>
-        </div>
-      </div>
-
-      <!-- BOTTOM WIDGETS -->
-      <div class="widgets-grid mt-8">
-        
-        <!-- RECENT UPDATES -->
-        <div class="widget-card">
-          <h2>Recent Updates</h2>
-          <div class="updates-list">
-            <div style="color: var(--text-secondary); font-size: 14px;">No recent updates found.</div>
-          </div>
-        </div>
-
-        <!-- SYSTEM STATUS -->
-        <div class="widget-card">
-          <h2>System Status</h2>
-          
-          <div class="status-row">
-            <span class="status-label">Database Sync:</span>
-            <span class="status-badge badge-green">Real-time Active</span>
-          </div>
-          
-          <div class="status-row mt-4">
-            <span class="status-label">Data Model:</span>
-            <span class="status-badge badge-green">100% Compatible</span>
-          </div>
-
-          <div class="status-info mt-6">
-            The dashboard is natively synced with Firestore. Any changes made here are instantly reflected in the live NexRide application without needing a manual refresh.
-          </div>
-        </div>
-
-      </div>
-
-      </div> <!-- END DASHBOARD VIEW -->
-
-      
-
-      
-
     </main>
   </div>
 
@@ -282,6 +224,6 @@
     </div>
   </div>
 
-  <script type="module" src="./admin.js"></script>
-    </body>
+        <script type="module" src="../auth-guard.js"></script>
+</body>
 </html>

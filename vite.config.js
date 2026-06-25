@@ -15,7 +15,11 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        admin: resolve(__dirname, 'admin/index.html')
+        admin: resolve(__dirname, 'admin/index.html'),
+        admin_manage_buses: resolve(__dirname, 'admin/manage-buses/index.html'),
+        admin_approvals: resolve(__dirname, 'admin/approvals/index.html'),
+        admin_places: resolve(__dirname, 'admin/places/index.html'),
+        admin_routes: resolve(__dirname, 'admin/routes/index.html')
       }
     }
   }
