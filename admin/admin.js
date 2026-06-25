@@ -1,6 +1,6 @@
 import { auth, firestore } from '../firebase-config.js';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
-import { doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { doc, getDoc, collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 // DOM Elements
 const loginPage = document.getElementById('admin-login-page');
@@ -21,6 +21,7 @@ function showLogin() {
 function showDashboard() {
     loginPage.classList.add('hidden');
     dashboardPage.classList.remove('hidden');
+    initDashboardStats();
 }
 
 function showError(msg) {
@@ -91,3 +92,52 @@ logoutBtn.addEventListener('click', async () => {
         console.error("Logout Error:", err);
     }
 });
+
+// Update Dashboard Stats Dynamically
+const statPlaces = document.getElementById('stat-places');
+const statRoutes = document.getElementById('stat-routes');
+const statTrips = document.getElementById('stat-trips');
+const statActive = document.getElementById('stat-active');
+const statInactive = document.getElementById('stat-inactive');
+
+function initDashboardStats() {
+    const busesRef = collection(firestore, 'buses');
+    onSnapshot(busesRef, (snapshot) => {
+        let activeCount = 0;
+        let inactiveCount = 0;
+        const uniqueRoutes = new Set();
+        const uniquePlaces = new Set();
+
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            
+            // Status counts
+            const status = (data.status || '').toLowerCase();
+            if (status === 'active') {
+                activeCount++;
+            } else {
+                inactiveCount++; // Inactive or Maintenance
+            }
+
+            // Route counting
+            if (data.route) {
+                uniqueRoutes.add(data.route.trim().toLowerCase());
+            }
+
+            // Places (Stops) counting
+            if (data.stops && Array.isArray(data.stops)) {
+                data.stops.forEach(stop => {
+                    if (stop.stopName) {
+                        uniquePlaces.add(stop.stopName.trim().toLowerCase());
+                    }
+                });
+            }
+        });
+
+        if (statTrips) statTrips.textContent = snapshot.size;
+        if (statActive) statActive.textContent = activeCount;
+        if (statInactive) statInactive.textContent = inactiveCount;
+        if (statRoutes) statRoutes.textContent = uniqueRoutes.size;
+        if (statPlaces) statPlaces.textContent = uniquePlaces.size;
+    });
+}
