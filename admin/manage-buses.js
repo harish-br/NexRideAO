@@ -211,10 +211,7 @@ saveBusBtn.addEventListener('click', async () => {
           eveningDeparture: document.getElementById('modal-sch-evening-dep').value,
           eveningArrival: document.getElementById('modal-sch-evening-arr').value
         },
-        liveTracking: {
-          crowdLevel: document.getElementById('modal-crowd-level').value,
-          status: document.getElementById('modal-live-status').value
-        },
+
         alerts: {
           type: document.getElementById('modal-alert-type').value,
           message: document.getElementById('modal-alert-msg').value
