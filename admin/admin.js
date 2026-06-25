@@ -1,5 +1,5 @@
-import { auth, firestore } from '../firebase-config.js';
-import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
+import { auth, firestore } from '../js/firebase-config.js';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, collection, onSnapshot, query, where, limit, orderBy } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 // DOM Elements
@@ -74,6 +74,7 @@ loginForm.addEventListener('submit', async (e) => {
     const password = passwordInput.value;
 
     try {
+        await setPersistence(auth, browserLocalPersistence);
         await signInWithEmailAndPassword(auth, email, password);
         // onAuthStateChanged will handle the redirect and verification
     } catch (err) {

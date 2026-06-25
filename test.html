@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <button id="btn" disabled>Click Me</button>
+  <script>
+    const btn = document.getElementById('btn');
+    btn.addEventListener('click', () => console.log('Clicked!'));
+    setTimeout(() => { btn.disabled = false; console.log('Enabled'); }, 1000);
+  </script>
+</body>
+</html>

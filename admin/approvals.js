@@ -1,4 +1,4 @@
-import { firestore } from '../firebase-config.js';
+import { firestore } from '../js/firebase-config.js';
 import { collection, onSnapshot, query, where, doc, updateDoc, setDoc, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 const approvalsTableBody = document.getElementById('approvals-table-body');

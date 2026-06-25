@@ -5,7 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>NexRide</title>
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/safety.css" />
 </head>
 
 <body>
@@ -18,36 +19,36 @@
     <!-- Bottom Half: Content -->
     <div id="content-container">
       <button id="my-location-btn" class="my-location-btn" aria-label="Current Location">
-        <img src="./location.svg?v=4" alt="Location" width="22" height="22" />
+        <img src="./assets/location.svg?v=4" alt="Location" width="22" height="22" />
       </button>
       <div class="drag-handle-area"></div>
       <div class="inner-box">
-        <img src="./Thiruvalluvar.png" alt="Thiruvalluvar" class="kural-img" />
+        <img src="./assets/Thiruvalluvar.png" alt="Thiruvalluvar" class="kural-img" />
         <p class="thirukkural-text">தெய்வத்தான் ஆகா தெனினும் முயற்சிதன்<br />மெய்வருத்தக் கூலி தரும்.</p>
       </div>
       <div class="inner-box-2">
         <div class="transit-options">
           <div class="transit-item">
             <div class="transit-icon-box">
-              <img src="./bus card.jpg" alt="Bus" class="transit-icon-img" />
+              <img src="./assets/bus-card.jpg" alt="Bus" class="transit-icon-img" />
             </div>
             <span class="transit-label">Bus</span>
           </div>
           <div class="transit-item">
             <div class="transit-icon-box">
-              <img src="./epass.png?v=2" alt="E-Pass" class="epass-icon-img" />
+              <img src="./assets/epass.png?v=2" alt="E-Pass" class="epass-icon-img" />
             </div>
             <span class="transit-label">E-Pass</span>
           </div>
           <div class="transit-item">
             <div class="transit-icon-box">
-              <img src="./report.png?v=1" alt="Report" class="report-icon-img" />
+              <img src="./assets/report.png?v=1" alt="Report" class="report-icon-img" />
             </div>
             <span class="transit-label">Report</span>
           </div>
           <div class="transit-item">
             <div class="transit-icon-box">
-              <img src="./fees-icon.png?v=1" alt="Fees" class="fees-icon-img" />
+              <img src="./assets/fees-icon.png?v=1" alt="Fees" class="fees-icon-img" />
             </div>
             <span class="transit-label">Fees</span>
           </div>
@@ -61,7 +62,7 @@
 
       <!-- Women Safety Promo Card -->
       <div class="promo-box">
-        <img src="./womensafety.PNG" alt="Women Safety" class="promo-img" />
+        <img src="./assets/womensafety.PNG" alt="Women Safety" class="promo-img" />
       </div>
     </div>
     <!-- Live Page Overlay -->
@@ -78,7 +79,7 @@
 
         <!-- Dynamic Bus Tracker (moves down) -->
         <div class="bus-tracker" id="dynamic-bus">
-          <img src="./Subject.png" alt="Bus Icon" class="tracking-bus-img" />
+          <img src="./assets/Subject.png" alt="Bus Icon" class="tracking-bus-img" />
           <div class="tracking-arrow">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
               style="filter: drop-shadow(0px 3px 4px rgba(0,0,0,0.2)); margin-top: -2px;">
@@ -197,7 +198,7 @@
         <!-- 1. Profile -->
         <div class="profile-list-item" id="btn-personal-info">
           <div class="pli-icon">
-            <img src="./profile.svg" alt="Profile">
+            <img src="./assets/profile.svg" alt="Profile">
           </div>
           <div class="pli-content">
             <span class="pli-title">Personal info</span>
@@ -208,7 +209,7 @@
         <!-- 2. Help & Support -->
         <div class="profile-list-item">
           <div class="pli-icon">
-            <img src="./user-tag.svg" alt="Help & Support">
+            <img src="./assets/user-tag.svg" alt="Help & Support">
           </div>
           <div class="pli-content">
             <span class="pli-title">Help & Support</span>
@@ -217,9 +218,9 @@
         </div>
 
         <!-- 3. Safety -->
-        <div class="profile-list-item">
+        <div class="profile-list-item" id="safety-btn" style="cursor: pointer;">
           <div class="pli-icon">
-            <img src="./shield-tick.svg" alt="Safety">
+            <img src="./assets/shield-tick.svg" alt="Safety">
           </div>
           <div class="pli-content">
             <span class="pli-title">Safety</span>
@@ -230,7 +231,7 @@
         <!-- 4. About Us -->
         <div class="profile-list-item" id="about-us-btn">
           <div class="pli-icon">
-            <img src="./info-circle.svg" alt="About Us">
+            <img src="./assets/info-circle.svg" alt="About Us">
           </div>
           <div class="pli-content">
             <span class="pli-title">About Us</span>
@@ -241,7 +242,7 @@
         <!-- 5. Refer Friends -->
         <div class="profile-list-item">
           <div class="pli-icon">
-            <img src="./send-square2.svg" alt="Refer Friends">
+            <img src="./assets/send-square2.svg" alt="Refer Friends">
           </div>
           <div class="pli-content">
             <span class="pli-title">Refer friends, unlock deals</span>
@@ -251,7 +252,7 @@
         <!-- 6. Logout -->
         <div class="profile-list-item" id="logout-btn">
           <div class="pli-icon">
-            <img src="./logout.svg" alt="Logout">
+            <img src="./assets/logout.svg" alt="Logout">
           </div>
           <div class="pli-content">
             <span class="pli-title">Logout</span>
@@ -644,6 +645,152 @@
     </div>
   </div>
 
+
+  <!-- Safety Page Overlay -->
+  <div id="safety-page" class="page-overlay push-overlay hidden" style="background-color: #F8F9FA; overflow-y: auto; height: 100vh; z-index: 4000;">
+    <div class="safety-page" style="height: auto; min-height: 100vh;">
+      <header class="safety-header">
+      <button class="back-btn" id="back-safety">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <h1>Safety</h1>
+    </header>
+
+    <main class="safety-content">
+
+      <!-- Safety Setup Section -->
+      <section class="setup-section">
+        <div class="section-header">
+          <h2>Safety Setup</h2>
+          <span class="completion">1/3 Complete</span>
+        </div>
+        
+        <div class="setup-cards">
+          <div class="setup-card completed" id="trusted-contacts-btn" style="cursor: pointer;">
+            <div class="setup-info">
+              <div class="setup-title">
+                <img src="./assets/profile-2user.svg" class="custom-svg-icon" alt="Trusted Contacts" /> Trusted Contacts
+              </div>
+              <p>Manage your emergency contacts.</p>
+            </div>
+            <div class="setup-status"><i data-lucide="check-circle-2"></i></div>
+          </div>
+
+          <div class="setup-card">
+            <div class="setup-info">
+              <div class="setup-title">
+                <img src="./assets/clipboard-tick.svg" class="custom-svg-icon" alt="Safety Check-ins" /> Safety Check-ins
+              </div>
+              <p>Periodic safety check-ins during rides.</p>
+            </div>
+            <div class="setup-action"><i data-lucide="chevron-right"></i></div>
+          </div>
+
+          <div class="setup-card">
+            <div class="setup-info">
+              <div class="setup-title">
+                <img src="./assets/danger.svg" class="custom-svg-icon" alt="Emergency Actions" /> Emergency Actions
+              </div>
+              <p>Quick access to SOS and help.</p>
+            </div>
+            <div class="setup-action"><i data-lucide="chevron-right"></i></div>
+          </div>
+
+
+        </div>
+      </section>
+
+
+
+    </main>
+    </div>
+  </div>
+
+
+  <!-- Trusted Contacts Page Overlay -->
+  <div id="trusted-contacts-page" class="page-overlay push-overlay hidden" style="background-color: #F8F9FA; overflow-y: auto; height: 100vh; z-index: 5000; display: flex; flex-direction: column;">
+    <!-- Header -->
+    <div class="top-bar" style="background: #F8F9FA; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
+      <button id="back-trusted-contacts" class="back-btn" style="background: #FFFFFF; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 1px solid #E5E7EB; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
+        <span class="dashboard-title" style="font-weight: 600; font-size: 16px; color: #374151;">Trusted Contacts</span>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div style="padding: 24px 20px; flex: 1;">
+      <h2 style="font-weight: 700; font-size: 18px; color: #111827; margin: 0 0 8px 0;">Trusted Contacts</h2>
+      <p style="font-size: 14px; color: #6B7280; margin: 0 0 24px 0; line-height: 1.5; font-weight: normal !important; text-align: left;">Quick access to emergency contacts and safety features</p>
+
+      <!-- Contact List -->
+      <div id="contact-list" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+      </div>
+
+      <!-- Add Contact Button -->
+      <button id="add-contact-btn" style="width: 100%; background: #F3F4F6; color: #4B5563; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer;">
+        Add Contact
+      </button>
+    </div>
+
+    <!-- Footer Done Button -->
+    <div style="padding: 20px; padding-bottom: 40px;">
+      <button id="done-trusted-contacts" style="width: 100%; background: #2563EB; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer;">
+        Done
+      </button>
+    </div>
+  </div>
+
+
+  <!-- Add Contact Page Overlay -->
+  <div id="add-contact-page" class="page-overlay push-overlay hidden" style="background-color: #F8F9FA; height: 100vh; z-index: 5001; display: flex; flex-direction: column;">
+    <!-- Header -->
+    <div class="top-bar" style="background: #F8F9FA; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
+      <button id="back-add-contact" class="back-btn" style="background: #FFFFFF; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 1px solid #E5E7EB; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+      </button>
+      <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
+        <span class="dashboard-title" style="font-weight: 600; font-size: 16px; color: #374151;">Add Contact</span>
+      </div>
+    </div>
+
+    <!-- Form Content -->
+    <div style="padding: 24px 20px; flex: 1; display: flex; flex-direction: column; gap: 20px;">
+      
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label for="new-contact-name" style="font-weight: 600; font-size: 14px; color: #374151;">Contact Name</label>
+        <input type="text" id="new-contact-name" placeholder="Enter name" style="width: 100%; padding: 16px; border: 1px solid #E5E7EB; border-radius: 12px; font-size: 16px; font-family: inherit; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#2563EB'" onblur="this.style.borderColor='#E5E7EB'">
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <label for="new-contact-phone" style="font-weight: 600; font-size: 14px; color: #374151;">Mobile Number</label>
+        <div style="display: flex; width: 100%; border: 1px solid #E5E7EB; border-radius: 12px; overflow: hidden; transition: border-color 0.2s;" id="phone-input-container">
+          <div style="padding: 16px; background: #F9FAFB; border-right: 1px solid #E5E7EB; font-weight: 600; color: #4B5563; font-size: 16px;">
+            +91
+          </div>
+          <input type="tel" id="new-contact-phone" placeholder="Enter mobile number" maxlength="10" style="flex: 1; padding: 16px; border: none; font-size: 16px; font-family: inherit; outline: none;" onfocus="document.getElementById('phone-input-container').style.borderColor='#2563EB'" onblur="document.getElementById('phone-input-container').style.borderColor='#E5E7EB'">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer Save Button -->
+    <div style="padding: 20px; padding-bottom: 40px; background: #FFFFFF; border-top: 1px solid #F3F4F6;">
+      <button id="save-new-contact-btn" disabled style="width: 100%; background: #2563EB; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; transition: opacity 0.2s; opacity: 0.5;">
+        Save Contact
+      </button>
+    </div>
+  </div>
+
   <!-- Auth Page Overlay (Mobile Number) -->
   <div id="auth-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; height: 100vh; z-index: 5000; display: flex; flex-direction: column;">
     
@@ -713,14 +860,15 @@
     </div>
   </div>
 
-  <script type="module" src="./auth-ui.js?v=3"></script>
-  <script type="module" src="./main.js"></script>
-  <script type="module" src="./live-tracking.js"></script>
-  <script type="module" src="./sheet.js"></script>
-  <script type="module" src="./profile.js"></script>
+  <script type="module" src="./js/auth-ui.js?v=3"></script>
+  <script type="module" src="./js/main.js"></script>
+  <script type="module" src="./js/live-tracking.js"></script>
+  <script type="module" src="./js/sheet.js"></script>
+  <script type="module" src="./js/profile.js"></script>
+  <script type="module" src="./js/safety.js"></script>
 
-  <script type="module" src="/main.js"></script>
-  <script type="module" src="/auth-ui.js"></script>
+  <script type="module" src="/js/main.js"></script>
+  <script type="module" src="/js/auth-ui.js"></script>
 </body>
 
 </html>
