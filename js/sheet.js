@@ -420,7 +420,8 @@ document.addEventListener('DOMContentLoaded', () => {
   function bindDeleteButtons() {
     const deleteBtns = document.querySelectorAll('.tc-delete-btn');
     deleteBtns.forEach(btn => {
-      btn.addEventListener('pointerdown', async (e) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const btnElem = e.target.closest('.tc-delete-btn');
         if (!btnElem) return;
         const id = btnElem.getAttribute('data-id');
