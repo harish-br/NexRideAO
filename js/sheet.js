@@ -1,5 +1,5 @@
 import { db, auth } from './firebase-config.js';
-import { doc, getDoc, updateDoc, setDoc, arrayUnion, arrayRemove } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { doc, getDoc, updateDoc, setDoc, collection, addDoc, serverTimestamp, getDocs, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const container = document.getElementById('content-container');
@@ -182,10 +182,53 @@ document.addEventListener('DOMContentLoaded', () => {
   const contactList = document.getElementById('contact-list');
   let currentContacts = [];
 
+  const showToast = (message, isError = false) => {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = `
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: ${isError ? '#EF4444' : '#10B981'};
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    `;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => toast.style.opacity = '1', 10);
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  };
+
   const renderContacts = () => {
     if (!contactList) return;
     contactList.innerHTML = '';
     
+    if (currentContacts.length === 0) {
+      contactList.innerHTML = `
+        <div style="text-align: center; padding: 40px 20px; color: #6B7280; font-size: 15px;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 16px auto; display: block;">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          No trusted contacts added yet
+        </div>
+      `;
+      return;
+    }
+
     currentContacts.forEach(contact => {
       const initial = contact.name.charAt(0).toUpperCase();
       const card = document.createElement('div');
@@ -193,23 +236,30 @@ document.addEventListener('DOMContentLoaded', () => {
       card.style.cssText = 'background: #FFFFFF; border-radius: 16px; padding: 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.04);';
       
       card.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 16px;">
-          <div style="width: 48px; height: 48px; border-radius: 50%; background: #3B82F6; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 18px;">
+        <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: #3B82F6; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 18px; flex-shrink: 0;">
             ${initial}
           </div>
-          <div>
-            <div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 4px;">${contact.name}</div>
+          <div style="flex: 1; overflow: hidden;">
+            <div style="font-weight: 600; color: #111827; font-size: 16px; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${contact.name}</div>
             <div style="color: #9CA3AF; font-size: 14px; font-weight: normal !important;">${contact.phone}</div>
           </div>
         </div>
-        <button class="tc-delete-btn" data-id="${contact.id}" style="background: #F3F4F6; border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4B5563" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            <line x1="10" y1="11" x2="10" y2="17"></line>
-            <line x1="14" y1="11" x2="14" y2="17"></line>
-          </svg>
-        </button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <a href="tel:${contact.phone}" style="background: #E0F2FE; border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; text-decoration: none;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0284C7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+          </a>
+          <button class="tc-delete-btn" data-id="${contact.id}" style="background: #FEE2E2; border: none; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
       `;
       contactList.appendChild(card);
     });
@@ -221,20 +271,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const user = auth.currentUser;
     if (user) {
       try {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          const data = userDoc.data();
-          if (data.trustedContacts) {
-            currentContacts = data.trustedContacts;
-          }
-        }
+        const querySnapshot = await getDocs(collection(db, 'users', user.uid, 'trustedContacts'));
+        currentContacts = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        // Sort newest first
+        currentContacts.sort((a, b) => {
+          const aTime = a.createdAt?.toMillis() || 0;
+          const bTime = b.createdAt?.toMillis() || 0;
+          return bTime - aTime;
+        });
       } catch (error) {
         console.error("Error loading trusted contacts:", error);
+        showToast("Error loading contacts", true);
       }
     } else {
-      // Load from local storage for dev mode
-      const local = localStorage.getItem('trustedContacts');
-      if (local) currentContacts = JSON.parse(local);
+      currentContacts = [];
     }
     renderContacts();
   };
@@ -301,33 +354,42 @@ document.addEventListener('DOMContentLoaded', () => {
           Saving...
         `;
         
-        const name = newContactName.value.trim();
-        const phone = newContactPhone.value;
-        const newContact = {
-          id: Date.now().toString(),
-          name,
-          phone
-        };
-
-        currentContacts.push(newContact);
-        renderContacts();
-
         const user = auth.currentUser;
+        if (!user) {
+          showToast("Please login again", true);
+          saveNewContactBtn.innerHTML = originalText;
+          return;
+        }
+        
+        const name = newContactName.value.trim();
+        const rawPhone = newContactPhone.value.replace(/\D/g, '');
+        
+        if (!name || rawPhone.length !== 10) {
+          saveNewContactBtn.innerHTML = originalText;
+          saveNewContactBtn.setAttribute('data-disabled', 'false');
+          showToast("Invalid inputs", true);
+          return;
+        }
+
+        const phone = `+91${rawPhone}`;
+
         try {
-          if (user) {
-            await setDoc(doc(db, 'users', user.uid), {
-              trustedContacts: arrayUnion(newContact)
-            }, { merge: true });
-          } else {
-            localStorage.setItem('trustedContacts', JSON.stringify(currentContacts));
-          }
+          await addDoc(collection(db, 'users', user.uid, 'trustedContacts'), {
+            name,
+            phone,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          
+          showToast("Trusted contact saved successfully");
+          await loadTrustedContacts();
+          closeAddContactPage();
         } catch (err) {
           console.error("Sync error in save logic:", err);
-          alert("Error: " + err.message);
+          showToast("Error: " + err.message, true);
         }
 
         saveNewContactBtn.innerHTML = originalText;
-        closeAddContactPage();
       });
     }
 
@@ -345,18 +407,22 @@ document.addEventListener('DOMContentLoaded', () => {
           const isConfirmed = window.confirm(`Are you sure you want to delete ${contactToRemove.name}?`);
           if (!isConfirmed) return;
 
-          currentContacts = currentContacts.filter(c => c.id !== id);
-          renderContacts();
-
           const user = auth.currentUser;
           if (user) {
-            setDoc(doc(db, 'users', user.uid), {
-              trustedContacts: arrayRemove(contactToRemove)
-            }, { merge: true }).catch(error => {
+            try {
+              // Optimistic UI update
+              currentContacts = currentContacts.filter(c => c.id !== id);
+              renderContacts();
+              
+              await deleteDoc(doc(db, 'users', user.uid, 'trustedContacts', id));
+              showToast("Contact deleted");
+            } catch (error) {
               console.error("Error removing trusted contact:", error);
-            });
+              showToast("Failed to delete contact", true);
+              await loadTrustedContacts(); // Revert on failure
+            }
           } else {
-            localStorage.setItem('trustedContacts', JSON.stringify(currentContacts));
+             showToast("Please login again", true);
           }
         });
       });
