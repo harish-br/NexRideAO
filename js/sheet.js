@@ -286,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
         newContactPhone.addEventListener(evt, validateForm);
       });
 
-      saveNewContactBtn.addEventListener('click', () => {
+      saveNewContactBtn.addEventListener('pointerdown', () => {
         if(saveNewContactBtn.getAttribute('data-disabled') === 'true') return;
         
         saveNewContactBtn.setAttribute('data-disabled', 'true');
@@ -303,14 +303,19 @@ document.addEventListener('DOMContentLoaded', () => {
         renderContacts();
 
         const user = auth.currentUser;
-        if (user) {
-          setDoc(doc(db, 'users', user.uid), {
-            trustedContacts: arrayUnion(newContact)
-          }, { merge: true }).catch(error => {
-            console.error("Error adding trusted contact:", error);
-          });
-        } else {
-          localStorage.setItem('trustedContacts', JSON.stringify(currentContacts));
+        try {
+          if (user) {
+            setDoc(doc(db, 'users', user.uid), {
+              trustedContacts: arrayUnion(newContact)
+            }, { merge: true }).catch(error => {
+              console.error("Error adding trusted contact (async):", error);
+            });
+          } else {
+            localStorage.setItem('trustedContacts', JSON.stringify(currentContacts));
+          }
+        } catch (err) {
+          console.error("Sync error in save logic:", err);
+          alert("Error: " + err.message);
         }
 
         closeAddContactPage();
