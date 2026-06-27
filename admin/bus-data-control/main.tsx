@@ -429,6 +429,7 @@ function AdminControlPage() {
           lng: nextStop.lng,
           speed: 0,
           status: 'stopped',
+          currentStopIndex: currentBus.nextStopIndex,
           segmentProgressSeconds: segmentDurationSeconds,
           simulationTime: nextStop.scheduledArrival
         };

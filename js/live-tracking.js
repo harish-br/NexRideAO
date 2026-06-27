@@ -113,26 +113,27 @@ function calculateTargetY(currentStopIndex, nextStopIndex, lat, lng) {
     }
 }
 
+function getStopStatus(stopIndex, currentStopIndex, nextStopIndex, busStatus) {
+    if (busStatus === 'stopped') {
+        if (stopIndex === currentStopIndex) return 'arrived';
+        if (stopIndex < currentStopIndex) return 'departed';
+        return 'upcoming';
+    } else {
+        if (stopIndex < nextStopIndex) return 'departed';
+        return 'upcoming';
+    }
+}
+
 function updateStopStyles(currentStopIndex, nextStopIndex, status, etaMinutes) {
     stopItemsEl.forEach((el, idx) => {
         const dot = el.querySelector('.tracking-dot');
         const timeEl = el.querySelector('.stop-time');
         const headingEl = el.querySelector('.heading-towards');
-        const nameEl = el.querySelector('.stop-name');
 
-        // Handle ETA subtitle creation if doesn't exist
-        let etaSubtitle = el.querySelector('.eta-subtitle');
-        if (!etaSubtitle && nameEl && nameEl.parentNode) {
-            etaSubtitle = document.createElement('div');
-            etaSubtitle.className = 'eta-subtitle';
-            etaSubtitle.style.fontSize = '14px';
-            etaSubtitle.style.color = '#6B7280';
-            etaSubtitle.style.marginTop = '2px';
-            etaSubtitle.style.fontWeight = '600';
-            nameEl.parentNode.appendChild(etaSubtitle);
-        }
+        // Clean up legacy ETA subtitles if they exist
+        const etaSubtitle = el.querySelector('.eta-subtitle');
+        if (etaSubtitle) etaSubtitle.remove();
 
-        if (etaSubtitle) etaSubtitle.textContent = '';
         if (timeEl) {
             timeEl.textContent = '';
             timeEl.style.fontSize = '14px';
@@ -140,33 +141,39 @@ function updateStopStyles(currentStopIndex, nextStopIndex, status, etaMinutes) {
             timeEl.style.color = '#6B7280';
         }
 
+        let stopStatus = getStopStatus(idx, currentStopIndex, nextStopIndex, status);
+
+        // Final Stop override logic
+        if (status === 'completed') {
+            if (idx === routeStops.length - 1) {
+                stopStatus = 'arrived';
+            } else {
+                stopStatus = 'departed';
+            }
+        }
+
         if (dot) {
             dot.className = 'tracking-dot';
 
-            if (idx < currentStopIndex || (idx === currentStopIndex && status !== 'stopped' && currentStopIndex !== nextStopIndex)) {
-                // Departed
-                dot.style.backgroundColor = '#3B82F6'; // Blue
-                if (timeEl) {
-                    timeEl.textContent = 'Departed';
-                    timeEl.style.fontWeight = '700';
-                    timeEl.style.color = '#3B82F6';
-                }
-            } else if (idx === currentStopIndex && status === 'stopped') {
-                // Arrived
+            if (stopStatus === 'arrived') {
                 dot.style.backgroundColor = '#22C55E'; // Green
                 if (timeEl) {
                     timeEl.textContent = 'Arrived';
                     timeEl.style.color = '#4B5563';
                     timeEl.style.fontWeight = '700';
                 }
-            } else {
-                // Upcoming
+            } else if (stopStatus === 'departed') {
+                dot.style.backgroundColor = '#3B82F6'; // Blue
+                if (timeEl) {
+                    timeEl.textContent = 'Departed';
+                    timeEl.style.fontWeight = '700';
+                    timeEl.style.color = '#3B82F6';
+                }
+            } else if (stopStatus === 'upcoming') {
                 dot.style.backgroundColor = '#C9CED6'; // Gray
-                if (idx === nextStopIndex && etaMinutes > 0) {
-                    if (etaSubtitle) etaSubtitle.textContent = `ETA: ${etaMinutes} min`;
-                } else if (idx === nextStopIndex && etaMinutes <= 0 && status !== 'offline') {
+                if (idx === nextStopIndex && status !== 'offline') {
                     if (timeEl) {
-                        timeEl.textContent = 'Arriving';
+                        timeEl.textContent = etaMinutes > 0 ? `ETA: ${etaMinutes} min` : 'Arriving';
                         timeEl.style.color = '#4B5563';
                     }
                 }
