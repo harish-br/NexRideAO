@@ -29,7 +29,7 @@ async function initializeEPass(userId) {
     let passData = null;
 
     try {
-        const passRef = doc(firestore, 'users', userId, 'epass', 'currentPass');
+        const passRef = doc(firestore, 'users', userId, 'epass', 'latest');
         const passSnap = await getDoc(passRef);
 
         if (passSnap.exists()) {
@@ -71,6 +71,11 @@ async function generateAndSaveEPass(userId, passRef) {
     };
 
     await setDoc(passRef, passData);
+    
+    // Store the barcode as 'latest' in the user's main document
+    const userRef = doc(firestore, 'users', userId);
+    await setDoc(userRef, { latest: passId }, { merge: true });
+
     return passData;
 }
 
