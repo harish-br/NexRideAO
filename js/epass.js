@@ -50,6 +50,16 @@ async function initializeEPass(userId) {
     }
 
     if (passData && passData.passId) {
+        try {
+            const barcodeRef = doc(firestore, 'users', userId, 'barcode', 'latest');
+            await setDoc(barcodeRef, { 
+                passId: passData.passId,
+                updatedAt: Date.now()
+            });
+        } catch (e) {
+            console.error("Failed to save barcode separate document:", e);
+        }
+
         renderBarcode(passData.passId);
         renderHologram(userId);
         barcodeLoaded = true;
@@ -71,14 +81,6 @@ async function generateAndSaveEPass(userId, passRef) {
     };
 
     await setDoc(passRef, passData);
-    
-    // Store the barcode in a separate document inside the user's database
-    const barcodeRef = doc(firestore, 'users', userId, 'barcode', 'latest');
-    await setDoc(barcodeRef, { 
-        passId: passId,
-        updatedAt: Date.now()
-    });
-
     return passData;
 }
 
