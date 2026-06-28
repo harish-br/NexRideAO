@@ -226,15 +226,7 @@ export function initLiveTracking() {
                 const lastUpdated = data.lastUpdated?.toMillis?.() || Date.now();
                 console.log(`[DEBUG USER] Time diff: ${now - lastUpdated}ms`);
                 
-                // Update Debug Panel (Step 12)
-                const dListener = document.getElementById('debug-listener');
-                const dStatus = document.getElementById('debug-status');
-                const dLatlng = document.getElementById('debug-latlng');
-                const dUpdate = document.getElementById('debug-lastupdate');
-                if (dListener) dListener.textContent = 'Listener: Connected (Active)';
-                if (dStatus) dStatus.textContent = `Status: ${data.status}`;
-                if (dLatlng) dLatlng.textContent = `Location: ${data.lat?.toFixed(5)}, ${data.lng?.toFixed(5)}`;
-                if (dUpdate) dUpdate.textContent = `Last Update: ${Math.round((now - lastUpdated)/1000)}s ago`;
+
 
                 if (now - lastUpdated > 20000) {
                     data.status = 'offline';
@@ -253,13 +245,11 @@ export function initLiveTracking() {
                 }
             } else {
                 console.error("[DEBUG USER] Bus document not found in Firestore!");
-                const dListener = document.getElementById('debug-listener');
-                if (dListener) dListener.textContent = 'Listener: Document Not Found';
+
             }
         }, (error) => {
             console.error("[DEBUG USER] onSnapshot error:", error);
-            const dListener = document.getElementById('debug-listener');
-            if (dListener) dListener.textContent = `Listener: ERROR (${error.code || error.message})`;
+
         });
 
         // Offline watcher (20 seconds without update)
@@ -271,15 +261,13 @@ export function initLiveTracking() {
                     updateStatusBanner("offline", 0);
                     updateArrowAnimation("offline");
                     
-                    const dStatus = document.getElementById('debug-status');
-                    if (dStatus) dStatus.textContent = `Status: offline (timeout)`;
+
                 }
             }
         }, 5000);
     } else {
         console.error("[DEBUG USER] firestore is not initialized!");
-        const dListener = document.getElementById('debug-listener');
-        if (dListener) dListener.textContent = 'Listener: FAILED (No Firestore)';
+
     }
 }
 

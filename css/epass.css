@@ -1,0 +1,267 @@
+/* E-Pass Page Styles */
+.epass-page {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background Blobs for Glass Visibility */
+.epass-bg-blobs {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.blob-1 {
+  position: absolute;
+  top: 15%;
+  left: 5%;
+  width: 250px;
+  height: 250px;
+  background: rgba(0, 122, 255, 0.4);
+  border-radius: 50%;
+  filter: blur(60px);
+  animation: float-blob 10s ease-in-out infinite alternate;
+}
+
+.blob-2 {
+  position: absolute;
+  top: 50%;
+  right: -10%;
+  width: 300px;
+  height: 300px;
+  background: rgba(0, 200, 255, 0.3);
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: float-blob 12s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes float-blob {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  100% {
+    transform: translate(30px, 50px) scale(1.1);
+  }
+}
+
+/* Card Container */
+.epass-content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  perspective: 1000px;
+}
+
+/* Premium Digital E-Pass Card */
+.epass-card {
+  width: 90%;
+  max-width: 400px;
+  height: 520px;
+  border-radius: 26px;
+
+  /* NexRide Blue Theme Gradient */
+  background: linear-gradient(135deg, #0F62FE 0%, #0043CE 100%);
+
+  /* Soft shadow for floating effect */
+  box-shadow: 0 16px 40px rgba(0, 67, 206, 0.25), 0 8px 16px rgba(0, 0, 0, 0.1);
+
+  position: relative;
+  overflow: hidden;
+
+  /* Ensure children don't overflow the rounded corners */
+  z-index: 1;
+}
+
+/* Faint security pattern (diagonal micro lines) */
+.epass-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: repeating-linear-gradient(45deg,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 2px,
+      transparent 2px,
+      transparent 8px);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Subtle glossy / glass overlay */
+.epass-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.3) 0%,
+      rgba(255, 255, 255, 0.05) 40%,
+      transparent 100%);
+  border-radius: 26px;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* E-Pass Barcode System */
+.epass-barcode-container {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  background: white;
+  border-radius: 12px;
+  padding: 12px 12px 8px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 4;
+  /* Above the glass overlay */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.epass-barcode-container svg {
+  width: 100%;
+  height: auto;
+  max-height: 60px;
+}
+
+.pass-id-text {
+  font-size: 10px;
+  color: #6B7280;
+  font-family: 'Courier New', Courier, monospace;
+  margin: 0;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+
+/* Holographic Security Strip (Passport Microprint) */
+.epass-hologram-strip {
+  position: absolute;
+  top: 25%;
+  left: 0;
+  width: 100%;
+  height: 22px;
+  z-index: 5;
+  pointer-events: none;
+  overflow: visible;
+  /* Dynamic tilt variables updated by JS */
+  --tilt-x: 0;
+  --tilt-y: 0;
+  /* Holographic shift based on gyroscope */
+  filter: brightness(calc(1 + var(--tilt-y) * 0.05));
+}
+
+.holo-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.holo-text {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-transform: uppercase;
+  fill: none;
+}
+
+/* Layer 1: Ghost Print */
+.holo-text-base {
+  stroke: rgba(255, 255, 255, 0.3);
+  stroke-width: 0.2;
+}
+
+/* Layer 2: Iridescent Core */
+.holo-text-color {
+  stroke: url(#holoGradient);
+  stroke-width: 0.4;
+  opacity: 0.85;
+}
+
+/* Layer 3: Specular Highlight */
+.holo-text-highlight {
+  stroke: url(#specularGradient);
+  stroke-width: 0.6;
+  opacity: 0.9;
+  /* Removed heavy blur filter for high FPS */
+}
+
+/* Card Holographic Shine Overlay */
+.epass-card {
+  position: relative;
+  overflow: hidden;
+  /* Ensure shine doesn't bleed out of border-radius */
+
+  /* 3D Tilt properties */
+  --card-rotate-x: 0;
+  --card-rotate-y: 0;
+  transform: perspective(1000px) rotateX(calc(var(--card-rotate-x) * 1deg)) rotateY(calc(var(--card-rotate-y) * 1deg));
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.epass-card-shine {
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: screen;
+  opacity: 0.25;
+
+  /* Fallback CSS Variables for hardware translation */
+  --shine-tx: 0;
+  --shine-ty: 0;
+  transform: translate3d(calc(var(--shine-tx) * 1px), calc(var(--shine-ty) * 1px), 0);
+  will-change: transform;
+
+  /* Fixed diagonal gradient for shine (moves via transform) */
+  background: radial-gradient(circle at 50% 50%,
+      rgba(255, 255, 255, 0.8) 0%,
+      rgba(0, 255, 255, 0.6) 10%,
+      rgba(173, 216, 230, 0.4) 20%,
+      rgba(255, 0, 255, 0.2) 35%,
+      rgba(255, 215, 0, 0.1) 40%,
+      transparent 50%);
+
+  /* Fallback automatic shimmer if gyroscope not active */
+  animation: card-shimmer-fallback 8s infinite alternate ease-in-out;
+}
+
+/* Extreme tilt rainbow reveal */
+.epass-card-shine.extreme-tilt {
+  mix-blend-mode: color-dodge;
+  opacity: 0.45;
+  background: radial-gradient(circle at 50% 50%,
+      rgba(255, 255, 255, 0.9) 0%,
+      rgba(0, 255, 255, 0.8) 5%,
+      rgba(255, 0, 255, 0.6) 15%,
+      rgba(255, 255, 0, 0.4) 25%,
+      rgba(0, 255, 0, 0.2) 35%,
+      transparent 50%);
+}
+
+@keyframes card-shimmer-fallback {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(-30px, -30px, 0);
+  }
+}

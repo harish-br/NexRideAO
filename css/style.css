@@ -305,11 +305,16 @@ header h1 {
 }
 
 .thirukkural-text {
-  font-size: clamp(10px, 3vw, 12px) !important;
+  font-size: clamp(13px, 2.8vw, 18px) !important;
   font-weight: 600;
   text-align: left;
   color: #ffffff !important;
-  line-height: 1.4;
+  white-space: pre-line;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  line-height: 1.45;
+  flex-grow: 1;
+  min-width: 0;
 }
 
 .inner-box-2 {

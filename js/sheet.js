@@ -476,6 +476,21 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // E-Pass overlay logic
+  const btnEpass = document.getElementById('epass-btn');
+  const epassPage = document.getElementById('epass-page');
+  const epassBackBtn = document.getElementById('back-epass');
+
+  if (btnEpass && epassPage && epassBackBtn) {
+    btnEpass.addEventListener('click', () => {
+      epassPage.classList.remove('hidden');
+    });
+
+    epassBackBtn.addEventListener('click', () => {
+      epassPage.classList.add('hidden');
+    });
+  }
+
   // About Us overlay logic
   const btnAboutUs = document.getElementById('about-us-btn');
   const aboutUsPage = document.getElementById('about-us-page');

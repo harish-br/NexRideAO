@@ -7,13 +7,19 @@
   <title>NexRide</title>
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/safety.css" />
+  <link rel="stylesheet" href="./css/epass.css" />
 </head>
 
 <body>
-  <div id="splash-screen" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #FFFFFF; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-    <svg style="animation: spin 1s linear infinite; height: 40px; width: 40px; color: #2563EB;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity: 0.25;"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  <div id="splash-screen"
+    style="position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: #FFFFFF; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <svg style="animation: spin 1s linear infinite; height: 40px; width: 40px; color: #2563EB;"
+      xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity: 0.25;">
+      </circle>
+      <path class="opacity-75" fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+      </path>
     </svg>
   </div>
 
@@ -41,7 +47,7 @@
             </div>
             <span class="transit-label">Bus</span>
           </div>
-          <div class="transit-item">
+          <div class="transit-item" id="epass-btn" style="cursor: pointer;">
             <div class="transit-icon-box">
               <img src="./assets/epass.png?v=2" alt="E-Pass" class="epass-icon-img" />
             </div>
@@ -436,7 +442,8 @@
             <ellipse cx="12" cy="17" rx="7" ry="3.5" />
           </svg>
           <div class="up-photo-overlay">
-            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
@@ -519,9 +526,11 @@
       <!-- Buttons Section -->
       <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 24px;">
         <button id="terms-btn"
-          style="background: transparent; color: #6B7280; font-weight: 600; border: none; box-shadow: none; cursor: pointer;">Terms & Conditions</button>
+          style="background: transparent; color: #6B7280; font-weight: 600; border: none; box-shadow: none; cursor: pointer;">Terms
+          & Conditions</button>
         <button id="privacy-btn"
-          style="background: transparent; color: #6B7280; font-weight: 600; border: none; box-shadow: none; cursor: pointer;">Privacy Policy</button>
+          style="background: transparent; color: #6B7280; font-weight: 600; border: none; box-shadow: none; cursor: pointer;">Privacy
+          Policy</button>
       </div>
 
 
@@ -530,198 +539,250 @@
   </div>
 
   <!-- Terms Page Overlay -->
-  <div id="terms-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 3000;">
+  <div id="terms-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 3000;">
     <!-- Header -->
-    <div class="top-bar" style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
-      <button id="back-terms" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <div class="top-bar"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
+      <button id="back-terms" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
       </button>
       <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
-        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Terms and Conditions</span>
+        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Terms and
+          Conditions</span>
       </div>
     </div>
     <!-- Content Container -->
-    <div style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
-        <p><strong>TERMS AND CONDITIONS</strong></p>
-        <p>This mobile application/platform i.e. NexRide (the “App”) is owned and operated by NexRide (the “Platform”). By accessing or using this App, You agree to be bound by these Terms and Conditions (“Terms”). If You do not agree to these Terms, please refrain from using this App.</p>
-        <p>This document is an electronic record generated by a computer system and does not require physical or digital signatures.</p>
-        <p>NexRide provides technology-based software services enabling Users (“Users”) to access transportation-related services including live bus tracking, route discovery, stop information, ETA updates, and travel assistance (“Services”). These Terms govern the relationship between You and NexRide regarding the use of the App and Services.</p>
+    <div
+      style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
+      <p><strong>TERMS AND CONDITIONS</strong></p>
+      <p>This mobile application/platform i.e. NexRide (the “App”) is owned and operated by NexRide (the “Platform”). By
+        accessing or using this App, You agree to be bound by these Terms and Conditions (“Terms”). If You do not agree
+        to these Terms, please refrain from using this App.</p>
+      <p>This document is an electronic record generated by a computer system and does not require physical or digital
+        signatures.</p>
+      <p>NexRide provides technology-based software services enabling Users (“Users”) to access transportation-related
+        services including live bus tracking, route discovery, stop information, ETA updates, and travel assistance
+        (“Services”). These Terms govern the relationship between You and NexRide regarding the use of the App and
+        Services.</p>
 
-        <p><strong>1. REGISTRATION AND ACCOUNT</strong></p>
-        <p>1.1 Certain features of the App may require account registration using accurate and updated information.</p>
-        <p>1.2 Users are responsible for maintaining the confidentiality of their login credentials and all activities performed through their account.</p>
-        <p>1.3 NexRide reserves the right to suspend or terminate accounts containing false, misleading, or unauthorized information.</p>
+      <p><strong>1. REGISTRATION AND ACCOUNT</strong></p>
+      <p>1.1 Certain features of the App may require account registration using accurate and updated information.</p>
+      <p>1.2 Users are responsible for maintaining the confidentiality of their login credentials and all activities
+        performed through their account.</p>
+      <p>1.3 NexRide reserves the right to suspend or terminate accounts containing false, misleading, or unauthorized
+        information.</p>
 
-        <p><strong>2. SERVICES</strong></p>
-        <p>2.1 The App enables Users to view live bus locations, routes, stop details, and estimated arrival times.</p>
-        <p>2.2 NexRide makes reasonable efforts to ensure accurate real-time information; however, data accuracy may be affected by GPS limitations, network interruptions, traffic conditions, or operational delays.</p>
-        <p>2.3 Service availability may vary depending on location, operator availability, and technical conditions.</p>
+      <p><strong>2. SERVICES</strong></p>
+      <p>2.1 The App enables Users to view live bus locations, routes, stop details, and estimated arrival times.</p>
+      <p>2.2 NexRide makes reasonable efforts to ensure accurate real-time information; however, data accuracy may be
+        affected by GPS limitations, network interruptions, traffic conditions, or operational delays.</p>
+      <p>2.3 Service availability may vary depending on location, operator availability, and technical conditions.</p>
 
-        <p><strong>3. USER OBLIGATIONS</strong></p>
-        <p>3.1 Users shall use the App only for lawful and authorized purposes.</p>
-        <p>3.2 Users shall not attempt to disrupt, damage, reverse engineer, or gain unauthorized access to the App or its systems.</p>
-        <p>3.3 Misuse of the platform may result in restricted access or account termination.</p>
+      <p><strong>3. USER OBLIGATIONS</strong></p>
+      <p>3.1 Users shall use the App only for lawful and authorized purposes.</p>
+      <p>3.2 Users shall not attempt to disrupt, damage, reverse engineer, or gain unauthorized access to the App or its
+        systems.</p>
+      <p>3.3 Misuse of the platform may result in restricted access or account termination.</p>
 
-        <p><strong>4. LIMITATION OF LIABILITY</strong></p>
-        <p>4.1 NexRide shall not be liable for delays, route changes, missed buses, traffic disruptions, or service interruptions caused by third-party operators or external factors.</p>
-        <p>4.2 NexRide functions as a technology platform and does not directly operate transport vehicles unless otherwise stated.</p>
+      <p><strong>4. LIMITATION OF LIABILITY</strong></p>
+      <p>4.1 NexRide shall not be liable for delays, route changes, missed buses, traffic disruptions, or service
+        interruptions caused by third-party operators or external factors.</p>
+      <p>4.2 NexRide functions as a technology platform and does not directly operate transport vehicles unless
+        otherwise stated.</p>
 
-        <p><strong>5. PRIVACY AND DATA</strong></p>
-        <p>5.1 NexRide may collect necessary data including location and travel-related information to improve service quality and user experience.</p>
-        <p>5.2 User data shall be handled in accordance with applicable privacy and data protection standards.</p>
+      <p><strong>5. PRIVACY AND DATA</strong></p>
+      <p>5.1 NexRide may collect necessary data including location and travel-related information to improve service
+        quality and user experience.</p>
+      <p>5.2 User data shall be handled in accordance with applicable privacy and data protection standards.</p>
 
-        <p><strong>6. MODIFICATION OF SERVICES</strong></p>
-        <p>6.1 NexRide reserves the right to modify, suspend, or discontinue any service or feature without prior notice.</p>
+      <p><strong>6. MODIFICATION OF SERVICES</strong></p>
+      <p>6.1 NexRide reserves the right to modify, suspend, or discontinue any service or feature without prior notice.
+      </p>
 
-        <p><strong>7. ACCEPTANCE</strong></p>
-        <p>By continuing to use NexRide, You acknowledge that You have read, understood, and agreed to these Terms and Conditions.</p>
+      <p><strong>7. ACCEPTANCE</strong></p>
+      <p>By continuing to use NexRide, You acknowledge that You have read, understood, and agreed to these Terms and
+        Conditions.</p>
     </div>
   </div>
 
   <!-- Privacy Page Overlay -->
-  <div id="privacy-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 3000;">
+  <div id="privacy-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 3000;">
     <!-- Header -->
-    <div class="top-bar" style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
-      <button id="back-privacy" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <div class="top-bar"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
+      <button id="back-privacy" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
       </button>
       <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
         <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Privacy Policy</span>
       </div>
     </div>
     <!-- Content Container -->
-    <div style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
-        <p><strong>PRIVACY POLICY</strong></p>
-        <p>This Privacy Policy describes how NexRide (the “App”, “Platform”, “We”, “Us”, or “Our”) collects, uses, stores, and protects the information of users (“You” or “Users”) while accessing or using our services. By using NexRide, You agree to the collection and use of information in accordance with this Privacy Policy.</p>
-        <p>This document is an electronic record generated by a computer system and does not require any physical or digital signature.</p>
-        <p>NexRide is committed to protecting user privacy and ensuring that personal information is handled securely and responsibly.</p>
+    <div
+      style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
+      <p><strong>PRIVACY POLICY</strong></p>
+      <p>This Privacy Policy describes how NexRide (the “App”, “Platform”, “We”, “Us”, or “Our”) collects, uses, stores,
+        and protects the information of users (“You” or “Users”) while accessing or using our services. By using
+        NexRide, You agree to the collection and use of information in accordance with this Privacy Policy.</p>
+      <p>This document is an electronic record generated by a computer system and does not require any physical or
+        digital signature.</p>
+      <p>NexRide is committed to protecting user privacy and ensuring that personal information is handled securely and
+        responsibly.</p>
 
-        <p><strong>1. INFORMATION WE COLLECT</strong></p>
-        <p>1.1 NexRide may collect personal information including, but not limited to, name, mobile number, email address, and account-related details during registration or usage of the App.</p>
-        <p>1.2 We may collect location-related information, including real-time GPS data, to provide live tracking, route assistance, ETA calculations, and other location-based services.</p>
-        <p>1.3 We may automatically collect device-related information such as device model, operating system, IP address, app version, and usage analytics for service improvement.</p>
-        
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <p><strong>1. INFORMATION WE COLLECT</strong></p>
+      <p>1.1 NexRide may collect personal information including, but not limited to, name, mobile number, email address,
+        and account-related details during registration or usage of the App.</p>
+      <p>1.2 We may collect location-related information, including real-time GPS data, to provide live tracking, route
+        assistance, ETA calculations, and other location-based services.</p>
+      <p>1.3 We may automatically collect device-related information such as device model, operating system, IP address,
+        app version, and usage analytics for service improvement.</p>
 
-        <p><strong>2. USE OF INFORMATION</strong></p>
-        <p>2.1 Information collected is used to provide, maintain, and improve NexRide services.</p>
-        <p>2.2 User data may be used to enable live bus tracking, route planning, service optimization, and better travel assistance.</p>
-        <p>2.3 Information may also be used to enhance platform security, detect misuse, and improve user experience.</p>
-        
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>3. DATA SHARING</strong></p>
-        <p>3.1 NexRide does not sell, rent, or trade personal information to third parties.</p>
-        <p>3.2 Information may be shared with trusted service providers or partners only when necessary for service delivery, technical support, or legal compliance.</p>
-        <p>3.3 We may disclose information if required by law, regulation, or lawful government request.</p>
+      <p><strong>2. USE OF INFORMATION</strong></p>
+      <p>2.1 Information collected is used to provide, maintain, and improve NexRide services.</p>
+      <p>2.2 User data may be used to enable live bus tracking, route planning, service optimization, and better travel
+        assistance.</p>
+      <p>2.3 Information may also be used to enhance platform security, detect misuse, and improve user experience.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>4. DATA SECURITY</strong></p>
-        <p>4.1 NexRide implements reasonable technical and organizational measures to protect user data against unauthorized access, misuse, alteration, or disclosure.</p>
-        <p>4.2 While we strive to protect all information, no digital system can guarantee absolute security.</p>
+      <p><strong>3. DATA SHARING</strong></p>
+      <p>3.1 NexRide does not sell, rent, or trade personal information to third parties.</p>
+      <p>3.2 Information may be shared with trusted service providers or partners only when necessary for service
+        delivery, technical support, or legal compliance.</p>
+      <p>3.3 We may disclose information if required by law, regulation, or lawful government request.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>5. LOCATION DATA</strong></p>
-        <p>5.1 Certain NexRide features require access to device location to provide accurate real-time services.</p>
-        <p>5.2 Users may disable location permissions at any time; however, some features may not function properly without location access.</p>
+      <p><strong>4. DATA SECURITY</strong></p>
+      <p>4.1 NexRide implements reasonable technical and organizational measures to protect user data against
+        unauthorized access, misuse, alteration, or disclosure.</p>
+      <p>4.2 While we strive to protect all information, no digital system can guarantee absolute security.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>6. DATA RETENTION</strong></p>
-        <p>6.1 User information shall be retained only for as long as necessary to provide services, comply with legal obligations, or resolve disputes.</p>
-        <p>6.2 Unnecessary or outdated data may be deleted or anonymized periodically.</p>
+      <p><strong>5. LOCATION DATA</strong></p>
+      <p>5.1 Certain NexRide features require access to device location to provide accurate real-time services.</p>
+      <p>5.2 Users may disable location permissions at any time; however, some features may not function properly
+        without location access.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>7. USER RIGHTS</strong></p>
-        <p>7.1 Users may request access, correction, or deletion of their personal information, subject to applicable laws and service requirements.</p>
-        <p>7.2 Users may contact NexRide for privacy-related concerns or requests.</p>
+      <p><strong>6. DATA RETENTION</strong></p>
+      <p>6.1 User information shall be retained only for as long as necessary to provide services, comply with legal
+        obligations, or resolve disputes.</p>
+      <p>6.2 Unnecessary or outdated data may be deleted or anonymized periodically.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>8. CHANGES TO PRIVACY POLICY</strong></p>
-        <p>8.1 NexRide reserves the right to modify or update this Privacy Policy at any time.</p>
-        <p>8.2 Continued use of the App after updates constitutes acceptance of the revised Privacy Policy.</p>
+      <p><strong>7. USER RIGHTS</strong></p>
+      <p>7.1 Users may request access, correction, or deletion of their personal information, subject to applicable laws
+        and service requirements.</p>
+      <p>7.2 Users may contact NexRide for privacy-related concerns or requests.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>9. ACCEPTANCE</strong></p>
-        <p>By accessing or using NexRide, You acknowledge that You have read, understood, and agreed to this Privacy Policy.</p>
+      <p><strong>8. CHANGES TO PRIVACY POLICY</strong></p>
+      <p>8.1 NexRide reserves the right to modify or update this Privacy Policy at any time.</p>
+      <p>8.2 Continued use of the App after updates constitutes acceptance of the revised Privacy Policy.</p>
+
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+      <p><strong>9. ACCEPTANCE</strong></p>
+      <p>By accessing or using NexRide, You acknowledge that You have read, understood, and agreed to this Privacy
+        Policy.</p>
     </div>
   </div>
 
 
   <!-- Safety Page Overlay -->
-  <div id="safety-page" class="page-overlay push-overlay hidden" style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 4000;">
+  <div id="safety-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 4000;">
     <div class="safety-page" style="height: auto; min-height: 100dvh;">
       <header class="safety-header">
-      <button class="back-btn" id="back-safety">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="15 18 9 12 15 6"></polyline>
-        </svg>
-      </button>
-      <h1>Safety</h1>
-    </header>
+        <button class="back-btn" id="back-safety">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <h1>Safety</h1>
+      </header>
 
-    <main class="safety-content">
+      <main class="safety-content">
 
-      <!-- Safety Setup Section -->
-      <section class="setup-section">
-        <div class="section-header">
-          <h2>Safety Setup</h2>
-          <span class="completion">1/3 Complete</span>
-        </div>
-        
-        <div class="setup-cards">
-          <div class="setup-card completed" id="trusted-contacts-btn" style="cursor: pointer;">
-            <div class="setup-info">
-              <div class="setup-title">
-                <img src="./assets/profile-2user.svg" class="custom-svg-icon" alt="Trusted Contacts" /> Trusted Contacts
-              </div>
-              <p>Manage your emergency contacts.</p>
-            </div>
-            <div class="setup-status"><i data-lucide="check-circle-2"></i></div>
+        <!-- Safety Setup Section -->
+        <section class="setup-section">
+          <div class="section-header">
+            <h2>Safety Setup</h2>
+            <span class="completion">1/3 Complete</span>
           </div>
 
-          <div class="setup-card">
-            <div class="setup-info">
-              <div class="setup-title">
-                <img src="./assets/clipboard-tick.svg" class="custom-svg-icon" alt="Safety Check-ins" /> Safety Check-ins
+          <div class="setup-cards">
+            <div class="setup-card completed" id="trusted-contacts-btn" style="cursor: pointer;">
+              <div class="setup-info">
+                <div class="setup-title">
+                  <img src="./assets/profile-2user.svg" class="custom-svg-icon" alt="Trusted Contacts" /> Trusted
+                  Contacts
+                </div>
+                <p>Manage your emergency contacts.</p>
               </div>
-              <p>Periodic safety check-ins during rides.</p>
+              <div class="setup-status"><i data-lucide="check-circle-2"></i></div>
             </div>
-            <div class="setup-action"><i data-lucide="chevron-right"></i></div>
-          </div>
 
-          <div class="setup-card">
-            <div class="setup-info">
-              <div class="setup-title">
-                <img src="./assets/danger.svg" class="custom-svg-icon" alt="Emergency Actions" /> Emergency Actions
+            <div class="setup-card">
+              <div class="setup-info">
+                <div class="setup-title">
+                  <img src="./assets/clipboard-tick.svg" class="custom-svg-icon" alt="Safety Check-ins" /> Safety
+                  Check-ins
+                </div>
+                <p>Periodic safety check-ins during rides.</p>
               </div>
-              <p>Quick access to SOS and help.</p>
+              <div class="setup-action"><i data-lucide="chevron-right"></i></div>
             </div>
-            <div class="setup-action"><i data-lucide="chevron-right"></i></div>
+
+            <div class="setup-card">
+              <div class="setup-info">
+                <div class="setup-title">
+                  <img src="./assets/danger.svg" class="custom-svg-icon" alt="Emergency Actions" /> Emergency Actions
+                </div>
+                <p>Quick access to SOS and help.</p>
+              </div>
+              <div class="setup-action"><i data-lucide="chevron-right"></i></div>
+            </div>
+
+
           </div>
-
-
-        </div>
-      </section>
+        </section>
 
 
 
-    </main>
+      </main>
     </div>
   </div>
 
 
   <!-- Trusted Contacts Page Overlay -->
-  <div id="trusted-contacts-page" class="page-overlay push-overlay hidden" style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 5000; display: flex; flex-direction: column;">
+  <div id="trusted-contacts-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 5000; display: flex; flex-direction: column;">
     <!-- Header -->
-    <div class="top-bar" style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
-      <button id="back-trusted-contacts" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <div class="top-bar"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
+      <button id="back-trusted-contacts" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"></polyline>
         </svg>
       </button>
@@ -733,21 +794,25 @@
     <!-- Content -->
     <div style="padding: 24px 20px; flex: 1;">
       <h2 style="font-weight: 700; font-size: 18px; color: #111827; margin: 0 0 8px 0;">Trusted Contacts</h2>
-      <p style="font-size: 14px; color: #6B7280; margin: 0 0 24px 0; line-height: 1.5; font-weight: normal !important; text-align: left;">Quick access to emergency contacts and safety features</p>
+      <p
+        style="font-size: 14px; color: #6B7280; margin: 0 0 24px 0; line-height: 1.5; font-weight: normal !important; text-align: left;">
+        Quick access to emergency contacts and safety features</p>
 
       <!-- Contact List -->
       <div id="contact-list" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
       </div>
 
       <!-- Add Contact Button -->
-      <button id="add-contact-btn" style="width: 100%; background: #F3F4F6; color: #4B5563; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer;">
+      <button id="add-contact-btn"
+        style="width: 100%; background: #F3F4F6; color: #4B5563; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer;">
         Add Contact
       </button>
     </div>
 
     <!-- Footer Done Button -->
     <div style="padding: 20px; padding-bottom: 40px;">
-      <button id="done-trusted-contacts" style="width: 100%; background: #2563EB; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer;">
+      <button id="done-trusted-contacts"
+        style="width: 100%; background: #2563EB; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer;">
         Done
       </button>
     </div>
@@ -755,11 +820,15 @@
 
 
   <!-- Add Contact Page Overlay -->
-  <div id="add-contact-page" class="page-overlay push-overlay hidden" style="background-color: #F8F9FA; height: 100dvh; z-index: 5001; display: flex; flex-direction: column;">
+  <div id="add-contact-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; height: 100dvh; z-index: 5001; display: flex; flex-direction: column;">
     <!-- Header -->
-    <div class="top-bar" style="background: #F8F9FA; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
-      <button id="back-add-contact" class="back-btn" style="background: #FFFFFF; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 1px solid #E5E7EB; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <div class="top-bar"
+      style="background: #F8F9FA; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
+      <button id="back-add-contact" class="back-btn"
+        style="background: #FFFFFF; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: 1px solid #E5E7EB; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"></line>
           <polyline points="12 19 5 12 12 5"></polyline>
         </svg>
@@ -771,19 +840,27 @@
 
     <!-- Form Content -->
     <div style="padding: 24px 20px; flex: 1; display: flex; flex-direction: column; gap: 20px;">
-      
+
       <div style="display: flex; flex-direction: column; gap: 8px;">
         <label for="new-contact-name" style="font-weight: 600; font-size: 14px; color: #374151;">Contact Name</label>
-        <input type="text" id="new-contact-name" placeholder="Enter name" style="width: 100%; padding: 16px; border: 1px solid #E5E7EB; border-radius: 12px; font-size: 16px; font-family: inherit; outline: none; transition: border-color 0.2s;" onfocus="this.style.borderColor='#2563EB'" onblur="this.style.borderColor='#E5E7EB'">
+        <input type="text" id="new-contact-name" placeholder="Enter name"
+          style="width: 100%; padding: 16px; border: 1px solid #E5E7EB; border-radius: 12px; font-size: 16px; font-family: inherit; outline: none; transition: border-color 0.2s;"
+          onfocus="this.style.borderColor='#2563EB'" onblur="this.style.borderColor='#E5E7EB'">
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 8px;">
         <label for="new-contact-phone" style="font-weight: 600; font-size: 14px; color: #374151;">Mobile Number</label>
-        <div style="display: flex; width: 100%; border: 1px solid #E5E7EB; border-radius: 12px; overflow: hidden; transition: border-color 0.2s;" id="phone-input-container">
-          <div style="padding: 16px; background: #F9FAFB; border-right: 1px solid #E5E7EB; font-weight: 600; color: #4B5563; font-size: 16px;">
+        <div
+          style="display: flex; width: 100%; border: 1px solid #E5E7EB; border-radius: 12px; overflow: hidden; transition: border-color 0.2s;"
+          id="phone-input-container">
+          <div
+            style="padding: 16px; background: #F9FAFB; border-right: 1px solid #E5E7EB; font-weight: 600; color: #4B5563; font-size: 16px;">
             +91
           </div>
-          <input type="tel" id="new-contact-phone" placeholder="Enter mobile number" style="flex: 1; padding: 16px; border: none; font-size: 16px; font-family: inherit; outline: none;" onfocus="document.getElementById('phone-input-container').style.borderColor='#2563EB'" onblur="document.getElementById('phone-input-container').style.borderColor='#E5E7EB'">
+          <input type="tel" id="new-contact-phone" placeholder="Enter mobile number"
+            style="flex: 1; padding: 16px; border: none; font-size: 16px; font-family: inherit; outline: none;"
+            onfocus="document.getElementById('phone-input-container').style.borderColor='#2563EB'"
+            onblur="document.getElementById('phone-input-container').style.borderColor='#E5E7EB'">
         </div>
       </div>
 
@@ -791,33 +868,44 @@
 
     <!-- Footer Save Button -->
     <div style="padding: 20px; padding-bottom: 40px; background: #FFFFFF; border-top: 1px solid #F3F4F6;">
-      <button id="save-new-contact-btn" data-disabled="true" style="width: 100%; background: #2563EB; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; transition: opacity 0.2s; opacity: 0.5;">
+      <button id="save-new-contact-btn" data-disabled="true"
+        style="width: 100%; background: #2563EB; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer; transition: opacity 0.2s; opacity: 0.5;">
         Save Contact
       </button>
     </div>
   </div>
 
   <!-- Auth Page Overlay (Mobile Number) -->
-  <div id="auth-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; height: 100dvh; z-index: 5000; display: flex; flex-direction: column;">
-    
+  <div id="auth-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; height: 100dvh; z-index: 5000; display: flex; flex-direction: column;">
+
     <!-- Back Button Header -->
     <div style="padding: 24px 20px 16px; display: flex; align-items: center;">
-      <button id="back-from-auth" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      <button id="back-from-auth" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
       </button>
     </div>
 
     <div style="flex: 1; padding: 0 24px 0;">
       <!-- Headings directly above input -->
-      <h1 style="font-size: 26px; font-weight: 800; color: #111827; margin: 0 0 8px 0; letter-spacing: -0.5px; text-align: left;">Let’s Get Started</h1>
-      <p style="font-size: 15px; color: #6B7280; margin: 0 0 24px 0; text-align: left;">Enter your mobile number to continue</p>
-      
+      <h1
+        style="font-size: 26px; font-weight: 800; color: #111827; margin: 0 0 8px 0; letter-spacing: -0.5px; text-align: left;">
+        Let’s Get Started</h1>
+      <p style="font-size: 15px; color: #6B7280; margin: 0 0 24px 0; text-align: left;">Enter your mobile number to
+        continue</p>
+
       <!-- Input Area -->
       <div class="phone-input-group">
         <div class="country-code">
           <span>+91</span>
         </div>
-        <input type="tel" id="mobile-input" pattern="[0-9]*" inputmode="numeric" maxlength="10" placeholder="Mobile Number" />
+        <input type="tel" id="mobile-input" pattern="[0-9]*" inputmode="numeric" maxlength="10"
+          placeholder="Mobile Number" />
       </div>
     </div>
 
@@ -825,150 +913,205 @@
     <div id="auth-bottom-wrapper" class="bottom-action-wrapper" style="padding: 24px; padding-bottom: 40px;">
       <div id="recaptcha-container" style="margin-bottom: 16px; display: flex; justify-content: center;"></div>
       <p style="font-size: 13px; color: #6B7280; line-height: 1.5; text-align: center; margin: 0 0 16px 0;">
-        By continuing, you agree to our <span id="auth-terms-link" style="color: #2563EB; font-weight: 600; cursor: pointer;">Terms & Conditions</span> and <span id="auth-privacy-link" style="color: #2563EB; font-weight: 600; cursor: pointer;">Privacy Policy</span>
+        By continuing, you agree to our <span id="auth-terms-link"
+          style="color: #2563EB; font-weight: 600; cursor: pointer;">Terms & Conditions</span> and <span
+          id="auth-privacy-link" style="color: #2563EB; font-weight: 600; cursor: pointer;">Privacy Policy</span>
       </p>
       <button id="auth-continue-btn" class="btn-gradient" disabled>Continue</button>
     </div>
   </div>
 
   <!-- Verification Terms Page Overlay -->
-  <div id="verification-terms-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 6000;">
+  <div id="verification-terms-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 6000;">
     <!-- Header -->
-    <div class="top-bar" style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
-      <button id="back-verification-terms" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <div class="top-bar"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
+      <button id="back-verification-terms" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
       </button>
       <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
-        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Terms and Conditions</span>
+        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Terms and
+          Conditions</span>
       </div>
     </div>
     <!-- Content Container -->
-    <div style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
-        <p><strong>TERMS AND CONDITIONS</strong></p>
-        <p>This mobile application/platform i.e. NexRide (the “App”) is owned and operated by NexRide (the “Platform”). By accessing or using this App, You agree to be bound by these Terms and Conditions (“Terms”). If You do not agree to these Terms, please refrain from using this App.</p>
-        <p>This document is an electronic record generated by a computer system and does not require physical or digital signatures.</p>
-        <p>NexRide provides technology-based software services enabling Users (“Users”) to access transportation-related services including live bus tracking, route discovery, stop information, ETA updates, and travel assistance (“Services”). These Terms govern the relationship between You and NexRide regarding the use of the App and Services.</p>
+    <div
+      style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
+      <p><strong>TERMS AND CONDITIONS</strong></p>
+      <p>This mobile application/platform i.e. NexRide (the “App”) is owned and operated by NexRide (the “Platform”). By
+        accessing or using this App, You agree to be bound by these Terms and Conditions (“Terms”). If You do not agree
+        to these Terms, please refrain from using this App.</p>
+      <p>This document is an electronic record generated by a computer system and does not require physical or digital
+        signatures.</p>
+      <p>NexRide provides technology-based software services enabling Users (“Users”) to access transportation-related
+        services including live bus tracking, route discovery, stop information, ETA updates, and travel assistance
+        (“Services”). These Terms govern the relationship between You and NexRide regarding the use of the App and
+        Services.</p>
 
-        <p><strong>1. REGISTRATION AND ACCOUNT</strong></p>
-        <p>1.1 Certain features of the App may require account registration using accurate and updated information.</p>
-        <p>1.2 Users are responsible for maintaining the confidentiality of their login credentials and all activities performed through their account.</p>
-        <p>1.3 NexRide reserves the right to suspend or terminate accounts containing false, misleading, or unauthorized information.</p>
+      <p><strong>1. REGISTRATION AND ACCOUNT</strong></p>
+      <p>1.1 Certain features of the App may require account registration using accurate and updated information.</p>
+      <p>1.2 Users are responsible for maintaining the confidentiality of their login credentials and all activities
+        performed through their account.</p>
+      <p>1.3 NexRide reserves the right to suspend or terminate accounts containing false, misleading, or unauthorized
+        information.</p>
 
-        <p><strong>2. SERVICES</strong></p>
-        <p>2.1 The App enables Users to view live bus locations, routes, stop details, and estimated arrival times.</p>
-        <p>2.2 NexRide makes reasonable efforts to ensure accurate real-time information; however, data accuracy may be affected by GPS limitations, network interruptions, traffic conditions, or operational delays.</p>
-        <p>2.3 Service availability may vary depending on location, operator availability, and technical conditions.</p>
+      <p><strong>2. SERVICES</strong></p>
+      <p>2.1 The App enables Users to view live bus locations, routes, stop details, and estimated arrival times.</p>
+      <p>2.2 NexRide makes reasonable efforts to ensure accurate real-time information; however, data accuracy may be
+        affected by GPS limitations, network interruptions, traffic conditions, or operational delays.</p>
+      <p>2.3 Service availability may vary depending on location, operator availability, and technical conditions.</p>
 
-        <p><strong>3. USER OBLIGATIONS</strong></p>
-        <p>3.1 Users shall use the App only for lawful and authorized purposes.</p>
-        <p>3.2 Users shall not attempt to disrupt, damage, reverse engineer, or gain unauthorized access to the App or its systems.</p>
-        <p>3.3 Misuse of the platform may result in restricted access or account termination.</p>
+      <p><strong>3. USER OBLIGATIONS</strong></p>
+      <p>3.1 Users shall use the App only for lawful and authorized purposes.</p>
+      <p>3.2 Users shall not attempt to disrupt, damage, reverse engineer, or gain unauthorized access to the App or its
+        systems.</p>
+      <p>3.3 Misuse of the platform may result in restricted access or account termination.</p>
 
-        <p><strong>4. LIMITATION OF LIABILITY</strong></p>
-        <p>4.1 NexRide shall not be liable for delays, route changes, missed buses, traffic disruptions, or service interruptions caused by third-party operators or external factors.</p>
-        <p>4.2 NexRide functions as a technology platform and does not directly operate transport vehicles unless otherwise stated.</p>
+      <p><strong>4. LIMITATION OF LIABILITY</strong></p>
+      <p>4.1 NexRide shall not be liable for delays, route changes, missed buses, traffic disruptions, or service
+        interruptions caused by third-party operators or external factors.</p>
+      <p>4.2 NexRide functions as a technology platform and does not directly operate transport vehicles unless
+        otherwise stated.</p>
 
-        <p><strong>5. PRIVACY AND DATA</strong></p>
-        <p>5.1 NexRide may collect necessary data including location and travel-related information to improve service quality and user experience.</p>
-        <p>5.2 User data shall be handled in accordance with applicable privacy and data protection standards.</p>
+      <p><strong>5. PRIVACY AND DATA</strong></p>
+      <p>5.1 NexRide may collect necessary data including location and travel-related information to improve service
+        quality and user experience.</p>
+      <p>5.2 User data shall be handled in accordance with applicable privacy and data protection standards.</p>
 
-        <p><strong>6. MODIFICATION OF SERVICES</strong></p>
-        <p>6.1 NexRide reserves the right to modify, suspend, or discontinue any service or feature without prior notice.</p>
+      <p><strong>6. MODIFICATION OF SERVICES</strong></p>
+      <p>6.1 NexRide reserves the right to modify, suspend, or discontinue any service or feature without prior notice.
+      </p>
 
-        <p><strong>7. ACCEPTANCE</strong></p>
-        <p>By continuing to use NexRide, You acknowledge that You have read, understood, and agreed to these Terms and Conditions.</p>
+      <p><strong>7. ACCEPTANCE</strong></p>
+      <p>By continuing to use NexRide, You acknowledge that You have read, understood, and agreed to these Terms and
+        Conditions.</p>
     </div>
   </div>
 
   <!-- Verification Privacy Page Overlay -->
-  <div id="verification-privacy-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 6000;">
+  <div id="verification-privacy-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 6000;">
     <!-- Header -->
-    <div class="top-bar" style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
-      <button id="back-verification-privacy" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    <div class="top-bar"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid #F3F4F6;">
+      <button id="back-verification-privacy" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
       </button>
       <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
         <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Privacy Policy</span>
       </div>
     </div>
     <!-- Content Container -->
-    <div style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
-        <p><strong>PRIVACY POLICY</strong></p>
-        <p>This Privacy Policy describes how NexRide (the “App”, “Platform”, “We”, “Us”, or “Our”) collects, uses, stores, and protects the information of users (“You” or “Users”) while accessing or using our services. By using NexRide, You agree to the collection and use of information in accordance with this Privacy Policy.</p>
-        <p>This document is an electronic record generated by a computer system and does not require any physical or digital signature.</p>
-        <p>NexRide is committed to protecting user privacy and ensuring that personal information is handled securely and responsibly.</p>
+    <div
+      style="padding: 24px 20px; padding-bottom: 80px; font-size: 14px; color: #374151; line-height: 1.6; text-align: justify;">
+      <p><strong>PRIVACY POLICY</strong></p>
+      <p>This Privacy Policy describes how NexRide (the “App”, “Platform”, “We”, “Us”, or “Our”) collects, uses, stores,
+        and protects the information of users (“You” or “Users”) while accessing or using our services. By using
+        NexRide, You agree to the collection and use of information in accordance with this Privacy Policy.</p>
+      <p>This document is an electronic record generated by a computer system and does not require any physical or
+        digital signature.</p>
+      <p>NexRide is committed to protecting user privacy and ensuring that personal information is handled securely and
+        responsibly.</p>
 
-        <p><strong>1. INFORMATION WE COLLECT</strong></p>
-        <p>1.1 NexRide may collect personal information including, but not limited to, name, mobile number, email address, and account-related details during registration or usage of the App.</p>
-        <p>1.2 We may collect location-related information, including real-time GPS data, to provide live tracking, route assistance, ETA calculations, and other location-based services.</p>
-        <p>1.3 We may automatically collect device-related information such as device model, operating system, IP address, app version, and usage analytics for service improvement.</p>
-        
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <p><strong>1. INFORMATION WE COLLECT</strong></p>
+      <p>1.1 NexRide may collect personal information including, but not limited to, name, mobile number, email address,
+        and account-related details during registration or usage of the App.</p>
+      <p>1.2 We may collect location-related information, including real-time GPS data, to provide live tracking, route
+        assistance, ETA calculations, and other location-based services.</p>
+      <p>1.3 We may automatically collect device-related information such as device model, operating system, IP address,
+        app version, and usage analytics for service improvement.</p>
 
-        <p><strong>2. USE OF INFORMATION</strong></p>
-        <p>2.1 Information collected is used to provide, maintain, and improve NexRide services.</p>
-        <p>2.2 User data may be used to enable live bus tracking, route planning, service optimization, and better travel assistance.</p>
-        <p>2.3 Information may also be used to enhance platform security, detect misuse, and improve user experience.</p>
-        
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>3. DATA SHARING</strong></p>
-        <p>3.1 NexRide does not sell, rent, or trade personal information to third parties.</p>
-        <p>3.2 Information may be shared with trusted service providers or partners only when necessary for service delivery, technical support, or legal compliance.</p>
-        <p>3.3 We may disclose information if required by law, regulation, or lawful government request.</p>
+      <p><strong>2. USE OF INFORMATION</strong></p>
+      <p>2.1 Information collected is used to provide, maintain, and improve NexRide services.</p>
+      <p>2.2 User data may be used to enable live bus tracking, route planning, service optimization, and better travel
+        assistance.</p>
+      <p>2.3 Information may also be used to enhance platform security, detect misuse, and improve user experience.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>4. DATA SECURITY</strong></p>
-        <p>4.1 NexRide implements reasonable technical and organizational measures to protect user data against unauthorized access, misuse, alteration, or disclosure.</p>
-        <p>4.2 While we strive to protect all information, no digital system can guarantee absolute security.</p>
+      <p><strong>3. DATA SHARING</strong></p>
+      <p>3.1 NexRide does not sell, rent, or trade personal information to third parties.</p>
+      <p>3.2 Information may be shared with trusted service providers or partners only when necessary for service
+        delivery, technical support, or legal compliance.</p>
+      <p>3.3 We may disclose information if required by law, regulation, or lawful government request.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>5. LOCATION DATA</strong></p>
-        <p>5.1 Certain NexRide features require access to device location to provide accurate real-time services.</p>
-        <p>5.2 Users may disable location permissions at any time; however, some features may not function properly without location access.</p>
+      <p><strong>4. DATA SECURITY</strong></p>
+      <p>4.1 NexRide implements reasonable technical and organizational measures to protect user data against
+        unauthorized access, misuse, alteration, or disclosure.</p>
+      <p>4.2 While we strive to protect all information, no digital system can guarantee absolute security.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>6. DATA RETENTION</strong></p>
-        <p>6.1 User information shall be retained only for as long as necessary to provide services, comply with legal obligations, or resolve disputes.</p>
-        <p>6.2 Unnecessary or outdated data may be deleted or anonymized periodically.</p>
+      <p><strong>5. LOCATION DATA</strong></p>
+      <p>5.1 Certain NexRide features require access to device location to provide accurate real-time services.</p>
+      <p>5.2 Users may disable location permissions at any time; however, some features may not function properly
+        without location access.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>7. USER RIGHTS</strong></p>
-        <p>7.1 Users may request access, correction, or deletion of their personal information, subject to applicable laws and service requirements.</p>
-        <p>7.2 Users may contact NexRide for privacy-related concerns or requests.</p>
+      <p><strong>6. DATA RETENTION</strong></p>
+      <p>6.1 User information shall be retained only for as long as necessary to provide services, comply with legal
+        obligations, or resolve disputes.</p>
+      <p>6.2 Unnecessary or outdated data may be deleted or anonymized periodically.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>8. CHANGES TO PRIVACY POLICY</strong></p>
-        <p>8.1 NexRide reserves the right to modify or update this Privacy Policy at any time.</p>
-        <p>8.2 Continued use of the App after updates constitutes acceptance of the revised Privacy Policy.</p>
+      <p><strong>7. USER RIGHTS</strong></p>
+      <p>7.1 Users may request access, correction, or deletion of their personal information, subject to applicable laws
+        and service requirements.</p>
+      <p>7.2 Users may contact NexRide for privacy-related concerns or requests.</p>
 
-        <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
 
-        <p><strong>9. ACCEPTANCE</strong></p>
-        <p>By accessing or using NexRide, You acknowledge that You have read, understood, and agreed to this Privacy Policy.</p>
+      <p><strong>8. CHANGES TO PRIVACY POLICY</strong></p>
+      <p>8.1 NexRide reserves the right to modify or update this Privacy Policy at any time.</p>
+      <p>8.2 Continued use of the App after updates constitutes acceptance of the revised Privacy Policy.</p>
+
+      <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
+
+      <p><strong>9. ACCEPTANCE</strong></p>
+      <p>By accessing or using NexRide, You acknowledge that You have read, understood, and agreed to this Privacy
+        Policy.</p>
     </div>
   </div>
 
   <!-- OTP Verification Overlay -->
-  <div id="otp-page" class="page-overlay push-overlay hidden" style="background-color: #FFFFFF; height: 100dvh; z-index: 6000; display: flex; flex-direction: column;">
+  <div id="otp-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; height: 100dvh; z-index: 6000; display: flex; flex-direction: column;">
     <!-- Header -->
     <div style="padding: 24px 20px; display: flex; align-items: center;">
-      <button id="back-to-auth" class="back-btn" style="background: #F5F7FA; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      <button id="back-to-auth" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5"
+          stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
       </button>
     </div>
 
     <div style="padding: 0 24px;">
-      <h1 style="font-size: 26px; font-weight: 800; color: #111827; margin: 0 0 8px 0; letter-spacing: -0.5px;">OTP Verification</h1>
-      <p style="font-size: 15px; color: #6B7280; margin: 0; line-height: 1.5;">Enter the 6-digit OTP sent to <br><strong style="color: #111827;" id="otp-sent-number">+91 XXXXX XXXXX</strong></p>
+      <h1 style="font-size: 26px; font-weight: 800; color: #111827; margin: 0 0 8px 0; letter-spacing: -0.5px;">OTP
+        Verification</h1>
+      <p style="font-size: 15px; color: #6B7280; margin: 0; line-height: 1.5;">Enter the 6-digit OTP sent to <br><strong
+          style="color: #111827;" id="otp-sent-number">+91 XXXXX XXXXX</strong></p>
 
       <!-- OTP Inputs -->
-      <div class="otp-container" style="display: flex; justify-content: space-between; margin-top: 32px; margin-bottom: 12px;">
+      <div class="otp-container"
+        style="display: flex; justify-content: space-between; margin-top: 32px; margin-bottom: 12px;">
         <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
         <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
         <input type="tel" class="otp-input" maxlength="1" pattern="[0-9]*" inputmode="numeric" />
@@ -980,35 +1123,60 @@
     </div>
 
     <!-- Bottom Actions -->
-    <div id="otp-bottom-wrapper" class="bottom-action-wrapper" style="margin-top: auto; padding: 24px; padding-bottom: 40px; text-align: center;">
+    <div id="otp-bottom-wrapper" class="bottom-action-wrapper"
+      style="margin-top: auto; padding: 24px; padding-bottom: 40px; text-align: center;">
       <div style="margin-bottom: 24px; font-size: 14px; color: #6B7280;">
         <span id="resend-countdown">Resend OTP in 30s</span>
-        <span id="resend-btn" class="hidden" style="color: #2563EB; font-weight: 600; cursor: pointer;">Resend OTP</span>
+        <span id="resend-btn" class="hidden" style="color: #2563EB; font-weight: 600; cursor: pointer;">Resend
+          OTP</span>
       </div>
       <button id="verify-otp-btn" class="btn-gradient">Verify OTP</button>
     </div>
   </div>
+  </div>
+
+  <!-- E-Pass Page Overlay -->
+  <div id="epass-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; overflow: hidden; height: 100dvh; width: 100%; z-index: 4000; position: fixed; top: 0; left: 0;">
+    <div class="epass-page" style="height: 100%; display: flex; flex-direction: column;">
+      <header class="safety-header" style="position: relative; z-index: 2; flex-shrink: 0;">
+        <button class="back-btn" id="back-epass">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <h1>E-Pass</h1>
+      </header>
+      <main class="epass-content"
+        style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 32px; padding-bottom: 60px;">
+        <div class="epass-card" id="epass-card-element">
+          <div class="epass-barcode-container">
+            <svg id="epass-barcode"></svg>
+            <p class="pass-id-text">ID: <span id="pass-id-display">Generating...</span></p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
 
   <script type="module" src="./js/auth-ui.js?v=3"></script>
   <script type="module" src="./js/main.js"></script>
   <script src="./js/app.js"></script>
 
-  <!-- Step 12: Debug Panel -->
-  <div id="user-debug-panel" style="position: fixed; bottom: 10px; left: 10px; background: rgba(0,0,0,0.8); color: #4ade80; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px; z-index: 9999; display: flex; flex-direction: column; gap: 5px;">
-    <strong style="color: white; margin-bottom: 5px;">User Debug Panel</strong>
-    <div id="debug-listener">Listener: Connecting...</div>
-    <div id="debug-status">Status: Waiting</div>
-    <div id="debug-latlng">Location: 0, 0</div>
-    <div id="debug-lastupdate">Last Update: Never</div>
-  </div>
+
 
   <script type="module" src="./js/live-tracking.js"></script>
-  <script type="module" src="./js/sheet.js?v=2"></script>
+  <script type="module" src="./js/sheet.js?v=3"></script>
   <script type="module" src="./js/profile.js"></script>
   <script type="module" src="./js/safety.js"></script>
 
   <script type="module" src="/js/main.js"></script>
   <script type="module" src="/js/auth-ui.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+  <script type="module" src="./js/epass.js"></script>
 </body>
 
 </html>
