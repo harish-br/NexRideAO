@@ -72,9 +72,12 @@ async function generateAndSaveEPass(userId, passRef) {
 
     await setDoc(passRef, passData);
     
-    // Store the barcode as 'latest' in the user's main document
-    const userRef = doc(firestore, 'users', userId);
-    await setDoc(userRef, { latest: passId }, { merge: true });
+    // Store the barcode in a separate document inside the user's database
+    const barcodeRef = doc(firestore, 'users', userId, 'barcode', 'latest');
+    await setDoc(barcodeRef, { 
+        passId: passId,
+        updatedAt: Date.now()
+    });
 
     return passData;
 }
