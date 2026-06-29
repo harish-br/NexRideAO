@@ -284,6 +284,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const epassBtn = document.getElementById('epass-btn');
     if (epassBtn) {
         epassBtn.addEventListener('click', async () => {
+            const content = document.querySelector('.epass-content');
+            if (content) {
+                content.classList.remove('animate-in');
+                void content.offsetWidth; // trigger reflow
+                content.classList.add('animate-in');
+            }
             if (auth && auth.currentUser) {
                 // Temporarily disable the loaded flag to force a re-check
                 barcodeLoaded = false;
@@ -300,6 +306,12 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
         const epassBtn = document.getElementById('epass-btn');
         if (epassBtn) {
             epassBtn.addEventListener('click', async () => {
+                const content = document.querySelector('.epass-content');
+                if (content) {
+                    content.classList.remove('animate-in');
+                    void content.offsetWidth; // trigger reflow
+                    content.classList.add('animate-in');
+                }
                 if (auth && auth.currentUser) {
                     barcodeLoaded = false;
                     await initializeEPass(auth.currentUser.uid);
