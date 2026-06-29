@@ -1,13 +1,14 @@
 import { firestore } from '../js/firebase-config.js';
-import { collection, onSnapshot, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { collection, onSnapshot, addDoc, updateDoc, doc, getDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 // Navigation Elements
 
 
 // Modal Logic
-function openModal(editId = null) {
+async function openModal(editId = null) {
   busEditorForm.reset();
   stopsContainer.innerHTML = ''; // clear stops
+  stopCount = 0; // reset stop counter
   document.getElementById('bus-edit-id').value = editId || '';
   document.getElementById('bus-modal-title').textContent = editId ? 'Edit Bus Control Center' : 'Add New Bus Control Center';
   
@@ -18,6 +19,54 @@ function openModal(editId = null) {
   document.getElementById('tab-overview').classList.remove('hidden');
 
   busEditorModal.classList.remove('hidden');
+
+  if (editId) {
+    try {
+      const docRef = doc(firestore, 'buses', editId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        document.getElementById('modal-bus-no').value = data.busNumber || '';
+        document.getElementById('modal-bus-reg').value = data.registrationNumber || '';
+        document.getElementById('modal-bus-capacity').value = data.capacity || '';
+        document.getElementById('modal-bus-status').value = data.status || 'Active';
+        
+        document.getElementById('modal-driver-name').value = data.driverName || '';
+        document.getElementById('modal-driver-contact').value = data.driverContact || '';
+        document.getElementById('modal-driver-emergency').value = data.driverEmergency || '';
+        document.getElementById('modal-driver-license').value = data.driverLicense || '';
+        
+        document.getElementById('modal-route-name').value = data.route || '';
+        
+        if (data.schedules) {
+            document.getElementById('modal-sch-morning-dep').value = data.schedules.morningDeparture || '';
+            document.getElementById('modal-sch-morning-arr').value = data.schedules.morningArrival || '';
+            document.getElementById('modal-sch-evening-dep').value = data.schedules.eveningDeparture || '';
+            document.getElementById('modal-sch-evening-arr').value = data.schedules.eveningArrival || '';
+        }
+        
+        if (data.alerts) {
+            document.getElementById('modal-alert-type').value = data.alerts.type || '';
+            document.getElementById('modal-alert-msg').value = data.alerts.message || '';
+        }
+        
+        if (data.stops && Array.isArray(data.stops)) {
+            data.stops.forEach(stop => {
+                const el = createStopElement();
+                el.querySelector('.stop-name').value = stop.stopName || '';
+                el.querySelector('.stop-arrival').value = stop.arrivalTime || '';
+                el.querySelector('.stop-departure').value = stop.departureTime || '';
+                if (stop.latitude) el.querySelector('.stop-lat').value = stop.latitude;
+                if (stop.longitude) el.querySelector('.stop-lng').value = stop.longitude;
+                stopsContainer.appendChild(el);
+            });
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching bus:", err);
+      alert("Failed to load bus data.");
+    }
+  }
 }
 
 function closeModal() {
@@ -147,7 +196,7 @@ saveBusBtn.addEventListener('click', async () => {
     return;
   }
   
-  saveBusBtn.textContent = 'Submitting...';
+  saveBusBtn.textContent = 'Saving...';
   saveBusBtn.disabled = true;
   
   try {
@@ -169,12 +218,6 @@ saveBusBtn.addEventListener('click', async () => {
     const targetBusId = document.getElementById('bus-edit-id').value || null;
     
     const payload = {
-      type: targetBusId ? 'BUS_UPDATE' : 'BUS_CREATE',
-      targetBusId: targetBusId,
-      status: 'Pending',
-      submittedAt: serverTimestamp(),
-      submittedByEmail: auth.currentUser ? auth.currentUser.email : 'admin',
-      data: {
         busNumber: document.getElementById('modal-bus-no').value,
         registrationNumber: document.getElementById('modal-bus-reg').value,
         capacity: document.getElementById('modal-bus-capacity').value,
@@ -191,25 +234,31 @@ saveBusBtn.addEventListener('click', async () => {
           eveningDeparture: document.getElementById('modal-sch-evening-dep').value,
           eveningArrival: document.getElementById('modal-sch-evening-arr').value
         },
-
         alerts: {
           type: document.getElementById('modal-alert-type').value,
           message: document.getElementById('modal-alert-msg').value
-        }
-      }
+        },
+        updatedAt: serverTimestamp(),
+        updatedBy: auth.currentUser ? auth.currentUser.email : 'admin'
     };
     
-    // Write to Pending Approvals instead of Buses collection
-    await addDoc(collection(firestore, 'pending_approvals'), payload);
+    // Write directly to buses collection
+    if (targetBusId) {
+        await updateDoc(doc(firestore, 'buses', targetBusId), payload);
+        alert('Bus updated successfully!');
+    } else {
+        payload.createdAt = serverTimestamp();
+        await addDoc(collection(firestore, 'buses'), payload);
+        alert('New bus added successfully!');
+    }
     
-    alert('Bus update submitted successfully! It is now pending approval by a Super Admin.');
     closeModal();
     
   } catch (error) {
-    console.error("Error submitting for approval:", error);
-    alert('Failed to submit: ' + error.message);
+    console.error("Error saving bus:", error);
+    alert('Failed to save: ' + error.message);
   } finally {
-    saveBusBtn.textContent = 'Submit for Approval';
+    saveBusBtn.textContent = 'Save Bus';
     saveBusBtn.disabled = false;
   }
 });
