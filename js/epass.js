@@ -143,6 +143,12 @@ async function renderHologram(userId) {
     const card = document.getElementById('epass-card-element');
 
     let sigStr = "GUEST0000NOBUS00";
+    
+    // UI elements
+    const nameEl = document.getElementById('epass-name');
+    const idEl = document.getElementById('epass-id');
+    const busEl = document.getElementById('epass-bus');
+
     if (userId) {
         try {
             const digitalIdRef = doc(firestore, 'users', userId, 'DigitalID', 'userpass');
@@ -177,7 +183,18 @@ async function renderHologram(userId) {
             }
         } catch (e) {
             console.error("Failed to fetch DigitalID for e-pass:", e);
+            sigStr = `${userId.substring(0, 6)}PASSBUS00`.toUpperCase();
+            
+            // Fallback UI on error
+            if (nameEl) nameEl.textContent = "GUEST PASS";
+            if (idEl) idEl.textContent = `ID: ${userId.substring(0, 6)}`;
+            if (busEl) busEl.textContent = `BUS: N/A`;
         }
+    } else {
+        // Fallback UI if not logged in
+        if (nameEl) nameEl.textContent = "GUEST PASS";
+        if (idEl) idEl.textContent = `ID: GUEST`;
+        if (busEl) busEl.textContent = `BUS: N/A`;
     }
 
     // 2. Generate Passport Microprint Pattern Background
