@@ -2,7 +2,15 @@ import { firestore } from '../js/firebase-config.js';
 import { collection, onSnapshot, addDoc, updateDoc, doc, getDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 // Navigation Elements
-
+const addBusBtn = document.getElementById('add-bus-btn');
+const busEditorModal = document.getElementById('bus-editor-modal');
+const busEditorForm = document.getElementById('bus-editor-form');
+const closeModalBtn = document.getElementById('close-modal-btn');
+const cancelModalBtn = document.getElementById('cancel-modal-btn');
+const saveBusBtn = document.getElementById('save-bus-btn');
+const stopsContainer = document.getElementById('stops-container');
+const addStopBtn = document.getElementById('add-stop-btn');
+const busesTableBody = document.getElementById('buses-table-body');
 
 // Modal Logic
 async function openModal(editId = null) {
