@@ -163,8 +163,8 @@ async function renderHologram(userId) {
 
     // 2. Generate Passport Microprint Pattern Background
     if (card) {
-        // Space out the micro text slightly
-        const microText = (sigStr + "  ").repeat(5);
+        // Continuous text without spaces
+        const microText = sigStr.repeat(10);
         
         // We generate a simple SVG that acts as a tileable background pattern
         const microPatternSVG = `
