@@ -33,13 +33,18 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 // CORE UI UPDATES (NO ROUTE LOGIC)
 // ----------------------------------------------------
 
-function updateStatusBanner(status, delayMinutes) {
+function updateStatusBanner(status, delayMinutes, isOperatingHours = true) {
     const statusEl = document.getElementById('bus-status');
     if (!statusEl) return;
     
     if (trackingState.offline) {
-        statusEl.textContent = "Bus Offline";
-        statusEl.style.color = "#EF4444";
+        if (isOperatingHours) {
+            statusEl.textContent = "Bus Offline";
+            statusEl.style.color = "#EF4444";
+        } else {
+            statusEl.textContent = "Bus in halt";
+            statusEl.style.color = "#6B7280";
+        }
         statusEl.style.textShadow = "none";
         return;
     }
@@ -49,7 +54,7 @@ function updateStatusBanner(status, delayMinutes) {
         statusEl.style.color = delayMinutes > 0 ? "#EAB308" : "#10b981";
         statusEl.style.textShadow = delayMinutes > 0 ? "none" : "0 0 8px rgba(16,185,129,0.18)";
     } else if (status === 'stopped') {
-        statusEl.textContent = "Bus stopped";
+        statusEl.textContent = "Bus in halt";
         statusEl.style.color = "#F97316";
         statusEl.style.textShadow = "none";
     } else if (status === 'completed') {
@@ -269,6 +274,26 @@ function startBusTracking(busDocId) {
             const now = Date.now();
             const lastUpdated = data.lastUpdated?.toMillis?.();
             
+            let isOperatingHours = false;
+            if (data.stops && data.stops.length > 0) {
+                const currentTime = new Date();
+                const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+                const firstStop = data.stops[0];
+                const lastStop = data.stops[data.stops.length - 1];
+                
+                if (firstStop.scheduledArrival && lastStop.scheduledArrival) {
+                    const firstTimeParts = firstStop.scheduledArrival.split(':').map(Number);
+                    const firstMinutes = firstTimeParts[0] * 60 + firstTimeParts[1];
+                    
+                    const lastTimeParts = lastStop.scheduledArrival.split(':').map(Number);
+                    const lastMinutes = lastTimeParts[0] * 60 + lastTimeParts[1];
+                    
+                    if (currentMinutes >= firstMinutes && currentMinutes <= lastMinutes) {
+                        isOperatingHours = true;
+                    }
+                }
+            }
+
             if (!lastUpdated || (now - lastUpdated > 20000)) {
                 data.status = 'offline';
             }
@@ -276,7 +301,7 @@ function startBusTracking(busDocId) {
             trackingState.lastFirebaseUpdate = Date.now();
             trackingState.offline = data.status === 'offline';
             
-            updateStatusBanner(data.status, data.delayMinutes);
+            updateStatusBanner(data.status, data.delayMinutes, isOperatingHours);
             updateArrowAnimation(data.status);
             
             if (stopItemsEl.length > 0) {
@@ -293,7 +318,9 @@ function startBusTracking(busDocId) {
         if (trackingState.lastFirebaseUpdate && (Date.now() - trackingState.lastFirebaseUpdate) > 20000) {
             if (!trackingState.offline) {
                 trackingState.offline = true;
-                updateStatusBanner("offline", 0);
+                // For the watcher, we'll assume isOperatingHours is true by default so it shows offline, 
+                // since we don't have the full data object here easily. 
+                updateStatusBanner('offline', 0, true);
                 updateArrowAnimation("offline");
             }
         }
