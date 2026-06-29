@@ -99,17 +99,32 @@
   left: -50%;
   width: 200%;
   height: 200%;
-  background-image: var(--micro-pattern, none);
-  background-repeat: repeat;
-  /* Rotate the entire background container to make rows diagonal */
-  transform: rotate(-45deg);
+  
+  /* Mask everything exactly to the text SVG */
+  -webkit-mask-image: var(--micro-pattern, none);
+  mask-image: var(--micro-pattern, none);
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  
+  /* The background color defines the color and shine of the text */
+  background: linear-gradient(110deg,
+      rgba(255, 255, 255, var(--base-opacity, 0.05)) 35%,
+      rgba(0, 255, 255, 0.6) 45%,
+      rgba(255, 255, 255, 0.95) 50%,
+      rgba(255, 0, 255, 0.6) 55%,
+      rgba(255, 255, 255, var(--base-opacity, 0.05)) 65%
+  );
+  
+  /* Stretch the gradient so we can slide it across the mask */
+  background-size: 400% 400%;
+  background-position: calc(var(--shine-pos, 50) * 1%) center;
+  
+  /* Rotate container for diagonal rows, translate for tilt parallax */
+  transform: rotate(-45deg) translate(calc(var(--tilt-x, 0) * 1px), calc(var(--tilt-y, 0) * 1px));
   transform-origin: center center;
   pointer-events: none;
   z-index: 3;
-  opacity: 0.15;
-  /* Normal blend mode ensures text is always visible regardless of screen contrast */
-  mix-blend-mode: normal;
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.2));
+  mix-blend-mode: screen;
 }
 
 /* Subtle glossy / glass overlay */
@@ -216,17 +231,11 @@
   /* Removed heavy blur filter for high FPS */
 }
 
-/* Card Holographic Shine Overlay */
+/* Card Configuration */
 .epass-card {
   position: relative;
   overflow: hidden;
-  /* Ensure shine doesn't bleed out of border-radius */
-
-  /* 3D Tilt properties */
-  --card-rotate-x: 0;
-  --card-rotate-y: 0;
-  transform: perspective(1000px) rotateX(calc(var(--card-rotate-x) * 1deg)) rotateY(calc(var(--card-rotate-y) * 1deg));
-  transform-style: preserve-3d;
+  /* Ensure content doesn't bleed out of border-radius */
   will-change: transform;
 }
 

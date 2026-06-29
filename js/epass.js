@@ -187,42 +187,31 @@ async function renderHologram(userId) {
 
 function initCardHologram() {
     const card = document.getElementById('epass-card-element');
-    const shine = card ? card.querySelector('.epass-card-shine') : null;
 
     if (!card) return;
 
-    let targetTx = 0;
-    let targetTy = 0;
-    let currentTx = 0;
-    let currentTy = 0;
+    let targetTiltX = 0;
+    let targetTiltY = 0;
+    let targetShinePos = 50;
+    let targetBaseOpacity = 0.05;
 
-    let targetRotX = 0;
-    let targetRotY = 0;
-    let currentRotX = 0;
-    let currentRotY = 0;
+    let currentTiltX = 0;
+    let currentTiltY = 0;
+    let currentShinePos = 50;
+    let currentBaseOpacity = 0.05;
 
     // Smooth LERP animation loop (optimized for GPU)
     function renderHologramFrame() {
         // Use 0.12 for smooth, jitter-free damping
-        currentTx += (targetTx - currentTx) * 0.12;
-        currentTy += (targetTy - currentTy) * 0.12;
-        currentRotX += (targetRotX - currentRotX) * 0.12;
-        currentRotY += (targetRotY - currentRotY) * 0.12;
+        currentTiltX += (targetTiltX - currentTiltX) * 0.12;
+        currentTiltY += (targetTiltY - currentTiltY) * 0.12;
+        currentShinePos += (targetShinePos - currentShinePos) * 0.12;
+        currentBaseOpacity += (targetBaseOpacity - currentBaseOpacity) * 0.12;
 
-        // Update variables used by hardware-accelerated transforms
-        if (shine) {
-            shine.style.setProperty('--shine-tx', currentTx);
-            shine.style.setProperty('--shine-ty', currentTy);
-            // Rainbow reveal trigger
-            if (Math.abs(targetTx) > 20 || Math.abs(targetTy) > 20) {
-                shine.classList.add('extreme-tilt');
-            } else {
-                shine.classList.remove('extreme-tilt');
-            }
-        }
-        
-        card.style.setProperty('--card-rotate-x', currentRotX);
-        card.style.setProperty('--card-rotate-y', currentRotY);
+        card.style.setProperty('--tilt-x', currentTiltX);
+        card.style.setProperty('--tilt-y', currentTiltY);
+        card.style.setProperty('--shine-pos', currentShinePos);
+        card.style.setProperty('--base-opacity', currentBaseOpacity);
 
         requestAnimationFrame(renderHologramFrame);
     }
@@ -233,16 +222,21 @@ function initCardHologram() {
         let beta = event.beta;
 
         if (gamma === null || beta === null) return;
-        if (shine) shine.style.animation = 'none';
 
-        // Constrain rotation to max 6 degrees for performance and subtle premium feel
-        targetRotY = Math.max(-6, Math.min(6, gamma));
-        targetRotX = Math.max(-6, Math.min(6, (beta - 45))) * -1;
+        // X tilt moves the pattern slightly left/right (parallax)
+        targetTiltX = Math.max(-10, Math.min(10, gamma));
+        
+        // Y tilt moves the pattern up/down
+        targetTiltY = Math.max(-10, Math.min(10, beta - 45));
 
-        // Map gamma and beta to pixel translations (max 30px travel)
-        // A 15 degree tilt gives full 30px translation
-        targetTx = (Math.max(-15, Math.min(15, gamma)) / 15) * 30;
-        targetTy = (Math.max(-15, Math.min(15, (beta - 45))) / 15) * 30;
+        // Sweep the shine across based on gamma (left/right tilt)
+        // Gamma mapped to 0% -> 100% position
+        targetShinePos = ((Math.max(-45, Math.min(45, gamma)) + 45) / 90) * 100;
+
+        // Change opacity based on vertical tilt (beta)
+        // Normal angle (~45 deg) -> 0.04. Tilted flat or upright -> 0.35
+        let betaDiff = Math.abs(beta - 45); // 0 to 45
+        targetBaseOpacity = 0.04 + (Math.min(30, betaDiff) / 30) * 0.3;
     }
 
     // Android automatically binds
