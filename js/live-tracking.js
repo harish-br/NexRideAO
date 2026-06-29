@@ -370,7 +370,7 @@ export function initLiveTracking() {
 
         } catch (error) {
             console.error("Error loading live tracking:", error);
-            if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #EF4444; font-size: 14px;">Error loading bus data.</div>';
+            if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #EF4444; font-size: 14px;">Error loading bus data: ' + error.message + '</div>';
         }
     });
 }
