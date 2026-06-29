@@ -126,7 +126,7 @@ function createStopElement() {
   stopDiv.className = 'stop-item';
   stopDiv.innerHTML = `
     <div style="font-weight: 600; font-size: 14px; color: var(--text-secondary);">#${stopCount}</div>
-    <input type="text" placeholder="Stop Name (e.g. Rana Nagar)" class="stop-name" required />
+    <input type="text" placeholder="Stop Name (e.g. Rana Nagar)" class="stop-name" />
     <input type="time" placeholder="Arrival" class="stop-arrival" required />
     <input type="time" placeholder="Departure" class="stop-departure" required />
     <input type="number" step="any" placeholder="Latitude" class="stop-lat" />
@@ -198,11 +198,12 @@ onSnapshot(busesRef, (snapshot) => {
 
 // Submit Bus for Approval
 saveBusBtn.addEventListener('click', async () => {
-  // Validate Form
-  if (!busEditorForm.checkValidity()) {
-    busEditorForm.reportValidity();
+  const busNo = document.getElementById('modal-bus-no').value;
+  if (!busNo) {
+    alert("Please enter the Bus Number.");
     return;
   }
+
   
   saveBusBtn.textContent = 'Submitting...';
   saveBusBtn.disabled = true;
