@@ -277,8 +277,34 @@ function initCardHologram() {
 }
 
 // Initialize on load
-document.addEventListener('DOMContentLoaded', initCardHologram);
+document.addEventListener('DOMContentLoaded', () => {
+    initCardHologram();
+    
+    // Add listener to re-trigger document creation when the e-pass is opened manually
+    const epassBtn = document.getElementById('epass-btn');
+    if (epassBtn) {
+        epassBtn.addEventListener('click', async () => {
+            if (auth && auth.currentUser) {
+                // Temporarily disable the loaded flag to force a re-check
+                barcodeLoaded = false;
+                await initializeEPass(auth.currentUser.uid);
+            }
+        });
+    }
+});
+
 // Or call directly if already loaded
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(initCardHologram, 100);
+    setTimeout(() => {
+        initCardHologram();
+        const epassBtn = document.getElementById('epass-btn');
+        if (epassBtn) {
+            epassBtn.addEventListener('click', async () => {
+                if (auth && auth.currentUser) {
+                    barcodeLoaded = false;
+                    await initializeEPass(auth.currentUser.uid);
+                }
+            });
+        }
+    }, 100);
 }
