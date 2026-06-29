@@ -267,9 +267,9 @@ function startBusTracking(busDocId) {
             }
             
             const now = Date.now();
-            const lastUpdated = data.lastUpdated?.toMillis?.() || Date.now();
+            const lastUpdated = data.lastUpdated?.toMillis?.();
             
-            if (now - lastUpdated > 20000) {
+            if (!lastUpdated || (now - lastUpdated > 20000)) {
                 data.status = 'offline';
             }
 
@@ -280,12 +280,13 @@ function startBusTracking(busDocId) {
             updateArrowAnimation(data.status);
             
             if (stopItemsEl.length > 0) {
+                busTrackerEl.style.display = 'flex';
                 if (data.status !== 'offline') {
-                    busTrackerEl.style.display = 'flex';
-                    calculateTargetY(data.currentStopIndex || 0, data.nextStopIndex || 1, data.lat || 0, data.lng || 0);
+                    busTrackerEl.style.opacity = '1';
                 } else {
-                    busTrackerEl.style.display = 'none';
+                    busTrackerEl.style.opacity = '0.5';
                 }
+                calculateTargetY(data.currentStopIndex || 0, data.nextStopIndex || 1, data.lat || 0, data.lng || 0);
                 updateStopStyles(data.currentStopIndex || 0, data.nextStopIndex || 1, data.status, data.etaMinutes || 0);
             }
         }
