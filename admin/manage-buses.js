@@ -61,7 +61,7 @@ async function openModal(editId = null) {
         if (data.stops && Array.isArray(data.stops)) {
             data.stops.forEach(stop => {
                 const el = createStopElement();
-                el.querySelector('.stop-name').value = stop.stopName || '';
+                el.querySelector('.stop-name').value = stop.stopName || stop.name || '';
                 el.querySelector('.stop-arrival').value = stop.arrivalTime || '';
                 el.querySelector('.stop-departure').value = stop.departureTime || '';
                 if (stop.latitude) el.querySelector('.stop-lat').value = stop.latitude;
