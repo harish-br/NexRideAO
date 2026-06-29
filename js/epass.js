@@ -151,10 +151,27 @@ async function renderHologram(userId) {
 
     if (userId) {
         try {
+            let data = null;
+            
+            // Try fetching DigitalID first
             const digitalIdRef = doc(firestore, 'users', userId, 'DigitalID', 'userpass');
             const digitalIdSnap = await getDoc(digitalIdRef);
+            
             if (digitalIdSnap.exists()) {
-                const data = digitalIdSnap.data();
+                data = digitalIdSnap.data();
+            } else {
+                // Fallback to standard user profile if DigitalID is not created yet
+                const profileRef = doc(firestore, 'users', userId, 'profile');
+                const profileSnap = await getDoc(profileRef);
+                if (profileSnap.exists()) {
+                    data = profileSnap.data();
+                    // Profile uses different field names (studentId, busNumber)
+                    data.id = data.studentId;
+                    data.bus = data.busNumber;
+                }
+            }
+
+            if (data) {
                 const userName = (data.name || 'USER').toUpperCase();
                 const userIdNum = (data.id || 'ID000');
                 const busNum = (data.bus || '00');
@@ -163,10 +180,6 @@ async function renderHologram(userId) {
                 sigStr = `${nameNoSpace}${userIdNum}BUSNO${busNum}`;
                 
                 // Update UI elements inside the card
-                const nameEl = document.getElementById('epass-name');
-                const idEl = document.getElementById('epass-id');
-                const busEl = document.getElementById('epass-bus');
-                
                 if (nameEl) nameEl.textContent = userName;
                 if (idEl) idEl.textContent = `ID: ${userIdNum}`;
                 if (busEl) busEl.textContent = `BUS: ${busNum}`;
@@ -174,9 +187,6 @@ async function renderHologram(userId) {
                 sigStr = `${userId.substring(0, 6)}PASSBUS00`.toUpperCase();
                 
                 // Fallback UI
-                const nameEl = document.getElementById('epass-name');
-                const idEl = document.getElementById('epass-id');
-                const busEl = document.getElementById('epass-bus');
                 if (nameEl) nameEl.textContent = "GUEST PASS";
                 if (idEl) idEl.textContent = `ID: ${userId.substring(0, 6)}`;
                 if (busEl) busEl.textContent = `BUS: N/A`;
