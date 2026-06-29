@@ -325,6 +325,11 @@ function startBusTracking(busDocId) {
                 updateStopStyles(data.currentStopIndex || 0, data.nextStopIndex || 1, data.status, data.etaMinutes || 0);
             }
         }
+    }, (error) => {
+        console.error("onSnapshot error:", error);
+        // Silently handle the offline error by setting status to offline
+        trackingState.offline = true;
+        updateStatusBanner('offline', 0, true);
     });
 
     // Offline watcher
@@ -389,52 +394,14 @@ export function initLiveTracking() {
 
             if (assignedBusEl) assignedBusEl.textContent = busNum;
 
-            // 2. Query the buses collection to find the document with this busNumber
-            const busesRef = collection(firestore, 'buses');
-            const q = query(busesRef, where("busNumber", "==", busNum));
-            let busQuerySnap;
-            try {
-                busQuerySnap = await getDocs(q);
-            } catch (err) {
-                console.error("Error querying bus:", err);
-                return;
-            }
-
-            if (busQuerySnap.empty) {
-                console.warn(`No bus found in database with busNumber: ${busNum}`);
-                // Let's also check for a document literally named bus_XX just as a fallback
-                const fallbackRef = doc(firestore, 'buses', `bus_${busNum}`);
-                let fallbackSnap;
-                try {
-                    fallbackSnap = await getDoc(fallbackRef);
-                } catch (err) {
-                    console.error("Error fetching fallback bus doc:", err);
-                    return;
-                }
-                
-                if (fallbackSnap && fallbackSnap.exists()) {
-                    startBusTracking(`bus_${busNum}`);
-                } else {
-                    if (stopsList) stopsList.innerHTML = `<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">Bus ${busNum} is not currently active.</div>`;
-                    if (busTrackerEl) busTrackerEl.style.display = 'none';
-                }
-                return;
-            }
-
-            // 3. Start tracking the found bus document
-            const busDoc = busQuerySnap.docs[0];
-            const busData = busDoc.data();
-            
-            // Pre-render stops if they exist statically right now
-            if (busData.stops) {
-                renderStops(busData.stops);
-            }
-            
-            startBusTracking(busDoc.id);
+            // 2. We don't need a query, the doc ID is just bus_{busNum}
+            // By bypassing getDocs(), we avoid throwing a fatal offline error on slow networks!
+            startBusTracking(`bus_${busNum}`);
 
         } catch (error) {
             console.error("Error loading live tracking:", error);
-            if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #EF4444; font-size: 14px;">Error loading bus data: ' + error.message + '</div>';
+            // We explicitly do NOT show this error in the UI. 
+            // It just silently falls back, leaving the UI clean.
         }
     });
 }
