@@ -281,11 +281,7 @@ function startBusTracking(busDocId) {
             
             if (stopItemsEl.length > 0) {
                 busTrackerEl.style.display = 'flex';
-                if (data.status !== 'offline') {
-                    busTrackerEl.style.opacity = '1';
-                } else {
-                    busTrackerEl.style.opacity = '0.5';
-                }
+                busTrackerEl.style.opacity = '1';
                 calculateTargetY(data.currentStopIndex || 0, data.nextStopIndex || 1, data.lat || 0, data.lng || 0);
                 updateStopStyles(data.currentStopIndex || 0, data.nextStopIndex || 1, data.status, data.etaMinutes || 0);
             }
