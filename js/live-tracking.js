@@ -1,5 +1,6 @@
 import { firestore } from './firebase-config.js';
-import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { doc, getDoc, collection, query, where, onSnapshot, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 
 // ----------------------------------------------------
 // STATE & DOM
@@ -14,13 +15,8 @@ const trackingState = {
 
 let busTrackerEl = null;
 let stopItemsEl = [];
-let routeStops = [
-    { lat: 11.6452378, lng: 77.6818465 }, // Guruvareddiyur
-    { lat: 11.5232544, lng: 77.7051012 }, // Kuttaimuniyappan Kovil
-    { lat: 11.4572704, lng: 77.6909143 }, // Rana Nagar
-    { lat: 11.4429531, lng: 77.6832342 }, // Palani Aandavar Temple
-    { lat: 11.2842104, lng: 77.6196129 }  // Nandha Engineering College
-];
+let routeStops = [];
+let unsubscribeBus = null;
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
     const R = 6371e3; // meters
@@ -205,70 +201,178 @@ function updateTrackingLineHeight() {
     track.style.height = `${lineHeight}px`;
 }
 
+function renderStops(stops) {
+    const stopsList = document.getElementById('stops-list');
+    if (!stopsList) return;
+    
+    stopsList.innerHTML = '';
+    
+    if (!stops || stops.length === 0) {
+        stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">No stops configured for this route.</div>';
+        if (busTrackerEl) busTrackerEl.style.display = 'none';
+        return;
+    }
+
+    stops.forEach((stop, index) => {
+        const isFirst = index === 0;
+        const html = `
+          <div class="stop-item ${isFirst ? 'active' : ''}">
+            <div class="stop-icon-wrapper">
+              <div class="tracking-dot ${isFirst ? 'green' : 'gray'}"></div>
+            </div>
+            <div class="stop-info">
+              ${isFirst ? '<span class="boarding-text">Your Boarding Stop</span>' : ''}
+              <div class="stop-name-row">
+                <div class="stop-title-wrap">
+                  <div class="heading-towards hidden">Heading towards</div>
+                  <span class="stop-name ${isFirst ? 'highlight' : ''}">${stop.stopName || 'Unknown Stop'}</span>
+                </div>
+                <span class="stop-time"></span>
+              </div>
+            </div>
+          </div>
+        `;
+        stopsList.insertAdjacentHTML('beforeend', html);
+    });
+
+    // Update global array for animations
+    stopItemsEl = Array.from(document.querySelectorAll('#stops-list .stop-item'));
+    routeStops = stops.map(s => ({ lat: parseFloat(s.latitude) || 0, lng: parseFloat(s.longitude) || 0 }));
+    
+    updateTrackingLineHeight();
+}
+
+function startBusTracking(busDocId) {
+    if (unsubscribeBus) unsubscribeBus();
+
+    busTrackerEl = document.getElementById('dynamic-bus');
+    if (!busTrackerEl) return;
+
+    console.log(`[DEBUG USER] Attaching onSnapshot to buses/${busDocId}`);
+    const busRef = doc(firestore, 'buses', busDocId);
+    
+    unsubscribeBus = onSnapshot(busRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            console.log("[DEBUG USER] Received bus data:", data);
+            
+            // Re-render stops if they have changed or are not rendered yet
+            if (stopItemsEl.length === 0 && data.stops) {
+                renderStops(data.stops);
+            }
+            
+            const now = Date.now();
+            const lastUpdated = data.lastUpdated?.toMillis?.() || Date.now();
+            
+            if (now - lastUpdated > 20000) {
+                data.status = 'offline';
+            }
+
+            trackingState.lastFirebaseUpdate = Date.now();
+            trackingState.offline = data.status === 'offline';
+            
+            updateStatusBanner(data.status, data.delayMinutes);
+            updateArrowAnimation(data.status);
+            
+            if (data.status !== 'offline' && stopItemsEl.length > 0) {
+                calculateTargetY(data.currentStopIndex || 0, data.nextStopIndex || 1, data.lat || 0, data.lng || 0);
+                updateStopStyles(data.currentStopIndex || 0, data.nextStopIndex || 1, data.status, data.etaMinutes || 0);
+            }
+        }
+    });
+
+    // Offline watcher
+    setInterval(() => {
+        if (trackingState.lastFirebaseUpdate && (Date.now() - trackingState.lastFirebaseUpdate) > 20000) {
+            if (!trackingState.offline) {
+                trackingState.offline = true;
+                updateStatusBanner("offline", 0);
+                updateArrowAnimation("offline");
+            }
+        }
+    }, 5000);
+}
+
 export function initLiveTracking() {
     busTrackerEl = document.getElementById('dynamic-bus');
-    stopItemsEl = Array.from(document.querySelectorAll('#stops-list .stop-item'));
+    
+    const auth = getAuth();
+    onAuthStateChanged(auth, async (user) => {
+        const assignedBusEl = document.getElementById('assigned-bus-number');
+        const stopsList = document.getElementById('stops-list');
+        
+        if (!user) {
+            if (assignedBusEl) assignedBusEl.textContent = "N/A";
+            if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">Please login to view tracking.</div>';
+            return;
+        }
 
-    if (!busTrackerEl || stopItemsEl.length === 0) return;
-
-    updateTrackingLineHeight();
-
-    if (firestore) {
-        console.log("[DEBUG USER] Attaching onSnapshot to buses/bus_32");
-        const busRef = doc(firestore, 'buses', 'bus_32');
-        onSnapshot(busRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                console.log("[DEBUG USER] Received bus data:", data);
-                
-                // Timestamp freshness check (Step 9)
-                const now = Date.now();
-                const lastUpdated = data.lastUpdated?.toMillis?.() || Date.now();
-                console.log(`[DEBUG USER] Time diff: ${now - lastUpdated}ms`);
-                
-
-
-                if (now - lastUpdated > 20000) {
-                    data.status = 'offline';
-                    console.warn("[DEBUG USER] Data is stale (>20s). Setting status to offline.");
-                }
-
-                trackingState.lastFirebaseUpdate = Date.now();
-                trackingState.offline = data.status === 'offline';
-                
-                updateStatusBanner(data.status, data.delayMinutes);
-                updateArrowAnimation(data.status);
-                
-                if (data.status !== 'offline') {
-                    calculateTargetY(data.currentStopIndex, data.nextStopIndex, data.lat, data.lng);
-                    updateStopStyles(data.currentStopIndex, data.nextStopIndex, data.status, data.etaMinutes);
-                }
-            } else {
-                console.error("[DEBUG USER] Bus document not found in Firestore!");
-
+        try {
+            // 1. Fetch user's assigned bus
+            let busNum = null;
+            const userRef = doc(firestore, 'users', user.uid);
+            const userSnap = await getDoc(userRef);
+            
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                busNum = userData.bus || userData.busNumber;
             }
-        }, (error) => {
-            console.error("[DEBUG USER] onSnapshot error:", error);
-
-        });
-
-        // Offline watcher (20 seconds without update)
-        setInterval(() => {
-            if (trackingState.lastFirebaseUpdate && (Date.now() - trackingState.lastFirebaseUpdate) > 20000) {
-                if (!trackingState.offline) {
-                    console.warn("[DEBUG USER] No Firebase updates for 20s. Setting offline locally.");
-                    trackingState.offline = true;
-                    updateStatusBanner("offline", 0);
-                    updateArrowAnimation("offline");
-                    
-
+            
+            // Fallback check in epass subcollection just in case
+            if (!busNum) {
+                const epassRef = collection(firestore, `users/${user.uid}/epass`);
+                const epassSnap = await getDocs(epassRef);
+                if (!epassSnap.empty) {
+                    const epassData = epassSnap.docs[0].data();
+                    busNum = epassData.bus || epassData.busNumber;
                 }
             }
-        }, 5000);
-    } else {
-        console.error("[DEBUG USER] firestore is not initialized!");
 
-    }
+            if (!busNum) {
+                if (assignedBusEl) assignedBusEl.textContent = "None";
+                if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">No bus assigned to your profile.</div>';
+                if (busTrackerEl) busTrackerEl.style.display = 'none';
+                return;
+            }
+
+            if (assignedBusEl) assignedBusEl.textContent = busNum;
+
+            // 2. Query the buses collection to find the document with this busNumber
+            const busesRef = collection(firestore, 'buses');
+            const q = query(busesRef, where("busNumber", "==", busNum));
+            const busQuerySnap = await getDocs(q);
+
+            if (busQuerySnap.empty) {
+                console.warn(`No bus found in database with busNumber: ${busNum}`);
+                // Let's also check for a document literally named bus_XX just as a fallback
+                const fallbackRef = doc(firestore, 'buses', `bus_${busNum}`);
+                const fallbackSnap = await getDoc(fallbackRef);
+                
+                if (fallbackSnap.exists()) {
+                    startBusTracking(`bus_${busNum}`);
+                } else {
+                    if (stopsList) stopsList.innerHTML = `<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">Bus ${busNum} is not currently active.</div>`;
+                    if (busTrackerEl) busTrackerEl.style.display = 'none';
+                }
+                return;
+            }
+
+            // 3. Start tracking the found bus document
+            const busDoc = busQuerySnap.docs[0];
+            const busData = busDoc.data();
+            
+            // Pre-render stops if they exist statically right now
+            if (busData.stops) {
+                renderStops(busData.stops);
+            }
+            
+            startBusTracking(busDoc.id);
+
+        } catch (error) {
+            console.error("Error loading live tracking:", error);
+            if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #EF4444; font-size: 14px;">Error loading bus data.</div>';
+        }
+    });
 }
 
 initLiveTracking();
