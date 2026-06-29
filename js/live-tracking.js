@@ -226,15 +226,20 @@ function renderStops(stops) {
 
     let hasBoardingMatch = false;
     if (currentUserStage) {
-        hasBoardingMatch = stops.some(s => s.stopName && s.stopName.trim().toLowerCase() === currentUserStage.trim().toLowerCase());
+        hasBoardingMatch = stops.some(s => {
+            const name = s.stopName || s.name;
+            return name && name.trim().toLowerCase() === currentUserStage.trim().toLowerCase();
+        });
     }
 
     stops.forEach((stop, index) => {
         const isFirst = index === 0;
         let isBoardingStop = false;
         
+        const stopNameToDisplay = stop.stopName || stop.name || 'Unknown Stop';
+        
         if (hasBoardingMatch) {
-            isBoardingStop = stop.stopName && stop.stopName.trim().toLowerCase() === currentUserStage.trim().toLowerCase();
+            isBoardingStop = stopNameToDisplay !== 'Unknown Stop' && stopNameToDisplay.trim().toLowerCase() === currentUserStage.trim().toLowerCase();
         } else {
             isBoardingStop = index === 0; // fallback if no match
         }
@@ -249,7 +254,7 @@ function renderStops(stops) {
               <div class="stop-name-row">
                 <div class="stop-title-wrap">
                   <div class="heading-towards hidden">Heading towards</div>
-                  <span class="stop-name ${isBoardingStop ? 'highlight' : ''}">${stop.stopName || 'Unknown Stop'}</span>
+                  <span class="stop-name ${isBoardingStop ? 'highlight' : ''}">${stopNameToDisplay}</span>
                 </div>
                 <span class="stop-time"></span>
               </div>
