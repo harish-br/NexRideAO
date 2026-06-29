@@ -1,4 +1,4 @@
-import { firestore } from '../js/firebase-config.js';
+import { firestore, auth } from '../js/firebase-config.js';
 import { collection, onSnapshot, addDoc, updateDoc, doc, getDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 // Navigation Elements
