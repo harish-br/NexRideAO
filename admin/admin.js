@@ -96,40 +96,6 @@ logoutBtn.addEventListener('click', async () => {
     }
 });
 
-// Reset Data
-const resetDataBtn = document.getElementById('reset-data-btn');
-if (resetDataBtn) {
-    resetDataBtn.addEventListener('click', async () => {
-        if (!confirm("DANGER: Are you sure you want to delete ALL data in Buses, Passes, and Pending Approvals? This cannot be undone.")) {
-            return;
-        }
-
-        const collectionsToClear = ['buses', 'passes', 'pending_approvals'];
-        let totalDeleted = 0;
-
-        resetDataBtn.textContent = 'Deleting...';
-        resetDataBtn.disabled = true;
-
-        try {
-            for (const coll of collectionsToClear) {
-                const snapshot = await getDocs(collection(firestore, coll));
-                const deletePromises = [];
-                snapshot.forEach(docSnap => {
-                    deletePromises.push(deleteDoc(doc(firestore, coll, docSnap.id)));
-                });
-                await Promise.all(deletePromises);
-                totalDeleted += deletePromises.length;
-            }
-            alert(`Success! Deleted ${totalDeleted} documents across all collections.`);
-        } catch (err) {
-            console.error("Error resetting data:", err);
-            alert("An error occurred while deleting data: " + err.message);
-        } finally {
-            resetDataBtn.textContent = 'Reset All Data';
-            resetDataBtn.disabled = false;
-        }
-    });
-}
 
 // Update Dashboard Stats Dynamically
 const statPlaces = document.getElementById('stat-places');
