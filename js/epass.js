@@ -186,7 +186,7 @@ async function renderHologram(userId) {
             if (data) {
                 const userName = (rootData.name || data.name || 'USER').toUpperCase();
                 const userIdNum = (rootData.regno || data.id || 'ID000');
-                const busNum = (rootData.bus || rootData.busNumber || data.bus || '00');
+                const busNum = (rootData.bus || rootData.busNumber || rootData['bus no'] || rootData.bus_no || data.bus || data.busNumber || data['bus no'] || data.bus_no || '00');
                 const stageStr = (rootData.stage || data.stage || 'N/A');
                 const feesStr = (rootData.fees_status || data.fees_status || 'N/A');
                 const contactStr = (rootData['parent_gaurdian contact'] || data.contact || 'N/A');

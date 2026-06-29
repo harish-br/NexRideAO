@@ -315,7 +315,7 @@ export function initLiveTracking() {
             
             if (userSnap.exists()) {
                 const userData = userSnap.data();
-                busNum = userData.bus || userData.busNumber;
+                busNum = userData.bus || userData.busNumber || userData['bus no'] || userData.bus_no;
             }
             
             // Fallback check in epass subcollection just in case
@@ -324,7 +324,7 @@ export function initLiveTracking() {
                 const epassSnap = await getDocs(epassRef);
                 if (!epassSnap.empty) {
                     const epassData = epassSnap.docs[0].data();
-                    busNum = epassData.bus || epassData.busNumber;
+                    busNum = epassData.bus || epassData.busNumber || epassData['bus no'] || epassData.bus_no;
                 }
             }
 
