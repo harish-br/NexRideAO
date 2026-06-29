@@ -196,7 +196,7 @@ saveBusBtn.addEventListener('click', async () => {
     return;
   }
   
-  saveBusBtn.textContent = 'Saving...';
+  saveBusBtn.textContent = 'Submitting...';
   saveBusBtn.disabled = true;
   
   try {
@@ -218,6 +218,12 @@ saveBusBtn.addEventListener('click', async () => {
     const targetBusId = document.getElementById('bus-edit-id').value || null;
     
     const payload = {
+      type: targetBusId ? 'BUS_UPDATE' : 'BUS_CREATE',
+      targetBusId: targetBusId,
+      status: 'Pending',
+      submittedAt: serverTimestamp(),
+      submittedByEmail: auth.currentUser ? auth.currentUser.email : 'admin',
+      data: {
         busNumber: document.getElementById('modal-bus-no').value,
         registrationNumber: document.getElementById('modal-bus-reg').value,
         capacity: document.getElementById('modal-bus-capacity').value,
@@ -237,28 +243,21 @@ saveBusBtn.addEventListener('click', async () => {
         alerts: {
           type: document.getElementById('modal-alert-type').value,
           message: document.getElementById('modal-alert-msg').value
-        },
-        updatedAt: serverTimestamp(),
-        updatedBy: auth.currentUser ? auth.currentUser.email : 'admin'
+        }
+      }
     };
     
-    // Write directly to buses collection
-    if (targetBusId) {
-        await updateDoc(doc(firestore, 'buses', targetBusId), payload);
-        alert('Bus updated successfully!');
-    } else {
-        payload.createdAt = serverTimestamp();
-        await addDoc(collection(firestore, 'buses'), payload);
-        alert('New bus added successfully!');
-    }
+    // Write to Pending Approvals instead of Buses collection
+    await addDoc(collection(firestore, 'pending_approvals'), payload);
     
+    alert('Bus update submitted successfully! It is now pending approval by a Super Admin.');
     closeModal();
     
   } catch (error) {
-    console.error("Error saving bus:", error);
-    alert('Failed to save: ' + error.message);
+    console.error("Error submitting for approval:", error);
+    alert('Failed to submit: ' + error.message);
   } finally {
-    saveBusBtn.textContent = 'Save Bus';
+    saveBusBtn.textContent = 'Submit for Approval';
     saveBusBtn.disabled = false;
   }
 });
