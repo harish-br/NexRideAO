@@ -140,10 +140,7 @@ function renderBarcode(passId) {
 }
 
 async function renderHologram(userId) {
-    const container = document.getElementById('hologram-strip');
     const card = document.getElementById('epass-card-element');
-    
-    if (!container) return;
 
     let sigStr = "GUEST0000NOBUS00";
     if (userId) {
@@ -163,41 +160,6 @@ async function renderHologram(userId) {
             console.error("Failed to fetch profile for hologram:", e);
         }
     }
-
-    // 1. Generate Hologram Strip SVG
-    // Repeat string to fill the arc
-    const repeatedSig = (sigStr + " ").repeat(10);
-
-    const svgHTML = `
-        <svg class="holo-svg" viewBox="0 0 300 30" preserveAspectRatio="xMidYMid slice">
-            <defs>
-                <path id="holoCurve" d="M -50,15 L 350,15" fill="none"/>
-                
-                <linearGradient id="holoGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stop-color="#9ca3af" />
-                    <stop offset="50%" stop-color="#d1d5db" />
-                    <stop offset="100%" stop-color="#6b7280" />
-                </linearGradient>
-                
-                <linearGradient id="specularGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stop-color="transparent" />
-                    <stop offset="50%" stop-color="#fff" />
-                    <stop offset="100%" stop-color="transparent" />
-                </linearGradient>
-            </defs>
-            
-            <text class="holo-text holo-text-base">
-                <textPath href="#holoCurve" startOffset="0%">${repeatedSig}</textPath>
-            </text>
-            <text class="holo-text holo-text-color">
-                <textPath href="#holoCurve" startOffset="0%">${repeatedSig}</textPath>
-            </text>
-            <text class="holo-text holo-text-highlight">
-                <textPath href="#holoCurve" startOffset="0%">${repeatedSig}</textPath>
-            </text>
-        </svg>
-    `;
-    container.innerHTML = svgHTML;
 
     // 2. Generate Passport Microprint Pattern Background
     if (card) {
