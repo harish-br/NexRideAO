@@ -127,7 +127,7 @@ function AdminControlPage() {
         const docRef = doc(db, 'buses', 'bus_32');
         const docSnap = await getDoc(docRef);
         if (!docSnap.exists()) {
-          await setDoc(docRef, { ...busData, lastUpdated: serverTimestamp() });
+          await setDoc(docRef, { ...busData, stops: ROUTE_STOPS, lastUpdated: serverTimestamp() });
         }
         setFirebaseError(null);
       } catch (error: any) {
@@ -144,6 +144,7 @@ function AdminControlPage() {
       const docRef = doc(db, 'buses', `bus_${dataToPush.busNumber}`);
       await updateDoc(docRef, {
         ...dataToPush,
+        stops: ROUTE_STOPS,
         lastUpdated: serverTimestamp()
       });
       console.log("[DEBUG ADMIN] GPS sent to Firebase successfully");

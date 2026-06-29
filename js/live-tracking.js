@@ -353,15 +353,27 @@ export function initLiveTracking() {
             // 2. Query the buses collection to find the document with this busNumber
             const busesRef = collection(firestore, 'buses');
             const q = query(busesRef, where("busNumber", "==", busNum));
-            const busQuerySnap = await getDocs(q);
+            let busQuerySnap;
+            try {
+                busQuerySnap = await getDocs(q);
+            } catch (err) {
+                console.error("Error querying bus:", err);
+                return;
+            }
 
             if (busQuerySnap.empty) {
                 console.warn(`No bus found in database with busNumber: ${busNum}`);
                 // Let's also check for a document literally named bus_XX just as a fallback
                 const fallbackRef = doc(firestore, 'buses', `bus_${busNum}`);
-                const fallbackSnap = await getDoc(fallbackRef);
+                let fallbackSnap;
+                try {
+                    fallbackSnap = await getDoc(fallbackRef);
+                } catch (err) {
+                    console.error("Error fetching fallback bus doc:", err);
+                    return;
+                }
                 
-                if (fallbackSnap.exists()) {
+                if (fallbackSnap && fallbackSnap.exists()) {
                     startBusTracking(`bus_${busNum}`);
                 } else {
                     if (stopsList) stopsList.innerHTML = `<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">Bus ${busNum} is not currently active.</div>`;
