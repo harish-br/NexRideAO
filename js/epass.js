@@ -336,12 +336,13 @@ function initCardHologram() {
         window.addEventListener('deviceorientation', handleOrientation);
     }
 
-    // iOS 13+ requires tap on the card
+    // iOS 13+ requires tap gesture
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         let isBound = false;
 
-        const bindOrientation = () => {
+        window.requestEpassMotionPermission = () => {
             if (isBound) return;
+
             DeviceOrientationEvent.requestPermission()
                 .then(permissionState => {
                     if (permissionState === 'granted') {
@@ -351,21 +352,14 @@ function initCardHologram() {
                     }
                 })
                 .catch(e => {
-                    console.warn("Device orientation auto-bind failed, waiting for user gesture:", e);
+                    console.warn("Device orientation request failed:", e);
                 });
         };
 
         // Try to bind automatically on load if previously granted
         if (localStorage.getItem('epass_motion_granted') === 'true') {
-            bindOrientation();
+            window.requestEpassMotionPermission();
         }
-
-        // Only request on click if we haven't bound it yet
-        card.addEventListener('click', () => {
-            if (!isBound) {
-                bindOrientation();
-            }
-        });
     }
 }
 
@@ -378,6 +372,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (epassBtn) {
         epassBtn.addEventListener('click', async () => {
             if (auth && auth.currentUser) {
+                // Request motion permission if on iOS
+                if (window.requestEpassMotionPermission) {
+                    window.requestEpassMotionPermission();
+                }
+
                 // Temporarily disable the loaded flag to force a re-check
                 barcodeLoaded = false;
 
@@ -402,6 +401,9 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
         if (epassBtn) {
             epassBtn.addEventListener('click', async () => {
                 if (auth && auth.currentUser) {
+                    if (window.requestEpassMotionPermission) {
+                        window.requestEpassMotionPermission();
+                    }
                     barcodeLoaded = false;
                     await initializeEPass(auth.currentUser.uid);
                 }
