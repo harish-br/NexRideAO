@@ -145,19 +145,38 @@ async function renderHologram(userId) {
     let sigStr = "GUEST0000NOBUS00";
     if (userId) {
         try {
-            const profileRef = doc(firestore, 'users', userId, 'profile');
-            const profileSnap = await getDoc(profileRef);
-            if (profileSnap.exists()) {
-                const data = profileSnap.data();
-                const name = (data.name || 'USER').replace(/\s+/g, '');
-                const studentId = (data.studentId || 'ID000');
-                const busNumber = (data.busNumber || '00');
-                sigStr = `${name}${studentId}BUSNO${busNumber}`.toUpperCase();
+            const digitalIdRef = doc(firestore, 'users', userId, 'DigitalID', 'userpass');
+            const digitalIdSnap = await getDoc(digitalIdRef);
+            if (digitalIdSnap.exists()) {
+                const data = digitalIdSnap.data();
+                const userName = (data.name || 'USER').toUpperCase();
+                const userIdNum = (data.id || 'ID000');
+                const busNum = (data.bus || '00');
+                
+                const nameNoSpace = userName.replace(/\s+/g, '');
+                sigStr = `${nameNoSpace}${userIdNum}BUSNO${busNum}`;
+                
+                // Update UI elements inside the card
+                const nameEl = document.getElementById('epass-name');
+                const idEl = document.getElementById('epass-id');
+                const busEl = document.getElementById('epass-bus');
+                
+                if (nameEl) nameEl.textContent = userName;
+                if (idEl) idEl.textContent = `ID: ${userIdNum}`;
+                if (busEl) busEl.textContent = `BUS: ${busNum}`;
             } else {
                 sigStr = `${userId.substring(0, 6)}PASSBUS00`.toUpperCase();
+                
+                // Fallback UI
+                const nameEl = document.getElementById('epass-name');
+                const idEl = document.getElementById('epass-id');
+                const busEl = document.getElementById('epass-bus');
+                if (nameEl) nameEl.textContent = "GUEST PASS";
+                if (idEl) idEl.textContent = `ID: ${userId.substring(0, 6)}`;
+                if (busEl) busEl.textContent = `BUS: N/A`;
             }
         } catch (e) {
-            console.error("Failed to fetch profile for hologram:", e);
+            console.error("Failed to fetch DigitalID for e-pass:", e);
         }
     }
 
