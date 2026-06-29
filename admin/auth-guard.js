@@ -14,18 +14,34 @@ onAuthStateChanged(auth, async (user) => {
                 if (role === 'Super Admin' || role === 'Staff Admin' || role === 'Software admin' || role === 'Software Admin') {
                     // Valid admin. Do nothing, let page load.
                     document.body.style.display = 'block'; // Show content if we hid it by default
+                    const loginPage = document.getElementById('admin-login-page');
+                    if (loginPage) loginPage.classList.add('hidden');
+                    const dashboardPage = document.getElementById('admin-dashboard-page');
+                    if (dashboardPage) dashboardPage.classList.remove('hidden');
                 } else {
                     console.warn("Account exists but lacks admin privileges. Bypassing for testing.");
                     document.body.style.display = 'block';
+                    const loginPage = document.getElementById('admin-login-page');
+                    if (loginPage) loginPage.classList.add('hidden');
+                    const dashboardPage = document.getElementById('admin-dashboard-page');
+                    if (dashboardPage) dashboardPage.classList.remove('hidden');
                 }
             } else {
                 console.warn("Unauthorized. This portal is for Administrators only. Bypassing for testing.");
                 document.body.style.display = 'block';
+                const loginPage = document.getElementById('admin-login-page');
+                if (loginPage) loginPage.classList.add('hidden');
+                const dashboardPage = document.getElementById('admin-dashboard-page');
+                if (dashboardPage) dashboardPage.classList.remove('hidden');
             }
         } catch (err) {
             console.error("Auth Guard Error:", err);
             console.warn("Bypassing for testing.");
             document.body.style.display = 'block';
+            const loginPage = document.getElementById('admin-login-page');
+            if (loginPage) loginPage.classList.add('hidden');
+            const dashboardPage = document.getElementById('admin-dashboard-page');
+            if (dashboardPage) dashboardPage.classList.remove('hidden');
         }
     } else {
         // Not logged in
