@@ -71,9 +71,10 @@ async function handleApprove(e) {
       const busRef = doc(firestore, 'buses', payload.targetBusId);
       await updateDoc(busRef, payload.data);
     } else {
-      // Create new bus. Use busNumber as document ID or let Firebase auto-generate?
-      // It's usually better to let Firebase auto-generate, but here let's auto-generate unless specified.
-      const newBusRef = doc(collection(firestore, 'buses'));
+      // Create new bus with document ID format bus_{busNumber} so the user app can find it easily
+      const newBusId = payload.data.busNumber ? `bus_${payload.data.busNumber.trim()}` : null;
+      if (!newBusId) throw new Error("Bus Number is required to create a new bus.");
+      const newBusRef = doc(firestore, 'buses', newBusId);
       await setDoc(newBusRef, payload.data);
     }
     
