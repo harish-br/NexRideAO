@@ -335,6 +335,8 @@ export function initLiveTracking() {
                 return;
             }
 
+            busNum = String(busNum).trim();
+
             if (assignedBusEl) assignedBusEl.textContent = busNum;
 
             // 2. Query the buses collection to find the document with this busNumber
