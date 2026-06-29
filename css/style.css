@@ -1512,3 +1512,16 @@ input:-webkit-autofill:active {
   object-fit: cover;
   border-radius: 50%;
 }
+.skeleton-box {
+  display: inline-block;
+  background: #E5E7EB;
+  border-radius: 4px;
+  animation: skeleton-pulse 1.5s infinite;
+  vertical-align: middle;
+}
+
+@keyframes skeleton-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}

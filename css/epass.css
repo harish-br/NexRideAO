@@ -1,7 +1,75 @@
+@font-face {
+  font-family: 'New Science';
+  src: url('../fonts/fonnts.com-New_Science_Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'New Science';
+  src: url('../fonts/fonnts.com-New_Science_Medium.otf') format('opentype');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'New Science';
+  src: url('../fonts/fonnts.com-New_Science_Medium.otf') format('opentype');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'New Science';
+  src: url('../fonts/fonnts.com-New_Science_Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+}
+
 /* E-Pass Page Styles */
 .epass-page {
   position: relative;
   overflow: hidden;
+}
+
+.epass-header {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(16px + env(safe-area-inset-top)) 20px 16px 20px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.epass-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.epass-header .back-btn {
+  position: absolute;
+  left: 20px;
+  background: #f3f4f6;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  color: #111827;
+}
+
+.epass-header .back-btn:active {
+  background: #e5e7eb;
 }
 
 /* Background Blobs for Glass Visibility */
@@ -73,6 +141,7 @@
 
 /* Premium Digital E-Pass Card */
 .epass-card {
+  font-family: 'New Science', sans-serif;
   width: 90%;
   max-width: 400px;
   height: 520px;
@@ -99,26 +168,25 @@
   left: -50%;
   width: 200%;
   height: 200%;
-  
+
   /* Mask everything exactly to the text SVG */
   -webkit-mask-image: var(--micro-pattern, none);
   mask-image: var(--micro-pattern, none);
   -webkit-mask-repeat: repeat;
   mask-repeat: repeat;
-  
+
   /* The background color defines the color and shine of the text */
   background: linear-gradient(110deg,
       rgba(255, 255, 255, var(--base-opacity, 0.05)) 35%,
       rgba(0, 255, 255, 0.6) 45%,
       rgba(255, 255, 255, 0.95) 50%,
       rgba(255, 0, 255, 0.6) 55%,
-      rgba(255, 255, 255, var(--base-opacity, 0.05)) 65%
-  );
-  
+      rgba(255, 255, 255, var(--base-opacity, 0.05)) 65%);
+
   /* Stretch the gradient so we can slide it across the mask */
   background-size: 400% 400%;
   background-position: calc(var(--shine-pos, 50) * 1%) center;
-  
+
   /* Rotate container for diagonal rows, translate for tilt parallax */
   transform: rotate(-45deg) translate(calc(var(--tilt-x, 0) * 1px), calc(var(--tilt-y, 0) * 1px));
   transform-origin: center center;
@@ -148,19 +216,20 @@
 /* E-Pass Barcode System */
 .epass-barcode-container {
   position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80%;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 300px;
   background: white;
-  border-radius: 12px;
-  padding: 12px 12px 8px 12px;
+  border-radius: 15px 15px 26px 26px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   z-index: 4;
   /* Above the glass overlay */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-sizing: border-box;
 }
 
 .epass-barcode-container svg {

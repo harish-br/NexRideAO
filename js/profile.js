@@ -64,13 +64,13 @@ function resetToDefault() {
     valEmail.textContent = "Add email";
     valEmail.style.color = '#1A73E8';
     valPhone.textContent = "";
-    
+
     if (mainProfileImg) {
         mainProfileImg.src = "";
         mainProfileImg.classList.add('hidden');
     }
     if (defaultProfileSvg) defaultProfileSvg.classList.remove('hidden');
-    
+
     if (upProfilePreview) {
         upProfilePreview.src = "";
         upProfilePreview.classList.add('hidden');
@@ -86,12 +86,12 @@ async function fetchUserProfile(uid) {
     try {
         const docRef = doc(firestore, 'users', uid);
         const docSnap = await getDoc(docRef);
-        
+
         if (docSnap.exists()) {
             const data = docSnap.data();
-            
+
             const isNewUser = (!data.name || data.name === "User" || data.name === "Add your name");
-            
+
             if (data.name && data.name !== "User") {
                 valName.textContent = data.name;
                 if (profileUserNameDisplay) profileUserNameDisplay.textContent = data.name;
@@ -107,7 +107,7 @@ async function fetchUserProfile(uid) {
                     mainProfileImg.classList.remove('hidden');
                 }
                 if (defaultProfileSvg) defaultProfileSvg.classList.add('hidden');
-                
+
                 if (upProfilePreview) {
                     upProfilePreview.src = data.photoURL;
                     upProfilePreview.classList.remove('hidden');
@@ -130,13 +130,13 @@ async function fetchUserProfile(uid) {
             });
             const timeoutPromise2 = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
             await Promise.race([createPromise, timeoutPromise2]).catch(e => console.warn("Background create profile timeout", e));
-            
+
             console.log("[DEBUG] Default user profile created in Firestore.");
-            
+
             // New User flow: Automatically push the Update Profile screen forcefully
             openUpdateProfile(true);
         }
-        
+
         if (docSnap.exists()) {
             const data = docSnap.data();
             const isNewUser = (!data.name || data.name === "User" || data.name === "Add your name");
@@ -185,22 +185,22 @@ upBackBtn.addEventListener('click', closeUpdateProfile);
 
 function openUpdateProfile(force = false) {
     upErrorMsg.classList.add('hidden');
-    
+
     if (force) {
         upBackBtn.style.display = 'none'; // Hide back button for new users
     } else {
         upBackBtn.style.display = 'block'; // Show it for existing users
     }
-    
+
     // Pre-fill inputs
     upInputName.value = valName.textContent !== "Add your name" ? valName.textContent : "";
     upInputEmail.value = valEmail.textContent !== "Add email" ? valEmail.textContent : "";
     upInputGender.value = valGender.textContent !== "Select gender" ? valGender.textContent : "Male";
-    
+
     if (currentUser && currentUser.phoneNumber) {
         upInputPhone.value = currentUser.phoneNumber;
     }
-    
+
     updateProfilePage.classList.remove('hidden');
 }
 
@@ -213,7 +213,7 @@ upContinueBtn.addEventListener('click', async () => {
     const newName = upInputName.value.trim();
     const newEmail = upInputEmail.value.trim();
     const newGender = upInputGender.value;
-    
+
     if (newName === '') {
         showError("Full Name cannot be empty.");
         return;
@@ -223,12 +223,12 @@ upContinueBtn.addEventListener('click', async () => {
         showError("Please enter a valid email address.");
         return;
     }
-    
+
     upErrorMsg.classList.add('hidden');
     upContinueBtn.textContent = "Saving...";
     upContinueBtn.style.opacity = "0.7";
     upContinueBtn.disabled = true;
-    
+
     try {
         const data = {
             name: newName,
@@ -236,14 +236,14 @@ upContinueBtn.addEventListener('click', async () => {
             gender: newGender,
             updatedAt: serverTimestamp()
         };
-        
+
         if (valName.textContent === "Add your name" && valEmail.textContent === "Add email") {
             data.createdAt = serverTimestamp();
             if (currentUser && currentUser.phoneNumber) {
                 data.phone = currentUser.phoneNumber;
             }
         }
-        
+
         if (selectedPhotoFile && storage && currentUser) {
             upContinueBtn.textContent = "Uploading photo...";
             const photoRef = ref(storage, `profile_photos/${currentUser.uid}`);
@@ -251,29 +251,29 @@ upContinueBtn.addEventListener('click', async () => {
             const downloadURL = await getDownloadURL(photoRef);
             data.photoURL = downloadURL;
         }
-        
+
         if (firestore && currentUser) {
             const docRef = doc(firestore, 'users', currentUser.uid);
             console.log("[DEBUG] Calling setDoc for user:", currentUser.uid);
-            
+
             const savePromise = setDoc(docRef, data, { merge: true });
-            const timeoutPromise = new Promise((_, reject) => 
+            const timeoutPromise = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error("Timeout: Could not reach Firebase. Check if your Firestore database is created in the console and your internet is stable.")), 10000)
             );
-            
+
             await Promise.race([savePromise, timeoutPromise]);
             console.log("[DEBUG] setDoc successful!");
         } else {
             console.warn("Firestore/Auth not initialized. Simulating save locally.");
         }
-        
+
         // Update Personal Info UI locally
         valName.textContent = newName;
         if (profileUserNameDisplay) profileUserNameDisplay.textContent = newName;
         valGender.textContent = newGender;
         valEmail.textContent = newEmail;
         valEmail.style.color = '#111111';
-        
+
         if (data.photoURL) {
             if (mainProfileImg) {
                 mainProfileImg.src = data.photoURL;
@@ -281,7 +281,7 @@ upContinueBtn.addEventListener('click', async () => {
             }
             if (defaultProfileSvg) defaultProfileSvg.classList.add('hidden');
         }
-        
+
         closeUpdateProfile();
     } catch (err) {
         console.error("Error saving to Firestore:", err);

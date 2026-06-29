@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const updateLocationBtnVisibility = (yPos) => {
     if (!myLocationBtn) return;
     // Hide when dragged significantly upwards (e.g. past the middle point)
-    const threshold = snapPoints.DEFAULT - 50; 
+    const threshold = snapPoints.DEFAULT - 50;
     if (yPos < threshold) {
       myLocationBtn.style.opacity = '0';
       myLocationBtn.style.pointerEvents = 'none';
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const livePage = document.getElementById('live-page');
   const profilePage = document.getElementById('profile-page');
   const profileBackBtn = document.getElementById('profile-back-btn');
-  
+
   // Personal Info overlay logic
   const btnPersonalInfo = document.getElementById('btn-personal-info');
   const personalInfoPage = document.getElementById('personal-info-page');
@@ -173,10 +173,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  
-  
-  
-  
+
+
+
+
   // Trusted Contacts Add/Delete functionality
   const addContactBtn = document.getElementById('add-contact-btn');
   const contactList = document.getElementById('contact-list');
@@ -202,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
       transition: opacity 0.3s ease;
     `;
     document.body.appendChild(toast);
-    
+
     setTimeout(() => toast.style.opacity = '1', 10);
     setTimeout(() => {
       toast.style.opacity = '0';
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const renderContacts = () => {
     if (!contactList) return;
     contactList.innerHTML = '';
-    
+
     if (currentContacts.length === 0) {
       return;
     }
@@ -223,7 +223,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const card = document.createElement('div');
       card.className = 'tc-card';
       card.style.cssText = 'background: #FFFFFF; border-radius: 16px; padding: 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.04);';
-      
+
       card.innerHTML = `
         <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
           <div style="width: 48px; height: 48px; border-radius: 50%; background: #3B82F6; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 18px; flex-shrink: 0;">
@@ -287,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (addContactBtn && contactList) {
     addContactBtn.addEventListener('pointerdown', () => {
       const addContactPage = document.getElementById('add-contact-page');
-      if(addContactPage) {
+      if (addContactPage) {
         addContactPage.classList.remove('hidden');
         document.getElementById('new-contact-name').focus();
       }
@@ -299,8 +299,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const newContactPhone = document.getElementById('new-contact-phone');
     const saveNewContactBtn = document.getElementById('save-new-contact-btn');
 
-    if(addContactPage && backAddContactBtn && newContactName && newContactPhone && saveNewContactBtn) {
-      
+    if (addContactPage && backAddContactBtn && newContactName && newContactPhone && saveNewContactBtn) {
+
       const closeAddContactPage = () => {
         addContactPage.classList.add('hidden');
         newContactName.value = '';
@@ -316,8 +316,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (phoneVal.length > 10) phoneVal = phoneVal.slice(0, 10);
         newContactPhone.value = phoneVal;
         const phoneValid = phoneVal.length === 10;
-        
-        if(nameValid && phoneValid) {
+
+        if (nameValid && phoneValid) {
           saveNewContactBtn.setAttribute('data-disabled', 'false');
           saveNewContactBtn.style.opacity = '1';
         } else {
@@ -332,18 +332,18 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       saveNewContactBtn.addEventListener('pointerdown', async () => {
-        if(saveNewContactBtn.getAttribute('data-disabled') === 'true') return;
-        
+        if (saveNewContactBtn.getAttribute('data-disabled') === 'true') return;
+
         const name = newContactName.value.trim();
         const rawPhone = newContactPhone.value.replace(/\D/g, '');
-        
+
         if (!name || rawPhone.length !== 10) {
           showToast("Invalid inputs", true);
           return;
         }
-        
+
         saveNewContactBtn.setAttribute('data-disabled', 'true');
-        
+
         // Show loading spinner
         const originalText = saveNewContactBtn.innerHTML;
         saveNewContactBtn.innerHTML = `
@@ -353,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </svg>
           Saving
         `;
-        
+
         const user = auth.currentUser;
         if (!user) {
           showToast("Please login again", true);
@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
           saveNewContactBtn.setAttribute('data-disabled', 'false');
           return;
         }
-        
+
         const phone = `+91${rawPhone}`;
 
         try {
@@ -373,9 +373,9 @@ document.addEventListener('DOMContentLoaded', () => {
             updatedAt: serverTimestamp()
           });
           console.log("Firestore save success");
-          
+
           // Toast removed per user request
-          
+
           // Optimistically update the UI so it's instantly visible
           currentContacts.push({
             id: newDocRef.id,
@@ -386,10 +386,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
           console.log("Navigating back");
           closeAddContactPage();
-          
+
           // Refresh from Firestore in the background
           loadTrustedContacts();
-          
+
         } catch (err) {
           console.error("Sync error in save logic:", err);
           showToast("Error: " + err.message, true);
@@ -414,7 +414,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const btnElem = e.target.closest('.tc-delete-btn');
         if (!btnElem) return;
         const id = btnElem.getAttribute('data-id');
-        
+
         const contactToRemove = currentContacts.find(c => c.id === id);
         if (!contactToRemove) return;
 
@@ -427,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Optimistic UI update
             currentContacts = currentContacts.filter(c => c.id !== id);
             renderContacts();
-            
+
             await deleteDoc(doc(db, 'users', user.uid, 'trustedContacts', id));
             // Toast removed per user request
           } catch (error) {
@@ -436,7 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await loadTrustedContacts(); // Revert on failure
           }
         } else {
-           showToast("Please login again", true);
+          showToast("Please login again", true);
         }
       });
     });
@@ -546,7 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     navHome.addEventListener('pointerdown', goHome);
-    
+
     if (profileBackBtn) profileBackBtn.addEventListener('pointerdown', goHome);
 
     navLive.addEventListener('pointerdown', () => {

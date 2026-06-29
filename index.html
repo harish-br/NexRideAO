@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/safety.css" />
   <link rel="stylesheet" href="./css/epass.css" />
+  <link rel="stylesheet" href="./css/bus-search.css" />
 </head>
 
 <body>
@@ -41,7 +42,7 @@
       </div>
       <div class="inner-box-2">
         <div class="transit-options">
-          <div class="transit-item">
+          <div class="transit-item" id="bus-search-btn" style="cursor: pointer;">
             <div class="transit-icon-box">
               <img src="./assets/bus-card.jpg" alt="Bus" class="transit-icon-img" />
             </div>
@@ -1139,7 +1140,7 @@
   <div id="epass-page" class="page-overlay push-overlay hidden"
     style="background-color: #F8F9FA; overflow: hidden; height: 100dvh; width: 100%; z-index: 4000; position: fixed; top: 0; left: 0;">
     <div class="epass-page" style="height: 100%; display: flex; flex-direction: column;">
-      <header class="safety-header" style="position: relative; z-index: 2; flex-shrink: 0;">
+      <header class="epass-header">
         <button class="back-btn" id="back-epass">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2.5"
             stroke-linecap="round" stroke-linejoin="round">
@@ -1151,18 +1152,34 @@
       <main class="epass-content"
         style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 32px; padding-bottom: 60px;">
         <div class="epass-card" id="epass-card-element">
-          <!-- Digital ID Details -->
-          <div class="epass-user-info" style="position: absolute; top: 0; left: 0; right: 0; bottom: 80px; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; text-align: center; padding: 20px;">
-            <h2 id="epass-name" style="font-size: 28px; font-weight: 700; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 2px 10px rgba(0,0,0,0.2);"></h2>
-            <div style="background: rgba(255,255,255,0.2); padding: 6px 16px; border-radius: 20px; backdrop-filter: blur(4px); margin-bottom: 8px;">
-              <p id="epass-id" style="font-size: 16px; margin: 0; font-family: monospace; font-weight: 600; letter-spacing: 1px;"></p>
-            </div>
-            <p id="epass-bus" style="font-size: 18px; margin: 0; font-weight: 600; opacity: 0.9;"></p>
+          <!-- Top Blue Section (Profile Pic) -->
+          <div class="epass-user-info"
+            style="position: absolute; top: 0; left: 0; right: 0; bottom: 300px; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 20px;">
+            <img id="epass-profile-pic"
+              src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007aff'><circle cx='12' cy='8' r='4' /><ellipse cx='12' cy='17' rx='7' ry='3.5' /></svg>"
+              alt="Profile"
+              style="width: 120px; height: 120px; border-radius: 50%; border: 3px solid rgba(255,255,255,0.8); object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.15); background-color: #f3f4f6; padding: 14px; box-sizing: border-box;">
           </div>
-          
-          <div class="epass-barcode-container">
-            <svg id="epass-barcode"></svg>
-            <p class="pass-id-text">ID: <span id="pass-id-display">Generating...</span></p>
+
+          <!-- Bottom White Section -->
+          <div class="epass-barcode-container" style="justify-content: flex-start; padding: 32px 24px 20px 24px;">
+
+            <!-- User Info Details -->
+            <div
+              style="width: 100%; display: flex; flex-direction: column; gap: 12px; font-weight: 700; color: #111827; line-height: 1.6; font-size: 14px; text-align: left; margin-bottom: auto;">
+              <div>Name: <span id="epass-name" style="text-transform: uppercase;"></span></div>
+              <div>RegNo: <span id="epass-id" style="text-transform: uppercase;"></span></div>
+              <div>Bus no: <span id="epass-bus" style="text-transform: uppercase;"></span></div>
+              <div>Stage: <span id="epass-stage" style="text-transform: uppercase;"></span></div>
+              <div>Fees Status: <span id="epass-fees" style="text-transform: uppercase;"></span></div>
+              <div>Parent/Guardian Contact: <span id="epass-contact" style="text-transform: uppercase;"></span></div>
+            </div>
+
+            <!-- Barcode at the bottom -->
+            <div style="width: 100%; display: flex; flex-direction: column; align-items: center; margin-top: 24px;">
+              <svg id="epass-barcode"></svg>
+              <p class="pass-id-text">ID: <span id="pass-id-display">...</span></p>
+            </div>
           </div>
         </div>
       </main>
@@ -1184,8 +1201,122 @@
   <script type="module" src="/js/main.js"></script>
   <script type="module" src="/js/auth-ui.js"></script>
 
+  <!-- Bus Search Page Overlay -->
+  <div id="bus-search-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F5F7FA; overflow-y: auto; height: 100dvh; z-index: 6000; display: flex; flex-direction: column;">
+    <!-- Header -->
+    <div class="bs-header"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom: 1px solid #F3F4F6;">
+      <button id="back-bus-search" class="back-btn"
+        style="position: relative; left: 0; background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
+        <h2 style="font-weight: 700; font-size: 18px; color: #111827; margin: 0;">Find Your Bus</h2>
+      </div>
+    </div>
+
+    <!-- Search Section -->
+    <div style="padding: 16px 20px;">
+      <div class="bs-search-card" style="background: white; border-radius: 32px; padding: 24px; box-shadow: none;">
+        <!-- Location Row -->
+        <div style="margin-bottom: 12px;">
+          <div id="bs-user-location" style="font-size: 18px;">
+            <span style="font-weight: 700; color: #4B5563; text-decoration: underline; text-underline-offset: 4px;">Your
+              Location</span>
+            <span style="color: #9CA3AF; font-weight: 600; margin-left: 4px;">(0km away)</span>
+          </div>
+        </div>
+
+        <!-- Search Input Row -->
+        <div style="position: relative; display: flex; align-items: center;">
+          <input type="text" id="bs-search-input" placeholder="Search for bus stops or bus no."
+            style="border: none; background: transparent; flex: 1; outline: none; font-size: 18px; font-weight: 600; color: #111827; width: 100%;">
+          <button id="bs-clear-btn" class="hidden"
+            style="background: none; border: none; cursor: pointer; padding: 4px; display: none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Area (Suggestions / Results) -->
+    <div id="bs-content-area" style="flex: 1; overflow-y: auto; padding: 0 20px 24px 20px;">
+
+      <!-- Smart Suggestions (Empty State) -->
+      <div id="bs-smart-suggestions">
+        <h3 style="font-size: 16px; font-weight: 700; color: #111827; margin: 16px 0 12px 0;">Nearby Stops</h3>
+        <div id="bs-nearby-stops" style="display: flex; flex-direction: column; gap: 12px;"></div>
+
+        <h3 style="font-size: 16px; font-weight: 700; color: #111827; margin: 24px 0 12px 0;">Recent Routes</h3>
+        <div id="bs-recent-routes"
+          style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; margin-left: -20px; padding-left: 20px; margin-right: -20px; padding-right: 20px;"
+          class="hide-scrollbar"></div>
+      </div>
+
+      <!-- Search Results -->
+      <div id="bs-search-results" class="hidden" style="display: none;">
+        <div id="bs-results-list" style="display: flex; flex-direction: column; gap: 12px;"></div>
+
+        <!-- Skeleton Loader -->
+        <div id="bs-skeleton" class="hidden" style="display: none; flex-direction: column; gap: 12px;">
+          <div
+            style="background: white; border-radius: 16px; padding: 16px; height: 80px; display: flex; align-items: center; gap: 16px;">
+            <div
+              style="width: 40px; height: 40px; border-radius: 50%; background: #E5E7EB; animation: pulse 1.5s infinite;">
+            </div>
+            <div style="flex: 1;">
+              <div
+                style="height: 16px; width: 60%; background: #E5E7EB; border-radius: 8px; margin-bottom: 8px; animation: pulse 1.5s infinite;">
+              </div>
+              <div
+                style="height: 12px; width: 40%; background: #E5E7EB; border-radius: 6px; animation: pulse 1.5s infinite;">
+              </div>
+            </div>
+          </div>
+          <div
+            style="background: white; border-radius: 16px; padding: 16px; height: 80px; display: flex; align-items: center; gap: 16px;">
+            <div
+              style="width: 40px; height: 40px; border-radius: 50%; background: #E5E7EB; animation: pulse 1.5s infinite;">
+            </div>
+            <div style="flex: 1;">
+              <div
+                style="height: 16px; width: 50%; background: #E5E7EB; border-radius: 8px; margin-bottom: 8px; animation: pulse 1.5s infinite;">
+              </div>
+              <div
+                style="height: 12px; width: 70%; background: #E5E7EB; border-radius: 6px; animation: pulse 1.5s infinite;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="bs-empty-state" class="hidden" style="display: none; text-align: center; padding: 40px 20px;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.5"
+            stroke-linecap="round" stroke-linejoin="round" style="margin: 0 auto 16px auto; display: block;">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <line x1="9" y1="9" x2="13" y2="13"></line>
+            <line x1="13" y1="9" x2="9" y2="13"></line>
+          </svg>
+          <h3 style="font-size: 16px; font-weight: 600; color: #111827; margin: 0 0 8px 0;">No results found</h3>
+          <p style="font-size: 14px; color: #6B7280; margin: 0;">Try searching for a different route number or bus stop
+            name.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <script type="module" src="./js/epass.js"></script>
+  <script type="module" src="./js/bus-search.js"></script>
 </body>
 
 </html>
