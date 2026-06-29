@@ -151,7 +151,12 @@ function updateStopStyles(currentStopIndex, nextStopIndex, status, etaMinutes) {
         if (dot) {
             dot.className = 'tracking-dot';
 
-            if (stopStatus === 'arrived') {
+            if (status === 'offline') {
+                dot.style.backgroundColor = '#C9CED6'; // Gray
+                if (timeEl) {
+                    timeEl.textContent = '';
+                }
+            } else if (stopStatus === 'arrived') {
                 dot.style.backgroundColor = '#22C55E'; // Green
                 if (timeEl) {
                     timeEl.textContent = 'Arrived';
@@ -274,8 +279,13 @@ function startBusTracking(busDocId) {
             updateStatusBanner(data.status, data.delayMinutes);
             updateArrowAnimation(data.status);
             
-            if (data.status !== 'offline' && stopItemsEl.length > 0) {
-                calculateTargetY(data.currentStopIndex || 0, data.nextStopIndex || 1, data.lat || 0, data.lng || 0);
+            if (stopItemsEl.length > 0) {
+                if (data.status !== 'offline') {
+                    busTrackerEl.style.display = 'flex';
+                    calculateTargetY(data.currentStopIndex || 0, data.nextStopIndex || 1, data.lat || 0, data.lng || 0);
+                } else {
+                    busTrackerEl.style.display = 'none';
+                }
                 updateStopStyles(data.currentStopIndex || 0, data.nextStopIndex || 1, data.status, data.etaMinutes || 0);
             }
         }
