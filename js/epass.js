@@ -52,7 +52,7 @@ async function initializeEPass(userId) {
     if (passData && passData.passId) {
         try {
             const barcodeRef = doc(firestore, 'users', userId, 'barcode', 'latest');
-            await setDoc(barcodeRef, { 
+            await setDoc(barcodeRef, {
                 passId: passData.passId,
                 updatedAt: Date.now()
             });
@@ -141,6 +141,8 @@ function renderBarcode(passId) {
 
 async function renderHologram(userId) {
     const container = document.getElementById('hologram-strip');
+    const card = document.getElementById('epass-card-element');
+    
     if (!container) return;
 
     let sigStr = "GUEST0000NOBUS00";
@@ -162,6 +164,7 @@ async function renderHologram(userId) {
         }
     }
 
+    // 1. Generate Hologram Strip SVG
     // Repeat string to fill the arc
     const repeatedSig = (sigStr + " ").repeat(10);
 
@@ -196,7 +199,28 @@ async function renderHologram(userId) {
     `;
     container.innerHTML = svgHTML;
 
-    // Dynamic animations removed as requested.
+    // 2. Generate Passport Microprint Pattern Background
+    if (card) {
+        // Space out the micro text slightly
+        const microText = (sigStr + "  ").repeat(5);
+        
+        // We generate a simple SVG that acts as a tileable background pattern
+        const microPatternSVG = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="300" height="20">
+                <text x="0" y="14" fill="#ffffff" font-family="monospace" font-size="5px" font-weight="600" letter-spacing="1px" opacity="0.8">
+                    ${microText}
+                </text>
+            </svg>
+        `.trim();
+        
+        // URL-encode the SVG to use it safely in a data URI
+        const encodedSVG = encodeURIComponent(microPatternSVG)
+            .replace(/'/g, "%27")
+            .replace(/"/g, "%22");
+            
+        // Apply the CSS variable for the ::before element to consume
+        card.style.setProperty('--micro-pattern', \`url("data:image/svg+xml,\${encodedSVG}")\`);
+    }
 }
 
 function initCardHologram() {
@@ -279,17 +303,11 @@ function initCardHologram() {
 // Initialize on load
 document.addEventListener('DOMContentLoaded', () => {
     initCardHologram();
-    
+
     // Add listener to re-trigger document creation when the e-pass is opened manually
     const epassBtn = document.getElementById('epass-btn');
     if (epassBtn) {
         epassBtn.addEventListener('click', async () => {
-            const content = document.querySelector('.epass-content');
-            if (content) {
-                content.classList.remove('animate-in');
-                void content.offsetWidth; // trigger reflow
-                content.classList.add('animate-in');
-            }
             if (auth && auth.currentUser) {
                 // Temporarily disable the loaded flag to force a re-check
                 barcodeLoaded = false;
@@ -306,12 +324,6 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
         const epassBtn = document.getElementById('epass-btn');
         if (epassBtn) {
             epassBtn.addEventListener('click', async () => {
-                const content = document.querySelector('.epass-content');
-                if (content) {
-                    content.classList.remove('animate-in');
-                    void content.offsetWidth; // trigger reflow
-                    content.classList.add('animate-in');
-                }
                 if (auth && auth.currentUser) {
                     barcodeLoaded = false;
                     await initializeEPass(auth.currentUser.uid);
