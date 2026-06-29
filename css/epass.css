@@ -106,9 +106,9 @@
   transform-origin: center center;
   pointer-events: none;
   z-index: 3;
-  opacity: 0.25;
-  mix-blend-mode: overlay;
-  /* Allow the text to faintly shimmer when the shine moves underneath */
+  opacity: 0.15;
+  /* Normal blend mode ensures text is always visible regardless of screen contrast */
+  mix-blend-mode: normal;
   filter: drop-shadow(0 0 1px rgba(255,255,255,0.2));
 }
 

@@ -207,7 +207,7 @@ async function renderHologram(userId) {
         // We generate a simple SVG that acts as a tileable background pattern
         const microPatternSVG = `
             <svg xmlns="http://www.w3.org/2000/svg" width="300" height="20">
-                <text x="0" y="14" fill="#ffffff" font-family="monospace" font-size="5px" font-weight="600" letter-spacing="1px" opacity="0.8">
+                <text x="0" y="14" fill="white" font-family="monospace" font-size="5px" font-weight="600" letter-spacing="1px" opacity="0.8">
                     ${microText}
                 </text>
             </svg>
