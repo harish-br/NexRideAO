@@ -219,7 +219,7 @@ async function renderHologram(userId) {
             .replace(/"/g, "%22");
             
         // Apply the CSS variable for the ::before element to consume
-        card.style.setProperty('--micro-pattern', \`url("data:image/svg+xml,\${encodedSVG}")\`);
+        card.style.setProperty('--micro-pattern', `url("data:image/svg+xml,${encodedSVG}")`);
     }
 }
 
