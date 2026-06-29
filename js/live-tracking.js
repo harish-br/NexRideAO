@@ -17,6 +17,7 @@ let busTrackerEl = null;
 let stopItemsEl = [];
 let routeStops = [];
 let unsubscribeBus = null;
+let currentUserStage = '';
 
 function haversineDistance(lat1, lon1, lat2, lon2) {
     const R = 6371e3; // meters
@@ -223,19 +224,32 @@ function renderStops(stops) {
         return;
     }
 
+    let hasBoardingMatch = false;
+    if (currentUserStage) {
+        hasBoardingMatch = stops.some(s => s.stopName && s.stopName.trim().toLowerCase() === currentUserStage.trim().toLowerCase());
+    }
+
     stops.forEach((stop, index) => {
         const isFirst = index === 0;
+        let isBoardingStop = false;
+        
+        if (hasBoardingMatch) {
+            isBoardingStop = stop.stopName && stop.stopName.trim().toLowerCase() === currentUserStage.trim().toLowerCase();
+        } else {
+            isBoardingStop = index === 0; // fallback if no match
+        }
+
         const html = `
-          <div class="stop-item ${isFirst ? 'active' : ''}">
+          <div class="stop-item ${isBoardingStop ? 'active' : ''}">
             <div class="stop-icon-wrapper">
               <div class="tracking-dot ${isFirst ? 'green' : 'gray'}"></div>
             </div>
             <div class="stop-info">
-              ${isFirst ? '<span class="boarding-text">Your Boarding Stop</span>' : ''}
+              ${isBoardingStop ? '<span class="boarding-text">Your Boarding Stop</span>' : ''}
               <div class="stop-name-row">
                 <div class="stop-title-wrap">
                   <div class="heading-towards hidden">Heading towards</div>
-                  <span class="stop-name ${isFirst ? 'highlight' : ''}">${stop.stopName || 'Unknown Stop'}</span>
+                  <span class="stop-name ${isBoardingStop ? 'highlight' : ''}">${stop.stopName || 'Unknown Stop'}</span>
                 </div>
                 <span class="stop-time"></span>
               </div>
@@ -350,15 +364,17 @@ export function initLiveTracking() {
             if (userSnap.exists()) {
                 const userData = userSnap.data();
                 busNum = userData.bus || userData.busNumber || userData['bus no'] || userData.bus_no;
+                currentUserStage = userData.stage || '';
             }
             
             // Fallback check in epass subcollection just in case
-            if (!busNum) {
+            if (!busNum || !currentUserStage) {
                 const epassRef = collection(firestore, `users/${user.uid}/epass`);
                 const epassSnap = await getDocs(epassRef);
                 if (!epassSnap.empty) {
                     const epassData = epassSnap.docs[0].data();
-                    busNum = epassData.bus || epassData.busNumber || epassData['bus no'] || epassData.bus_no;
+                    if (!busNum) busNum = epassData.bus || epassData.busNumber || epassData['bus no'] || epassData.bus_no;
+                    if (!currentUserStage) currentUserStage = epassData.stage || '';
                 }
             }
 
