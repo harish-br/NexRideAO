@@ -144,7 +144,6 @@ function AdminControlPage() {
       const docRef = doc(db, 'buses', `bus_${dataToPush.busNumber}`);
       await updateDoc(docRef, {
         ...dataToPush,
-        stops: ROUTE_STOPS,
         lastUpdated: serverTimestamp()
       });
       console.log("[DEBUG ADMIN] GPS sent to Firebase successfully");
