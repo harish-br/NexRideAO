@@ -189,7 +189,7 @@ function initCardHologram() {
     const card = document.getElementById('epass-card-element');
     const shine = card ? card.querySelector('.epass-card-shine') : null;
 
-    if (!card || !shine) return;
+    if (!card) return;
 
     let targetTx = 0;
     let targetTy = 0;
@@ -210,17 +210,19 @@ function initCardHologram() {
         currentRotY += (targetRotY - currentRotY) * 0.12;
 
         // Update variables used by hardware-accelerated transforms
-        shine.style.setProperty('--shine-tx', currentTx);
-        shine.style.setProperty('--shine-ty', currentTy);
+        if (shine) {
+            shine.style.setProperty('--shine-tx', currentTx);
+            shine.style.setProperty('--shine-ty', currentTy);
+            // Rainbow reveal trigger
+            if (Math.abs(targetTx) > 20 || Math.abs(targetTy) > 20) {
+                shine.classList.add('extreme-tilt');
+            } else {
+                shine.classList.remove('extreme-tilt');
+            }
+        }
+        
         card.style.setProperty('--card-rotate-x', currentRotX);
         card.style.setProperty('--card-rotate-y', currentRotY);
-
-        // Rainbow reveal trigger
-        if (Math.abs(targetTx) > 20 || Math.abs(targetTy) > 20) {
-            shine.classList.add('extreme-tilt');
-        } else {
-            shine.classList.remove('extreme-tilt');
-        }
 
         requestAnimationFrame(renderHologramFrame);
     }
@@ -231,7 +233,7 @@ function initCardHologram() {
         let beta = event.beta;
 
         if (gamma === null || beta === null) return;
-        shine.style.animation = 'none';
+        if (shine) shine.style.animation = 'none';
 
         // Constrain rotation to max 6 degrees for performance and subtle premium feel
         targetRotY = Math.max(-6, Math.min(6, gamma));
