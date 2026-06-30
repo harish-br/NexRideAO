@@ -99,7 +99,7 @@ body {
   top: 100dvh;
   /* Anchor to bottom of screen */
   left: 0;
-  height: 90dvh;
+  height: 90vh;
   /* Max expansion height */
   width: 100%;
   background: rgba(248, 248, 245, 0.9);
