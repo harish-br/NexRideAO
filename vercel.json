@@ -5,7 +5,7 @@
       "destination": "https://nexride-ao.firebaseapp.com/__/auth/$1"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/|css/|js/|favicon/|fonts/|manifest\\.json|sw\\.js|.*\\.png|.*\\.svg|.*\\.ico).*)",
       "destination": "/index.html"
     }
   ]
