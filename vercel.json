@@ -3,10 +3,6 @@
     {
       "source": "/__/auth/(.*)",
       "destination": "https://nexride-ao.firebaseapp.com/__/auth/$1"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
     }
   ]
 }
