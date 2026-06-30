@@ -9,6 +9,73 @@
   <link rel="stylesheet" href="./css/safety.css" />
   <link rel="stylesheet" href="./css/epass.css" />
   <link rel="stylesheet" href="./css/bus-search.css" />
+
+  <!-- PWA Service Worker Registration & Install Prompt Logic -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[SW] successfully registered:', reg))
+          .catch(err => console.error('[SW] registration failed:', err));
+      });
+    }
+
+    let deferredPrompt;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      deferredPrompt = e;
+      // Show the install card UI
+      const installCard = document.getElementById('install-card');
+      if (installCard) {
+        installCard.style.display = 'flex';
+      }
+    });
+
+    window.addEventListener('load', () => {
+      const installCard = document.getElementById('install-card');
+      const installBtn = document.getElementById('install-btn');
+
+      if (installBtn && installCard) {
+        installBtn.addEventListener('click', async () => {
+          // Hide the install promotion
+          installCard.style.display = 'none';
+          // Show the install prompt
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            // Wait for the user to respond to the prompt
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`User response to the install prompt: ${outcome}`);
+            deferredPrompt = null;
+          }
+        });
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      // Hide the app-provided install promotion
+      const installCard = document.getElementById('install-card');
+      if (installCard) {
+        installCard.style.display = 'none';
+      }
+      deferredPrompt = null;
+      console.log('PWA was installed successfully');
+    });
+  </script>
+
+  <!-- PWA Setup -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0044CC" />
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96x96.png" />
+  <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+  <link rel="shortcut icon" href="/favicon/favicon.ico" />
+  <link rel="apple-touch-icon" href="/favicon/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NexRide" />
+  <meta name="mobile-web-app-capable" content="yes" />
 </head>
 
 <body>
@@ -69,14 +136,40 @@
         </div>
       </div>
 
-      <!-- Dashboard Option Card -->
-      <div class="dashboard-box">
-        <span class="dashboard-title">Dashboard</span>
-      </div>
+      <div id="scrollable-sheet-content" class="hide-scrollbar"
+        style="display: flex; flex-direction: column; gap: 16px; flex: 1; width: 100%;">
+        <!-- Custom PWA Install Card -->
+        <div class="inner-box-2" id="install-card" style="display: none; justify-content: space-between; align-items: center; padding: 16px 20px; min-height: 80px; flex-direction: row; cursor: pointer; border: 2px solid rgba(0, 68, 204, 0.1);">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <img src="/favicon/web-app-manifest-192x192.png" alt="NexRide Icon" style="width: 48px; height: 48px; border-radius: 12px; object-fit: cover;">
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+              <span style="font-weight: 800; font-size: 1.1rem; color: #111;">Install NexRide App</span>
+              <span style="font-size: 0.85rem; color: #666; font-weight: 500;">For a better native experience</span>
+            </div>
+          </div>
+          <button id="install-btn" style="background: #0044CC; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 800; font-size: 0.95rem; cursor: pointer;">Install</button>
+        </div>
 
-      <!-- Women Safety Promo Card -->
-      <div class="promo-box">
-        <img src="./assets/womensafety.PNG" alt="Women Safety" class="promo-img" />
+        <!-- Notifications Option Card -->
+        <div class="dashboard-box">
+          <span class="dashboard-title">Notifications</span>
+        </div>
+
+        <!-- Crafted With Love Footer -->
+        <div
+          style="background: transparent; justify-content: flex-start; align-items: flex-start; text-align: left; display: flex; flex-direction: column; padding: 24px 20px; margin-top: auto;">
+          <span
+            style="color: #9CA3AF; font-weight: 1000; font-size: 1.50rem; letter-spacing: -0.2px; line-height: 0.2; font-family: system-ui, -apple-system, sans-serif;">CRAFTED
+            WITH</span>
+          <span
+            style="color: #9CA3AF; font-weight: 1000; font-size: 2.75rem; letter-spacing: -0.2px; margin-top: 2px; font-family: system-ui, -apple-system, sans-serif;">L<svg
+              xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#2563EB"
+              style="width: 2.8rem; height: 2.8rem; vertical-align: -0.45rem; margin: 0 2px;">
+              <path
+                d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+            </svg>VE
+            &amp; CARE</span>
+        </div>
       </div>
     </div>
     <!-- Live Page Overlay -->
@@ -1114,12 +1207,9 @@
 
 
   <script type="module" src="./js/live-tracking.js"></script>
-  <script type="module" src="./js/sheet.js?v=3"></script>
+  <script type="module" src="./js/sheet.js"></script>
   <script type="module" src="./js/profile.js"></script>
   <script type="module" src="./js/safety.js"></script>
-
-  <script type="module" src="/js/main.js"></script>
-  <script type="module" src="/js/auth-ui.js"></script>
 
   <!-- Bus Search Page Overlay -->
   <div id="bus-search-page" class="page-overlay push-overlay hidden"

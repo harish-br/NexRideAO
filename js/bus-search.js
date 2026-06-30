@@ -29,9 +29,21 @@ document.addEventListener('DOMContentLoaded', () => {
   function closeModal() {
     busSearchPage.classList.add('hidden');
     searchInput.value = '';
+    
+    clearBtn.classList.add('hidden');
     clearBtn.style.display = 'none';
+    
+    smartSuggestionsArea.classList.remove('hidden');
     smartSuggestionsArea.style.display = 'block';
+    
+    searchResultsArea.classList.add('hidden');
     searchResultsArea.style.display = 'none';
+    
+    resultsList.innerHTML = '';
+    emptyState.classList.add('hidden');
+    emptyState.style.display = 'none';
+    skeletonLoader.classList.add('hidden');
+    skeletonLoader.style.display = 'none';
   }
 
   if (busSearchBtn) busSearchBtn.addEventListener('click', openModal);
@@ -239,12 +251,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if stops match
         if (busData.stops && Array.isArray(busData.stops)) {
           busData.stops.forEach(stop => {
-            const stopName = stop.stopName || stop.name;
+            let stopName = stop.stopName || stop.name;
             if (!stopName) return;
+            stopName = String(stopName).trim(); // Remove trailing spaces
 
-            if (String(stopName).toLowerCase().includes(q)) {
-              // Avoid duplicates in stopResults (simplified)
-              if (!stopResults.some(s => s.stopName === stopName)) {
+            if (stopName.toLowerCase().includes(q)) {
+              // Avoid duplicates (case-insensitive)
+              const existing = stopResults.find(s => s.stopName.toLowerCase() === stopName.toLowerCase());
+              if (!existing) {
                 stopResults.push({
                   stopId: stopName,
                   stopName: stopName,
@@ -252,7 +266,6 @@ document.addEventListener('DOMContentLoaded', () => {
                   busNumbers: bNumStr ? [bNumStr] : []
                 });
               } else {
-                const existing = stopResults.find(s => s.stopName === stopName);
                 if (bNumStr && !existing.busNumbers.includes(bNumStr)) {
                   existing.busNumbers.push(bNumStr);
                 }
@@ -266,12 +279,24 @@ document.addEventListener('DOMContentLoaded', () => {
       skeletonLoader.style.display = 'none';
 
       if (routeResults.length > 0) {
+        // Sort exact matches first for routes
+        routeResults.sort((a, b) => {
+          const aExact = a.routeNo.toLowerCase() === q ? 1 : 0;
+          const bExact = b.routeNo.toLowerCase() === q ? 1 : 0;
+          return bExact - aExact;
+        });
         routeResults.slice(0, 10).forEach(route => {
           resultsList.appendChild(createRouteCard(route, query));
         });
       }
 
       if (stopResults.length > 0) {
+        // Sort exact matches first for stops
+        stopResults.sort((a, b) => {
+          const aExact = a.stopName.toLowerCase() === q ? 1 : 0;
+          const bExact = b.stopName.toLowerCase() === q ? 1 : 0;
+          return bExact - aExact;
+        });
         stopResults.slice(0, 10).forEach(stop => {
           resultsList.appendChild(createStopCard(stop, query));
         });
@@ -391,6 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
         dropdown.style.display = 'block';
         card.style.background = '#F8FAFC';
         arrow.style.transform = 'rotate(180deg)';
+        if (typeof saveRecentRoute === 'function') {
+          saveRecentRoute(route);
+        }
       } else {
         dropdown.classList.add('hidden');
         dropdown.style.display = 'none';
@@ -432,6 +460,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.navigator.vibrate(50);
       }
       console.log(`Stop selected: ${stop.stopName}`);
+      if (typeof saveRecentRoute === 'function') {
+        saveRecentRoute({ source: stop.stopName, destination: '', routeNo: '' });
+      }
       // Future feature: handle stop tap without closing modal
     });
     return card;
@@ -439,15 +470,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Smart Suggestions ---
 
-  // TODO: Connect database here for recent routes
-  async function fetchRecentRoutesFromDB() {
-    console.log(`Fetching recent routes from DB...`);
-    // Example:
-    // const response = await fetch(`/api/user/recent-routes`);
-    // return await response.json();
+  function fetchRecentRoutesFromStorage() {
+    try {
+      const stored = localStorage.getItem('nexride_recent_routes');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  }
 
-    // Returning empty array for now since mock data should not be used
-    return [];
+  function saveRecentRoute(routeData) {
+    try {
+      let recents = fetchRecentRoutesFromStorage();
+      const existingIdx = recents.findIndex(r => r.source === routeData.source && r.destination === routeData.destination && r.routeNo === routeData.routeNo);
+      if (existingIdx !== -1) {
+        recents.splice(existingIdx, 1);
+      }
+      recents.unshift({
+        source: routeData.source,
+        destination: routeData.destination,
+        routeNo: routeData.routeNo
+      });
+      if (recents.length > 4) {
+        recents = recents.slice(0, 4);
+      }
+      localStorage.setItem('nexride_recent_routes', JSON.stringify(recents));
+    } catch (e) {
+      console.error("Error saving recent route:", e);
+    }
   }
 
   async function renderSmartSuggestions() {
@@ -455,22 +505,23 @@ document.addEventListener('DOMContentLoaded', () => {
     recentRoutesContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; font-size: 14px; text-align: center; width: 100%;">Loading recent routes</div>';
 
     try {
-      const recentRoutes = await fetchRecentRoutesFromDB();
+      const recentRoutes = fetchRecentRoutesFromStorage();
       recentRoutesContainer.innerHTML = '';
 
       if (recentRoutes && recentRoutes.length > 0) {
-        recentRoutes.forEach(routeNo => {
+        recentRoutes.forEach(route => {
           const chip = document.createElement('div');
           chip.className = 'bs-recent-chip';
+          const displayText = route.destination ? `${route.source} &rarr; ${route.destination}` : route.source;
           chip.innerHTML = `
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <polyline points="12 6 12 12 16 14"></polyline>
             </svg>
-            ${routeNo}
+            ${displayText}
           `;
           chip.addEventListener('click', () => {
-            searchInput.value = routeNo;
+            searchInput.value = route.routeNo || route.source;
             searchInput.dispatchEvent(new Event('input'));
           });
           recentRoutesContainer.appendChild(chip);

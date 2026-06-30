@@ -8,9 +8,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // Utility to calculate pixels from vh
   const vhToPx = (vh) => (vh * window.innerHeight) / 100;
 
+  // Calculate dynamic top safe area
+  const getSafeAreaTop = () => {
+    const div = document.createElement('div');
+    div.style.paddingTop = 'env(safe-area-inset-top)';
+    document.body.appendChild(div);
+    const safeArea = parseInt(getComputedStyle(div).paddingTop) || 0;
+    document.body.removeChild(div);
+    return safeArea;
+  };
+
+  const topSafeArea = getSafeAreaTop();
+  const headerGap = 16; // Small top margin
+
   let snapPoints = {
-    DEFAULT: -vhToPx(60), // Exactly bottom half
-    FULL: -(window.innerHeight - 120) // Leaves exactly 120px gap at the top for all devices
+    DEFAULT: -vhToPx(60), // Original default height
+    FULL: -(window.innerHeight - topSafeArea - headerGap) // Reaches fully up to the top header
   };
 
   let currentY = snapPoints.DEFAULT;
@@ -45,8 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const oldDefault = snapPoints.DEFAULT;
 
     snapPoints = {
-      DEFAULT: -vhToPx(50),
-      FULL: -(window.innerHeight - 120) // Consistent gap on resize
+      DEFAULT: -vhToPx(60),
+      FULL: -(window.innerHeight - topSafeArea - headerGap) // Responsive max expansion
     };
 
     // Proportionally adjust current position if it was resting at a snap point
@@ -61,18 +74,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // velocity is px/ms. A quick flick might yield +/- 2 px/ms.
     const predictedY = currentY + (velocity * 150); // Predict where it goes in 150ms
 
-    const distances = [
-      { name: 'DEFAULT', val: snapPoints.DEFAULT },
-      { name: 'FULL', val: snapPoints.FULL }
-    ].map(point => ({
-      name: point.name,
-      val: point.val,
-      dist: Math.abs(predictedY - point.val)
-    }));
+    // Explicitly check for clear swipe gestures first
+    if (velocity < -0.3) {
+      currentY = snapPoints.FULL; // Swiped up
+    } else if (velocity > 0.3) {
+      currentY = snapPoints.DEFAULT; // Swiped down
+    } else {
+      const distances = [
+        { name: 'DEFAULT', val: snapPoints.DEFAULT },
+        { name: 'FULL', val: snapPoints.FULL }
+      ].map(point => ({
+        name: point.name,
+        val: point.val,
+        dist: Math.abs(predictedY - point.val)
+      }));
 
-    // Find the closest snap point to our predicted location
-    const nearest = distances.reduce((prev, curr) => prev.dist < curr.dist ? prev : curr);
-    currentY = nearest.val;
+      // Find the closest snap point to our predicted location
+      const nearest = distances.reduce((prev, curr) => prev.dist < curr.dist ? prev : curr);
+      currentY = nearest.val;
+    }
 
     // Strict bounds locking just in case
     if (currentY > snapPoints.DEFAULT) {
