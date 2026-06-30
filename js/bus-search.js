@@ -1,37 +1,21 @@
-// Mock Database
-const mockBusRoutes = [
-  { routeNo: '580', source: 'Kallur', destination: 'Avadi BT', type: 'Town', status: 'Arriving' },
-  { routeNo: '54E', source: 'MGR Koyambedu', destination: 'Meppur', type: 'Express', status: 'Running' },
-  { routeNo: '12B', source: 'T.Nagar', destination: 'Anna Square', type: 'Local', status: 'Delayed' },
-  { routeNo: '57A', source: 'Red Hills', destination: 'Vallalar Nagar', type: 'Town', status: 'Running' },
-  { routeNo: '21G', source: 'Broadway', destination: 'Tambaram', type: 'Express', status: 'Arriving' }
-];
-
-const mockBusStops = [
-  { stopId: '1', stopName: 'Dr Mgr Chennai Central – Return', address: 'Periamet, Jutkapuram', distance: '1.2 km away', routes: 4 },
-  { stopId: '2', stopName: 'Airport Metro', address: 'Chennai International Airport', distance: '15.4 km away', routes: 2 },
-  { stopId: '3', stopName: 'MGR Nagar', address: 'KK Nagar West', distance: '8.5 km away', routes: 5 },
-  { stopId: '4', stopName: 'MGR Koyambedu', address: 'CMBT, Koyambedu', distance: '9.2 km away', routes: 12 },
-  { stopId: '5', stopName: 'Anna Nagar Roundtana', address: 'Anna Nagar', distance: '6.1 km away', routes: 8 }
-];
-
-const mockRecentRoutes = ['580', '54E', '21G'];
+import { firestore as db } from './firebase-config.js';
+import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const busSearchBtn = document.getElementById('bus-search-btn');
   const busSearchPage = document.getElementById('bus-search-page');
   const backBtn = document.getElementById('back-bus-search');
-  
+
   const searchInput = document.getElementById('bs-search-input');
   const clearBtn = document.getElementById('bs-clear-btn');
   const userLocationText = document.getElementById('bs-user-location');
-  
+
   const smartSuggestionsArea = document.getElementById('bs-smart-suggestions');
   const searchResultsArea = document.getElementById('bs-search-results');
   const resultsList = document.getElementById('bs-results-list');
   const emptyState = document.getElementById('bs-empty-state');
   const skeletonLoader = document.getElementById('bs-skeleton');
-  
+
   const nearbyStopsContainer = document.getElementById('bs-nearby-stops');
   const recentRoutesContainer = document.getElementById('bs-recent-routes');
 
@@ -54,17 +38,77 @@ document.addEventListener('DOMContentLoaded', () => {
   if (backBtn) backBtn.addEventListener('click', closeModal);
 
   // --- Location & Database Search ---
-  
-  // TODO: Connect database here
+
+  // Distance calculation (Haversine formula)
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  }
+
   // Fetches stops from database within a given radius
   async function fetchNearbyStopsFromDB(userLat, userLng, radiusKm = 5) {
     console.log(`Fetching stops within ${radiusKm}km of ${userLat}, ${userLng} from DB...`);
-    // Example:
-    // const response = await fetch(`/api/stops/nearby?lat=${userLat}&lng=${userLng}&radius=${radiusKm}`);
-    // return await response.json();
-    
-    // Returning empty array for now since mock data should not be used
-    return []; 
+    const stopsMap = new Map();
+
+    try {
+      const busesSnapshot = await getDocs(collection(db, 'buses'));
+      busesSnapshot.forEach(doc => {
+        const busData = doc.data();
+        if (busData.stops && Array.isArray(busData.stops)) {
+          busData.stops.forEach(stop => {
+            if (stop.latitude && stop.longitude) {
+              const stopName = stop.stopName || stop.name;
+              if (!stopName) return;
+
+              const dist = calculateDistance(userLat, userLng, parseFloat(stop.latitude), parseFloat(stop.longitude));
+              if (stopsMap.has(stopName)) {
+                const existing = stopsMap.get(stopName);
+                const bNum = busData.bus_no || busData.busNumber;
+                if (bNum) {
+                  const bNumStr = String(bNum).trim();
+                  if (!existing.busNumbers.includes(bNumStr)) {
+                    existing.busNumbers.push(bNumStr);
+                  }
+                }
+              } else {
+                const bNum = busData.bus_no || busData.busNumber;
+                const bNumStr = bNum ? String(bNum).trim() : null;
+                stopsMap.set(stopName, {
+                  stopId: stopName,
+                  stopName: stopName,
+                  distance: dist.toFixed(1) + ' km away',
+                  rawDistance: dist,
+                  busNumbers: bNumStr ? [bNumStr] : []
+                });
+              }
+            }
+          });
+        }
+      });
+
+      const nearbyStops = Array.from(stopsMap.values());
+      // Sort by distance
+      nearbyStops.sort((a, b) => a.rawDistance - b.rawDistance);
+      
+      if (nearbyStops.length === 0) {
+         nearbyStopsContainer.innerHTML = `<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">No stops found nearby. (Debug: ${busesSnapshot.size} documents found in database)</div>`;
+         return [];
+      }
+      
+      // Return top 5 closest stops
+      return nearbyStops.slice(0, 5);
+    } catch (error) {
+      console.error("Error fetching buses for nearby stops:", error);
+      nearbyStopsContainer.innerHTML = `<div class="bs-subtitle" style="padding: 16px 0; color: #EF4444; text-align: center;">Database Error: ${error.message}</div>`;
+      return [];
+    }
   }
 
   function updateLocationUI(title, subtitle) {
@@ -75,21 +119,24 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function detectLocation() {
-    updateLocationUI("Detecting location", "...");
-    nearbyStopsContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">Locating you...</div>';
-    
+    updateLocationUI("Detecting location", "");
+    nearbyStopsContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">Locating you</div>';
+
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           updateLocationUI("Your Location", "(0km away)");
           const { latitude, longitude } = position.coords;
-          
+
           try {
-            nearbyStopsContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">Finding nearby stops...</div>';
+            nearbyStopsContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">Finding nearby stops</div>';
             const nearbyStops = await fetchNearbyStopsFromDB(latitude, longitude);
-            
+
             nearbyStopsContainer.innerHTML = '';
             if (nearbyStops && nearbyStops.length > 0) {
+              const nearest = nearbyStops[0];
+              updateLocationUI(`Your Location`, `(${nearest.distance})`);
+
               nearbyStops.forEach(stop => {
                 nearbyStopsContainer.appendChild(createStopCard(stop));
               });
@@ -103,8 +150,9 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         (error) => {
           updateLocationUI("Erode Bus Stand", "(Default)");
-          nearbyStopsContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">Location access denied. Cannot fetch nearby stops.</div>';
-        }
+          nearbyStopsContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">Location access denied or timed out. Cannot fetch nearby stops.</div>';
+        },
+        { timeout: 5000 }
       );
     } else {
       updateLocationUI("Erode Bus Stand", "(Default)");
@@ -118,76 +166,146 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput.addEventListener('input', (e) => {
     const val = e.target.value.trim();
     if (val.length > 0) {
+      clearBtn.classList.remove('hidden');
       clearBtn.style.display = 'block';
     } else {
+      clearBtn.classList.add('hidden');
       clearBtn.style.display = 'none';
+      smartSuggestionsArea.classList.remove('hidden');
       smartSuggestionsArea.style.display = 'block';
+      searchResultsArea.classList.add('hidden');
       searchResultsArea.style.display = 'none';
+      clearTimeout(debounceTimeout);
       return;
     }
 
     // Hide suggestions, show skeleton
+    smartSuggestionsArea.classList.add('hidden');
     smartSuggestionsArea.style.display = 'none';
+    searchResultsArea.classList.remove('hidden');
     searchResultsArea.style.display = 'block';
     resultsList.innerHTML = '';
+    emptyState.classList.add('hidden');
     emptyState.style.display = 'none';
+    skeletonLoader.classList.remove('hidden');
     skeletonLoader.style.display = 'flex';
 
     clearTimeout(debounceTimeout);
     debounceTimeout = setTimeout(() => {
       performSearch(val);
-    }, 300);
+    }, 50);
   });
 
   clearBtn.addEventListener('click', () => {
     searchInput.value = '';
+    clearBtn.classList.add('hidden');
     clearBtn.style.display = 'none';
+    smartSuggestionsArea.classList.remove('hidden');
     smartSuggestionsArea.style.display = 'block';
+    searchResultsArea.classList.add('hidden');
     searchResultsArea.style.display = 'none';
     searchInput.focus();
   });
 
-  function performSearch(query) {
-    skeletonLoader.style.display = 'none';
+  async function performSearch(query) {
     resultsList.innerHTML = '';
+    const q = query.toLowerCase();
 
-    const isRouteSearch = /^[A-Za-z0-9]+$/.test(query) && /\d/.test(query);
+    try {
+      const busesSnapshot = await getDocs(collection(db, 'buses'));
+      const routeResults = [];
+      const stopResults = [];
 
-    let results = [];
-    if (isRouteSearch) {
-      results = searchBusRoutes(query);
-      if (results.length > 0) {
-        results.slice(0, 10).forEach(route => {
+      busesSnapshot.forEach(doc => {
+        const busData = doc.data();
+        const bNum = busData.bus_no || busData.busNumber;
+        const bNumStr = bNum ? String(bNum).trim() : null;
+
+        // Check if route matches
+        if (bNumStr && bNumStr.toLowerCase().includes(q)) {
+          if (!routeResults.some(r => r.routeNo === bNumStr)) {
+            routeResults.push({
+              routeNo: bNumStr,
+              source: busData.route || busData.source || 'Unknown Route',
+              destination: busData.destination || '',
+              type: busData.type || 'Town',
+              status: busData.status || (busData.isActive ? 'Active' : 'Offline'),
+              eta: '',
+              stops: busData.stops || []
+            });
+          }
+        }
+
+        // Check if stops match
+        if (busData.stops && Array.isArray(busData.stops)) {
+          busData.stops.forEach(stop => {
+            const stopName = stop.stopName || stop.name;
+            if (!stopName) return;
+
+            if (String(stopName).toLowerCase().includes(q)) {
+              // Avoid duplicates in stopResults (simplified)
+              if (!stopResults.some(s => s.stopName === stopName)) {
+                stopResults.push({
+                  stopId: stopName,
+                  stopName: stopName,
+                  distance: '',
+                  busNumbers: bNumStr ? [bNumStr] : []
+                });
+              } else {
+                const existing = stopResults.find(s => s.stopName === stopName);
+                if (bNumStr && !existing.busNumbers.includes(bNumStr)) {
+                  existing.busNumbers.push(bNumStr);
+                }
+              }
+            }
+          });
+        }
+      });
+
+      skeletonLoader.classList.add('hidden');
+      skeletonLoader.style.display = 'none';
+
+      if (routeResults.length > 0) {
+        routeResults.slice(0, 10).forEach(route => {
           resultsList.appendChild(createRouteCard(route, query));
         });
       }
-    } else {
-      results = searchBusStops(query);
-      if (results.length > 0) {
-        results.slice(0, 10).forEach(stop => {
+
+      if (stopResults.length > 0) {
+        stopResults.slice(0, 10).forEach(stop => {
           resultsList.appendChild(createStopCard(stop, query));
         });
       }
-    }
 
-    if (results.length === 0) {
+      if (routeResults.length === 0 && stopResults.length === 0) {
+        emptyState.innerHTML = `
+          <div style="background: #FEE2E2; padding: 16px; border-radius: 12px; margin-top: 24px; text-align: center;">
+            <h3 style="color: #991B1B; font-weight: 700; margin-bottom: 4px; font-size: 15px;">No results found</h3>
+            <p style="color: #B91C1C; font-size: 13px;">Try searching for a different route number or bus stop name.</p>
+          </div>
+        `;
+        emptyState.classList.remove('hidden');
+        emptyState.style.display = 'block';
+      } else {
+        emptyState.classList.add('hidden');
+        emptyState.style.display = 'none';
+      }
+    } catch (error) {
+      console.error("Search Error:", error);
+      skeletonLoader.classList.add('hidden');
+      skeletonLoader.style.display = 'none';
+      emptyState.innerHTML = `
+        <div style="background: #FEE2E2; padding: 16px; border-radius: 12px; margin-top: 24px; text-align: center;">
+          <h3 style="color: #991B1B; font-weight: 700; margin-bottom: 4px; font-size: 15px;">Search Failed</h3>
+          <p style="color: #B91C1C; font-size: 13px;">${error.message}</p>
+        </div>
+      `;
+      emptyState.classList.remove('hidden');
       emptyState.style.display = 'block';
-    } else {
-      emptyState.style.display = 'none';
     }
   }
 
-  function searchBusRoutes(query) {
-    const q = query.toLowerCase();
-    return mockBusRoutes.filter(route => route.routeNo.toLowerCase().includes(q));
-  }
-
-  function searchBusStops(query) {
-    const q = query.toLowerCase();
-    return mockBusStops.filter(stop => 
-      stop.stopName.toLowerCase().includes(q) || stop.address.toLowerCase().includes(q)
-    );
-  }
+  // Cache logic removed, querying DB directly in performSearch
 
   // --- Rendering Cards ---
   function highlightText(text, query) {
@@ -199,7 +317,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function createRouteCard(route, highlightQuery = '') {
     const card = document.createElement('div');
     card.className = 'bs-card';
-    
+    card.style.padding = '10px 16px';
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+
     // Status Badge Logic
     let statusClass = 'distance';
     if (route.status === 'Arriving') statusClass = 'arriving';
@@ -210,54 +331,99 @@ document.addEventListener('DOMContentLoaded', () => {
     if (route.type === 'Express') typeClass = 'express';
 
     card.innerHTML = `
-      <div class="bs-icon-box">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 12a8 8 0 0 1 16 0z"></path>
-          <path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"></path>
-          <path d="M8 20v2"></path>
-          <path d="M16 20v2"></path>
-          <path d="M8 12h8"></path>
-          <path d="M8 16h.01"></path>
-          <path d="M16 16h.01"></path>
+      <div style="display: flex; gap: 16px; width: 100%; align-items: center;">
+        <div class="bs-icon-box" style="background: #3B82F6; width: 40px; height: 40px; border-radius: 12px; display: flex; justify-content: center; align-items: center; flex-shrink: 0;">
+          <svg width="24" height="24" viewBox="0 0 1024 1024" fill="#FFFFFF" stroke="none">
+            <path d="M881.777778 284.444444V199.111111c0-56.888889-59.733333-113.777778-369.777778-113.777778S142.222222 142.222222 142.222222 199.111111v85.333333c-31.288889 0-56.888889 25.6-56.888889 56.888889v56.888889c0 31.288889 25.6 56.888889 56.888889 56.888889v312.888889c0 31.288889 17.066667 59.733333 42.666667 73.955556v54.044444C184.888889 935.822222 216.177778 967.111111 256 967.111111s71.111111-31.288889 71.111111-71.111111V853.333333h369.777778v42.666667c0 39.822222 31.288889 71.111111 71.111111 71.111111s71.111111-31.288889 71.111111-71.111111v-54.044444c25.6-14.222222 42.666667-42.666667 42.666667-73.955556V455.111111c31.288889 0 56.888889-25.6 56.888889-56.888889v-56.888889c0-31.288889-25.6-56.888889-56.888889-56.888889zM312.888889 170.666667h398.222222c17.066667 0 28.444444 11.377778 28.444445 28.444444s-11.377778 28.444444-28.444445 28.444445H312.888889c-17.066667 0-28.444444-11.377778-28.444445-28.444445s11.377778-28.444444 28.444445-28.444444zM256 796.444444c-31.288889 0-56.888889-25.6-56.888889-56.888888s25.6-56.888889 56.888889-56.888889 56.888889 25.6 56.888889 56.888889-25.6 56.888889-56.888889 56.888888z m512 0c-31.288889 0-56.888889-25.6-56.888889-56.888888s25.6-56.888889 56.888889-56.888889 56.888889 25.6 56.888889 56.888889-25.6 56.888889-56.888889 56.888888z m56.888889-284.444444c0 45.511111-36.977778 85.333333-85.333333 85.333333H284.444444c-48.355556 0-85.333333-39.822222-85.333333-85.333333v-142.222222c0-48.355556 36.977778-85.333333 85.333333-85.333334h455.111112c48.355556 0 85.333333 36.977778 85.333333 85.333334v142.222222z" />
+          </svg>
+        </div>
+        <div class="bs-card-content">
+          <h4 class="bs-title">${highlightText(route.source, highlightQuery)}${route.destination ? ' ↔ ' + highlightText(route.destination, highlightQuery) : ''}</h4>
+          <div style="margin-top: 4px; display: flex; gap: 8px; align-items: center; color: #6B7280; font-size: 13px; font-weight: 600;">
+            <span>Bus: <span style="font-weight: 700; color: #111827;">${highlightText(route.routeNo, highlightQuery)}</span></span>
+          </div>
+        </div>
+        <svg class="route-dropdown-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.3s; margin-left: auto; flex-shrink: 0;">
+          <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
       </div>
-      <div class="bs-card-content">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2px;">
-          <h4 class="bs-title" style="font-size: 20px;">${highlightText(route.routeNo, highlightQuery)}</h4>
-          <span class="bs-badge ${typeClass}">${route.type}</span>
-        </div>
-        <p class="bs-subtitle">${highlightText(route.source, highlightQuery)} ↔ ${highlightText(route.destination, highlightQuery)}</p>
-        <div style="margin-top: 6px;">
-          <span class="bs-badge ${statusClass}">• ${route.status}</span>
-        </div>
+      <div class="bs-route-stops-dropdown hidden" style="display: none; width: 100%; margin-top: 16px; border-top: 1px solid #F3F4F6; padding-top: 8px;">
+        <div class="stops-list" style="display: flex; flex-direction: column;"></div>
       </div>
     `;
+
+    const dropdown = card.querySelector('.bs-route-stops-dropdown');
+    const stopsList = dropdown.querySelector('.stops-list');
+    const arrow = card.querySelector('.route-dropdown-arrow');
+
+    if (route.stops && route.stops.length > 0) {
+      route.stops.forEach((stop, index) => {
+        const isLast = index === route.stops.length - 1;
+        const stopItem = document.createElement('div');
+        stopItem.style.display = 'flex';
+        stopItem.style.alignItems = 'stretch';
+
+        stopItem.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; width: 40px; flex-shrink: 0;">
+            <div style="width: 8px; flex: 1; background: ${index === 0 ? 'transparent' : '#F8FAFC'}; max-height: 24px;"></div>
+            <div style="width: 10px; height: 10px; border-radius: 50%; background: #CBD5E1; flex-shrink: 0; position: relative; z-index: 1;"></div>
+            <div style="width: 8px; flex: 1; background: ${isLast ? 'transparent' : '#F8FAFC'}; min-height: 24px;"></div>
+          </div>
+          <div style="flex: 1; padding: 16px 0; ${!isLast ? 'border-bottom: 1px solid #F3F4F6;' : ''}">
+            <div style="font-size: 14px; font-weight: 600; color: #111827;">${stop.stopName || stop.name || 'Unknown Stop'}</div>
+            ${stop.arrivalTime ? `<div style="font-size: 12px; color: #9CA3AF; margin-top: 4px; font-weight: 500;">ETA: ${stop.arrivalTime}</div>` : ''}
+          </div>
+        `;
+        stopsList.appendChild(stopItem);
+      });
+    } else {
+      stopsList.innerHTML = '<div style="font-size: 13px; color: #9CA3AF; padding: 16px 0; text-align: center;">No stops information available.</div>';
+    }
+
     card.addEventListener('click', () => {
       // Trigger Haptic if available
       if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
-      alert(`Opening Route Details for: ${route.routeNo}`);
+
+      if (dropdown.classList.contains('hidden')) {
+        dropdown.classList.remove('hidden');
+        dropdown.style.display = 'block';
+        card.style.background = '#F8FAFC';
+        arrow.style.transform = 'rotate(180deg)';
+      } else {
+        dropdown.classList.add('hidden');
+        dropdown.style.display = 'none';
+        card.style.background = '#FFFFFF';
+        arrow.style.transform = 'rotate(0deg)';
+      }
     });
+
     return card;
   }
 
   function createStopCard(stop, highlightQuery = '') {
     const card = document.createElement('div');
     card.className = 'bs-card';
+    card.style.padding = '10px 16px'; // Lower the card height
+    const busNumsText = stop.busNumbers && stop.busNumbers.length > 0 ? stop.busNumbers.join(', ') : 'N/A';
+
     card.innerHTML = `
-      <div class="bs-icon-box" style="background: #FEE2E2;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-          <circle cx="12" cy="10" r="3"></circle>
+      <div class="bs-icon-box" style="background: #3B82F6; width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Shelter (L line) -->
+          <polyline points="5 5 19 5 19 20"></polyline>
+          <!-- Bus body from inline SVG -->
+          <svg x="4" y="8" width="13" height="13" viewBox="0 0 1024 1024" fill="#FFFFFF" stroke="none">
+            <path d="M881.777778 284.444444V199.111111c0-56.888889-59.733333-113.777778-369.777778-113.777778S142.222222 142.222222 142.222222 199.111111v85.333333c-31.288889 0-56.888889 25.6-56.888889 56.888889v56.888889c0 31.288889 25.6 56.888889 56.888889 56.888889v312.888889c0 31.288889 17.066667 59.733333 42.666667 73.955556v54.044444C184.888889 935.822222 216.177778 967.111111 256 967.111111s71.111111-31.288889 71.111111-71.111111V853.333333h369.777778v42.666667c0 39.822222 31.288889 71.111111 71.111111 71.111111s71.111111-31.288889 71.111111-71.111111v-54.044444c25.6-14.222222 42.666667-42.666667 42.666667-73.955556V455.111111c31.288889 0 56.888889-25.6 56.888889-56.888889v-56.888889c0-31.288889-25.6-56.888889-56.888889-56.888889zM312.888889 170.666667h398.222222c17.066667 0 28.444444 11.377778 28.444445 28.444444s-11.377778 28.444444-28.444445 28.444445H312.888889c-17.066667 0-28.444444-11.377778-28.444445-28.444445s11.377778-28.444444 28.444445-28.444444zM256 796.444444c-31.288889 0-56.888889-25.6-56.888889-56.888888s25.6-56.888889 56.888889-56.888889 56.888889 25.6 56.888889 56.888889-25.6 56.888889-56.888889 56.888888z m512 0c-31.288889 0-56.888889-25.6-56.888889-56.888888s25.6-56.888889 56.888889-56.888889 56.888889 25.6 56.888889 56.888889-25.6 56.888889-56.888889 56.888888z m56.888889-284.444444c0 45.511111-36.977778 85.333333-85.333333 85.333333H284.444444c-48.355556 0-85.333333-39.822222-85.333333-85.333333v-142.222222c0-48.355556 36.977778-85.333333 85.333333-85.333334h455.111112c48.355556 0 85.333333 36.977778 85.333333 85.333334v142.222222z" />
+          </svg>
         </svg>
       </div>
       <div class="bs-card-content">
         <h4 class="bs-title">${highlightText(stop.stopName, highlightQuery)}</h4>
-        <p class="bs-subtitle">${highlightText(stop.address, highlightQuery)}</p>
-        <div style="margin-top: 6px; display: flex; gap: 8px;">
-          <span class="bs-badge distance">${stop.distance}</span>
-          <span class="bs-badge distance">${stop.routes} Routes</span>
+        <div style="margin-top: 4px; display: flex; gap: 8px; align-items: center; color: #6B7280; font-size: 13px; font-weight: 600;">
+          <span>${(stop.distance || '').replace(/([\d.]+)/, '<span style="font-weight: 700; color: #111827;">$1</span>')}</span>
+          <span>Bus: <span style="font-weight: 700; color: #111827;">${highlightText(busNumsText, highlightQuery)}</span></span>
         </div>
       </div>
     `;
@@ -265,27 +431,28 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate(50);
       }
-      alert(`Opening Stop Details for: ${stop.stopName}`);
+      console.log(`Stop selected: ${stop.stopName}`);
+      // Future feature: handle stop tap without closing modal
     });
     return card;
   }
 
   // --- Smart Suggestions ---
-  
+
   // TODO: Connect database here for recent routes
   async function fetchRecentRoutesFromDB() {
     console.log(`Fetching recent routes from DB...`);
     // Example:
     // const response = await fetch(`/api/user/recent-routes`);
     // return await response.json();
-    
+
     // Returning empty array for now since mock data should not be used
-    return []; 
+    return [];
   }
 
   async function renderSmartSuggestions() {
     // nearbyStopsContainer is now handled dynamically in detectLocation
-    recentRoutesContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; font-size: 14px; text-align: center; width: 100%;">Loading recent routes...</div>';
+    recentRoutesContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; font-size: 14px; text-align: center; width: 100%;">Loading recent routes</div>';
 
     try {
       const recentRoutes = await fetchRecentRoutesFromDB();
