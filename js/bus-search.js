@@ -304,9 +304,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (routeResults.length === 0 && stopResults.length === 0) {
         emptyState.innerHTML = `
-          <div style="background: #FEE2E2; padding: 16px; border-radius: 12px; margin-top: 24px; text-align: center;">
-            <h3 style="color: #991B1B; font-weight: 700; margin-bottom: 4px; font-size: 15px;">No results found</h3>
-            <p style="color: #B91C1C; font-size: 13px;">Try searching for a different route number or bus stop name.</p>
+          <div style="padding: 16px; margin-top: 24px; text-align: center;">
+            <h3 style="color: #111827; font-weight: 600; margin-bottom: 8px; font-size: 16px;">No results found</h3>
+            <p style="color: #6B7280; font-size: 14px;">Try searching for a different route number or bus stop name.</p>
           </div>
         `;
         emptyState.classList.remove('hidden');

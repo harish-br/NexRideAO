@@ -481,6 +481,42 @@ document.addEventListener('DOMContentLoaded', () => {
     tcDoneBtn.addEventListener('pointerdown', closeTcPage);
   }
 
+  // Safety Check-ins overlay logic
+  const btnSafetyCheckin = document.getElementById('safety-checkin-btn');
+  const scPage = document.getElementById('safety-checkin-page');
+  const scBackBtn = document.getElementById('back-safety-checkin');
+  const scDoneBtn = document.getElementById('done-safety-checkin');
+
+  if (btnSafetyCheckin && scPage && scBackBtn && scDoneBtn) {
+    btnSafetyCheckin.addEventListener('pointerdown', () => {
+      scPage.classList.remove('hidden');
+    });
+
+    const closeScPage = () => {
+      scPage.classList.add('hidden');
+    };
+
+    scBackBtn.addEventListener('pointerdown', closeScPage);
+    scDoneBtn.addEventListener('pointerdown', closeScPage);
+  }
+
+  // Emergency Actions overlay logic
+  const btnEmergencyActions = document.getElementById('emergency-actions-btn');
+  const eaPage = document.getElementById('emergency-actions-page');
+  const eaBackBtn = document.getElementById('back-emergency-actions');
+
+  if (btnEmergencyActions && eaPage && eaBackBtn) {
+    btnEmergencyActions.addEventListener('pointerdown', () => {
+      eaPage.classList.remove('hidden');
+    });
+
+    const closeEaPage = () => {
+      eaPage.classList.add('hidden');
+    };
+
+    eaBackBtn.addEventListener('pointerdown', closeEaPage);
+  }
+
   // Safety overlay logic
   const btnSafety = document.getElementById('safety-btn');
   const safetyPage = document.getElementById('safety-page');

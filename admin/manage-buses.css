@@ -156,9 +156,59 @@
   padding: 12px;
   margin-bottom: 12px;
   display: grid;
-  grid-template-columns: auto 2fr 1fr 1fr 1fr 1fr auto;
+  grid-template-columns: auto auto 2fr 1fr 1fr 1fr 1fr auto;
   gap: 12px;
   align-items: center;
+  transition: all 0.2s ease;
+}
+
+.stop-item.dragging {
+  opacity: 0.5;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+  transform: scale(0.98);
+}
+
+.stop-item.drag-over {
+  border-top: 2px solid #059669; /* Green highlight for drop target */
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  font-size: 18px;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.stop-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.move-to-input {
+  width: 50px;
+  padding: 6px !important;
+  text-align: center;
+}
+
+.move-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.move-btn:hover { 
+  background-color: #F3F4F6; 
 }
 
 .stop-item input {

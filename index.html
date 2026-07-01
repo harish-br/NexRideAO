@@ -103,9 +103,28 @@
         <img src="./assets/location.svg?v=4" alt="Location" width="22" height="22" />
       </button>
       <div class="drag-handle-area"></div>
-      <div class="inner-box">
-        <img src="./assets/Thiruvalluvar.png" alt="Thiruvalluvar" class="kural-img" />
-        <p class="thirukkural-text">தெய்வத்தான் ஆகா தெனினும் முயற்சிதன்<br />மெய்வருத்தக் கூலி தரும்.</p>
+      <div class="inner-box" id="blue-card"
+        style="padding: 8px; cursor: pointer; position: relative; justify-content: center;">
+        <div class="sos-slider-container" id="sos-slider">
+          <div id="rest-text"
+            style="position: absolute; width: 100%; text-align: left; color: white; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; height: 100%; padding-left: 4px; padding-right: 8px;">
+            <span
+              style="font-family: 'New Science', sans-serif; font-size: 16px; font-weight: bold; margin-bottom: 2px;">NexRide</span>
+            <span style="font-size: 11px; line-height: 1.2; opacity: 0.9;">This app has an inbuilt women safety feature.
+              In case of emergency, tap thrice to activate SOS.</span>
+          </div>
+          <div id="slide-hint-text" class="shimmer-text"
+            style="display: none; position: absolute; width: 100%; text-align: center; pointer-events: none; text-transform: uppercase; font-size: 12px; font-weight: bold; letter-spacing: 1px;">
+            Slide to trigger SOS
+          </div>
+          <div class="sos-slider-thumb" id="sos-thumb" style="display: none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14"></path>
+              <path d="m12 5 7 7-7 7"></path>
+            </svg>
+          </div>
+        </div>
       </div>
       <div class="inner-box-2">
         <div class="transit-options">
@@ -139,15 +158,18 @@
       <div id="scrollable-sheet-content" class="hide-scrollbar"
         style="display: flex; flex-direction: column; gap: 16px; flex: 1; width: 100%;">
         <!-- Custom PWA Install Card -->
-        <div class="inner-box-2" id="install-card" style="display: none; justify-content: space-between; align-items: center; padding: 16px 20px; min-height: 80px; flex-direction: row; cursor: pointer; border: 2px solid rgba(0, 68, 204, 0.1);">
+        <div class="inner-box-2" id="install-card"
+          style="display: none; justify-content: space-between; align-items: center; padding: 16px 20px; min-height: 80px; flex-direction: row; cursor: pointer; border: 2px solid rgba(0, 68, 204, 0.1);">
           <div style="display: flex; align-items: center; gap: 14px;">
-            <img src="/favicon/web-app-manifest-192x192.png" alt="NexRide Icon" style="width: 48px; height: 48px; border-radius: 12px; object-fit: cover;">
+            <img src="/favicon/web-app-manifest-192x192.png" alt="NexRide Icon"
+              style="width: 48px; height: 48px; border-radius: 12px; object-fit: cover;">
             <div style="display: flex; flex-direction: column; gap: 2px;">
               <span style="font-weight: 800; font-size: 1.1rem; color: #111;">Install NexRide App</span>
               <span style="font-size: 0.85rem; color: #666; font-weight: 500;">For a better native experience</span>
             </div>
           </div>
-          <button id="install-btn" style="background: #0044CC; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 800; font-size: 0.95rem; cursor: pointer;">Install</button>
+          <button id="install-btn"
+            style="background: #0044CC; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: 800; font-size: 0.95rem; cursor: pointer;">Install</button>
         </div>
 
         <!-- Notifications Option Card -->
@@ -755,7 +777,7 @@
               <div class="setup-status"><i data-lucide="check-circle-2"></i></div>
             </div>
 
-            <div class="setup-card">
+            <div class="setup-card" id="safety-checkin-btn" style="cursor: pointer;">
               <div class="setup-info">
                 <div class="setup-title">
                   <img src="./assets/clipboard-tick.svg" class="custom-svg-icon" alt="Safety Check-ins" /> Safety
@@ -766,7 +788,7 @@
               <div class="setup-action"><i data-lucide="chevron-right"></i></div>
             </div>
 
-            <div class="setup-card">
+            <div class="setup-card" id="emergency-actions-btn" style="cursor: pointer;">
               <div class="setup-info">
                 <div class="setup-title">
                   <img src="./assets/danger.svg" class="custom-svg-icon" alt="Emergency Actions" /> Emergency Actions
@@ -832,6 +854,157 @@
     </div>
   </div>
 
+
+  <!-- Safety Check-ins Page Overlay -->
+  <div id="safety-checkin-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 5000; display: flex; flex-direction: column;">
+    <!-- Header -->
+    <div class="top-bar"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
+      <button id="back-safety-checkin" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
+        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Safety Check-ins</span>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div style="padding: 24px 20px; flex: 1;">
+      <h2 style="font-weight: 700; font-size: 18px; color: #111827; margin: 0 0 8px 0;">Safety Check-ins</h2>
+      <p
+        style="font-size: 14px; color: #6B7280; margin: 0 0 24px 0; line-height: 1.5; font-weight: normal !important; text-align: left;">
+        Periodic safety check-ins during rides.</p>
+
+      <!-- Options -->
+      <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+        <div
+          style="background: white; padding: 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+          <div>
+            <div style="font-weight: 600; font-size: 16px; color: #111827;">Enable Check-ins</div>
+            <div style="font-size: 13px; color: #6B7280; margin-top: 4px;">Receive notifications during ride</div>
+          </div>
+          <input type="checkbox" checked style="width: 20px; height: 20px; accent-color: #2563EB;">
+        </div>
+
+        <div
+          style="background: white; padding: 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+          <div>
+            <div style="font-weight: 600; font-size: 16px; color: #111827;">Check-in Frequency</div>
+            <div style="font-size: 13px; color: #6B7280; margin-top: 4px;">Every 15 minutes</div>
+          </div>
+          <i data-lucide="chevron-right" style="color: #9CA3AF;"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Done Button -->
+    <div style="padding: 20px; padding-bottom: 40px;">
+      <button id="done-safety-checkin"
+        style="width: 100%; background: #2563EB; color: white; border: none; padding: 16px; border-radius: 12px; font-weight: 600; font-size: 16px; cursor: pointer;">
+        Done
+      </button>
+    </div>
+  </div>
+
+
+  <!-- Emergency Actions Page Overlay -->
+  <div id="emergency-actions-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 5000; display: flex; flex-direction: column;">
+    <!-- Header -->
+    <div class="top-bar"
+      style="background: white; position: sticky; top: 0; z-index: 10; display: flex; align-items: center; padding: 16px 20px;">
+      <button id="back-emergency-actions" class="back-btn"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <div style="flex: 1; display: flex; justify-content: center; padding-right: 40px;">
+        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827;">Emergency
+          Actions</span>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div style="padding: 24px 20px; flex: 1;">
+      <h2 style="font-weight: 700; font-size: 18px; color: #111827; margin: 0 0 8px 0;">Emergency Actions</h2>
+      <p
+        style="font-size: 14px; color: #6B7280; margin: 0 0 24px 0; line-height: 1.5; font-weight: normal !important; text-align: left;">
+        Quick access to SOS and help.</p>
+
+      <!-- Options -->
+      <div style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+        <div
+          style="background: white; padding: 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer;"
+          onclick="alert('SOS Activated!')">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div
+              style="background: #FEE2E2; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+                </path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+              </svg>
+            </div>
+            <div>
+              <div style="font-weight: 600; font-size: 16px; color: #111827;">Activate SOS</div>
+              <div style="font-size: 13px; color: #6B7280; margin-top: 4px;">Notify contacts & authorities</div>
+            </div>
+          </div>
+          <i data-lucide="chevron-right" style="color: #9CA3AF;"></i>
+        </div>
+
+        <div
+          style="background: white; padding: 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer;"
+          onclick="alert('Calling Police...')">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div
+              style="background: #DBEAFE; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path
+                  d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z">
+                </path>
+              </svg>
+            </div>
+            <div>
+              <div style="font-weight: 600; font-size: 16px; color: #111827;">Call Police (100)</div>
+              <div style="font-size: 13px; color: #6B7280; margin-top: 4px;">Direct line to local emergency</div>
+            </div>
+          </div>
+          <i data-lucide="chevron-right" style="color: #9CA3AF;"></i>
+        </div>
+
+        <div
+          style="background: white; padding: 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.04); cursor: pointer;"
+          onclick="alert('Sounding Alarm...')">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div
+              style="background: #FEF3C7; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              </svg>
+            </div>
+            <div>
+              <div style="font-weight: 600; font-size: 16px; color: #111827;">Sound Alarm</div>
+              <div style="font-size: 13px; color: #6B7280; margin-top: 4px;">Play loud siren from device</div>
+            </div>
+          </div>
+          <i data-lucide="chevron-right" style="color: #9CA3AF;"></i>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Add Contact Page Overlay -->
   <div id="add-contact-page" class="page-overlay push-overlay hidden"

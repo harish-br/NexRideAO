@@ -136,3 +136,156 @@ function handleLocationError(browserHasGeolocation, pos) {
 }
 
 initMap();
+
+// SOS Slider Logic
+const sosSlider = document.getElementById('sos-slider');
+const sosThumb = document.getElementById('sos-thumb');
+const blueCard = document.getElementById('blue-card');
+const restText = document.getElementById('rest-text');
+const slideHintText = document.getElementById('slide-hint-text');
+
+const defaultArrowSVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>`;
+const closeIconSVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>`;
+
+let sliderTimeout;
+let autoCloseTimeout;
+let isCloseState = false;
+
+const resetSlider = () => {
+  clearTimeout(sliderTimeout);
+  clearTimeout(autoCloseTimeout);
+  if (sosThumb) {
+    sosThumb.style.transform = `translateX(0px)`;
+    sosThumb.style.display = 'none';
+    sosThumb.classList.remove('hint-bounce', 'icon-pop');
+  }
+  if (slideHintText) slideHintText.style.display = 'none';
+  if (restText) {
+    restText.style.display = 'flex';
+    restText.classList.remove('text-fade-in');
+    void restText.offsetWidth; // Trigger reflow to restart animation
+    restText.classList.add('text-fade-in');
+  }
+};
+
+if (sosSlider && sosThumb) {
+  let isDragging = false;
+  let startX = 0;
+  let maxTranslate = 0;
+
+  const onDragStart = (e) => {
+    if (isCloseState) return;
+    clearTimeout(sliderTimeout);
+    clearTimeout(autoCloseTimeout);
+    sosThumb.classList.remove('hint-bounce');
+    isDragging = true;
+    startX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+    maxTranslate = sosSlider.offsetWidth - sosThumb.offsetWidth - 8;
+    sosThumb.style.transition = 'none';
+  };
+
+  const onDragMove = (e) => {
+    if (!isDragging) return;
+    let currentX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
+    let translate = currentX - startX;
+
+    if (translate < 0) translate = 0;
+    if (translate > maxTranslate) translate = maxTranslate;
+
+    sosThumb.style.transform = `translateX(${translate}px)`;
+  };
+
+  const onDragEnd = (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    sosThumb.style.transition = 'transform 0.3s ease';
+
+    let currentX = e.type.includes('mouse') ? e.clientX : e.changedTouches[0].clientX;
+    let translate = currentX - startX;
+
+    if (translate > maxTranslate * 0.8) {
+      sosThumb.style.transform = `translateX(${maxTranslate}px)`;
+      setTimeout(() => {
+        alert('SOS Activated! Sending location to emergency contacts and authorities.');
+        resetSlider();
+      }, 300);
+    } else {
+      sosThumb.style.transform = `translateX(0px)`;
+      // Restart timeout if they let go without triggering
+      clearTimeout(sliderTimeout);
+      clearTimeout(autoCloseTimeout);
+      sosThumb.classList.add('hint-bounce');
+      sliderTimeout = setTimeout(() => {
+        isCloseState = true;
+        sosThumb.classList.remove('hint-bounce');
+        sosThumb.innerHTML = closeIconSVG;
+        sosThumb.classList.add('icon-pop');
+        if (slideHintText) slideHintText.style.display = 'none';
+        autoCloseTimeout = setTimeout(resetSlider, 500);
+      }, 5000);
+    }
+  };
+
+  sosThumb.addEventListener('mousedown', onDragStart);
+  sosThumb.addEventListener('touchstart', onDragStart, { passive: true });
+
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('touchmove', onDragMove, { passive: false });
+
+  document.addEventListener('mouseup', onDragEnd);
+  document.addEventListener('touchend', onDragEnd);
+
+  sosThumb.addEventListener('click', () => {
+    if (isCloseState) {
+      resetSlider();
+    }
+  });
+}
+
+if (blueCard && sosThumb) {
+  let tapCount = 0;
+  let tapTimer;
+
+  const handleTap = (e) => {
+    if (e.target.closest('#sos-thumb')) return;
+
+    tapCount++;
+    clearTimeout(tapTimer);
+
+    if (tapCount === 3) {
+      isCloseState = false;
+      sosThumb.classList.remove('icon-pop');
+      sosThumb.innerHTML = defaultArrowSVG;
+      sosThumb.style.transform = `translateX(0px)`;
+      sosThumb.style.display = 'flex';
+      sosThumb.classList.add('hint-bounce');
+
+      if (slideHintText) {
+        slideHintText.style.display = 'block';
+        slideHintText.classList.remove('text-fade-in');
+        void slideHintText.offsetWidth; // trigger reflow
+        slideHintText.classList.add('text-fade-in');
+      }
+
+      if (restText) restText.style.display = 'none';
+      tapCount = 0;
+
+      clearTimeout(sliderTimeout);
+      clearTimeout(autoCloseTimeout);
+      sliderTimeout = setTimeout(() => {
+        isCloseState = true;
+        sosThumb.classList.remove('hint-bounce');
+        sosThumb.innerHTML = closeIconSVG;
+        sosThumb.classList.add('icon-pop');
+        if (slideHintText) slideHintText.style.display = 'none';
+        autoCloseTimeout = setTimeout(resetSlider, 500);
+      }, 5000);
+    } else {
+      tapTimer = setTimeout(() => {
+        tapCount = 0;
+      }, 500);
+    }
+  };
+
+  blueCard.addEventListener('pointerdown', handleTap);
+}

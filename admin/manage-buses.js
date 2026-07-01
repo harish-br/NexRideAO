@@ -16,7 +16,6 @@ const busesTableBody = document.getElementById('buses-table-body');
 async function openModal(editId = null) {
   busEditorForm.reset();
   stopsContainer.innerHTML = ''; // clear stops
-  stopCount = 0; // reset stop counter
   document.getElementById('bus-edit-id').value = editId || '';
   document.getElementById('bus-modal-title').textContent = editId ? 'Edit Bus Control Center' : 'Add New Bus Control Center';
   
@@ -59,7 +58,9 @@ async function openModal(editId = null) {
         }
         
         if (data.stops && Array.isArray(data.stops)) {
-            data.stops.forEach(stop => {
+            // Sort stops by order if available
+            const sortedStops = [...data.stops].sort((a, b) => (a.order || 0) - (b.order || 0));
+            sortedStops.forEach(stop => {
                 const el = createStopElement();
                 el.querySelector('.stop-name').value = stop.stopName || stop.name || '';
                 el.querySelector('.stop-arrival').value = stop.arrivalTime || '';
@@ -68,6 +69,7 @@ async function openModal(editId = null) {
                 if (stop.longitude) el.querySelector('.stop-lng').value = stop.longitude;
                 stopsContainer.appendChild(el);
             });
+            updateStopNumbers();
         }
       }
     } catch (err) {
@@ -118,31 +120,117 @@ document.addEventListener('click', (e) => {
 });
 
 // Dynamic Stops Logic
-let stopCount = 0;
-
 function createStopElement() {
-  stopCount++;
   const stopDiv = document.createElement('div');
   stopDiv.className = 'stop-item';
+  stopDiv.draggable = true;
   stopDiv.innerHTML = `
-    <div style="font-weight: 600; font-size: 14px; color: var(--text-secondary);">#${stopCount}</div>
+    <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
+    <div class="stop-number" style="font-weight: 600; font-size: 14px; color: var(--text-secondary);"></div>
     <input type="text" placeholder="Stop Name (e.g. Rana Nagar)" class="stop-name" />
     <input type="time" placeholder="Arrival" class="stop-arrival" required />
     <input type="time" placeholder="Departure" class="stop-departure" required />
     <input type="number" step="any" placeholder="Latitude" class="stop-lat" />
     <input type="number" step="any" placeholder="Longitude" class="stop-lng" />
-    <button type="button" class="remove-stop-btn">&times; Remove</button>
+    <div class="stop-actions">
+      <input type="number" class="move-to-input" min="1" placeholder="Pos" title="Target Position" />
+      <button type="button" class="move-btn">Apply</button>
+      <button type="button" class="remove-stop-btn">&times; Remove</button>
+    </div>
   `;
   
   stopDiv.querySelector('.remove-stop-btn').addEventListener('click', () => {
     stopDiv.remove();
+    updateStopNumbers();
+  });
+
+  const moveBtn = stopDiv.querySelector('.move-btn');
+  const moveInput = stopDiv.querySelector('.move-to-input');
+  
+  moveBtn.addEventListener('click', () => {
+    const targetPos = parseInt(moveInput.value, 10);
+    moveStopToPosition(stopDiv, targetPos);
+  });
+
+  // Drag and Drop events
+  stopDiv.addEventListener('dragstart', (e) => {
+    stopDiv.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  stopDiv.addEventListener('dragend', () => {
+    stopDiv.classList.remove('dragging');
+    document.querySelectorAll('.stop-item').forEach(item => item.classList.remove('drag-over'));
+  });
+
+  stopDiv.addEventListener('dragover', (e) => {
+    e.preventDefault(); // Necessary to allow dropping
+    e.dataTransfer.dropEffect = 'move';
+    stopDiv.classList.add('drag-over');
+  });
+
+  stopDiv.addEventListener('dragleave', () => {
+    stopDiv.classList.remove('drag-over');
+  });
+
+  stopDiv.addEventListener('drop', (e) => {
+    e.preventDefault();
+    stopDiv.classList.remove('drag-over');
+    const draggingElement = stopsContainer.querySelector('.dragging');
+    if (draggingElement && draggingElement !== stopDiv) {
+      // Determine if dropping above or below
+      const bounding = stopDiv.getBoundingClientRect();
+      const offset = bounding.y + (bounding.height / 2);
+      if (e.clientY - offset > 0) {
+        stopDiv.after(draggingElement);
+      } else {
+        stopDiv.before(draggingElement);
+      }
+      updateStopNumbers();
+    }
   });
   
   return stopDiv;
 }
 
+function updateStopNumbers() {
+  const stopItems = stopsContainer.querySelectorAll('.stop-item');
+  stopItems.forEach((item, index) => {
+    const stopNum = index + 1;
+    item.querySelector('.stop-number').textContent = `#${stopNum}`;
+    item.querySelector('.move-to-input').max = stopItems.length;
+    item.querySelector('.move-to-input').value = ''; // Reset input after move
+  });
+}
+
+function moveStopToPosition(stopElement, targetPos) {
+  const stopItems = Array.from(stopsContainer.querySelectorAll('.stop-item'));
+  const totalStops = stopItems.length;
+  
+  if (isNaN(targetPos) || targetPos < 1 || targetPos > totalStops) {
+    alert(`Please enter a valid position between 1 and ${totalStops}.`);
+    return;
+  }
+  
+  const currentPos = stopItems.indexOf(stopElement) + 1;
+  if (currentPos === targetPos) return; // No change
+  
+  stopsContainer.removeChild(stopElement);
+  
+  if (targetPos === totalStops) {
+    stopsContainer.appendChild(stopElement);
+  } else {
+    const newStopItems = Array.from(stopsContainer.querySelectorAll('.stop-item'));
+    const insertBeforeElement = newStopItems[targetPos - 1];
+    stopsContainer.insertBefore(stopElement, insertBeforeElement);
+  }
+  
+  updateStopNumbers();
+}
+
 addStopBtn.addEventListener('click', () => {
   stopsContainer.appendChild(createStopElement());
+  updateStopNumbers();
 });
 
 // Fetch Buses and Render Table
