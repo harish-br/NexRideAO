@@ -592,6 +592,41 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Refer Friends native share logic
+  const referFriendsBtn = document.getElementById('refer-friends-btn');
+  if (referFriendsBtn) {
+    referFriendsBtn.addEventListener('click', async () => {
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'NexRide',
+            text: 'Check out NexRide, a smart mobility platform for real-time bus tracking!',
+            url: window.location.origin
+          });
+        } catch (error) {
+          console.log('Share error or cancelled:', error);
+        }
+      } else {
+        alert('Sharing is not supported on this browser.');
+      }
+    });
+  }
+
+  // Notifications overlay logic
+  const btnNotifications = document.getElementById('btn-notifications');
+  const notificationsPage = document.getElementById('notifications-page');
+  const notificationsBackBtn = document.getElementById('back-notifications');
+
+  if (btnNotifications && notificationsPage && notificationsBackBtn) {
+    btnNotifications.addEventListener('pointerdown', () => {
+      notificationsPage.classList.remove('hidden');
+    });
+
+    notificationsBackBtn.addEventListener('pointerdown', () => {
+      notificationsPage.classList.add('hidden');
+    });
+  }
+
   if (navHome && navLive && navProfile && livePage && profilePage) {
     const goHome = () => {
       navHome.classList.add('active');

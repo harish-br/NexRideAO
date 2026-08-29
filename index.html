@@ -173,7 +173,7 @@
         </div>
 
         <!-- Notifications Option Card -->
-        <div class="dashboard-box">
+        <div class="dashboard-box" id="btn-notifications" style="cursor: pointer;">
           <span class="dashboard-title">Notifications</span>
         </div>
 
@@ -194,6 +194,34 @@
         </div>
       </div>
     </div>
+
+    <!-- Notifications Page Overlay -->
+    <div id="notifications-page" class="page-overlay push-overlay hidden"
+      style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 3800; display: flex; flex-direction: column;">
+      
+      <div style="background:#FFFFFF; position:sticky; top:0; z-index:10; display:flex; align-items:center; padding:calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom: 1px solid #F3F4F6;">
+        <button id="back-notifications" class="back-btn" aria-label="Go back"
+          style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+        <div style="flex:1; display:flex; justify-content:center;">
+          <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827; text-align:center;">Notifications</span>
+        </div>
+        <div style="width:40px; flex-shrink:0;"></div>
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center;">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+        <div style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 8px;">No new notifications</div>
+        <div style="font-size: 14px; color: #6B7280;">You're all caught up! Check back later for updates.</div>
+      </div>
+    </div>
+
     <!-- Live Page Overlay -->
     <div id="live-page" class="page-overlay hidden">
       <div class="live-info">
@@ -256,7 +284,7 @@
         </div>
 
         <!-- 2. Help & Support -->
-        <div class="profile-list-item">
+        <div class="profile-list-item" id="help-support-btn" style="cursor: pointer;">
           <div class="pli-icon">
             <img src="./assets/user-tag.svg" alt="Help & Support">
           </div>
@@ -289,7 +317,7 @@
         </div>
 
         <!-- 5. Refer Friends -->
-        <div class="profile-list-item">
+        <div class="profile-list-item" id="refer-friends-btn" style="cursor: pointer;">
           <div class="pli-icon">
             <img src="./assets/send-square2.svg" alt="Refer Friends">
           </div>
@@ -1383,7 +1411,388 @@
   <script type="module" src="./js/sheet.js"></script>
   <script type="module" src="./js/profile.js"></script>
   <script type="module" src="./js/safety.js"></script>
+  <script src="./js/help-support.js"></script>
 
+
+  <!-- =============================================
+       HELP & SUPPORT — MAIN PAGE
+       z-index: 3500
+       ============================================= -->
+  <div id="help-support-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 3500; display: flex; flex-direction: column;">
+
+    <!-- Sticky Header -->
+    <div class="hs-top-bar" style="background:#FFFFFF; position:sticky; top:0; z-index:10; display:flex; align-items:center; padding:calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom: 1px solid #F3F4F6;">
+      <button id="back-help-support" class="back-btn" aria-label="Go back"
+        style="background: #F5F7FA; border-radius: 50%; width: 40px; height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; cursor: pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <div style="flex:1; display:flex; justify-content:center;">
+        <span class="dashboard-title" style="font-weight: 700; font-size: 18px; color: #111827; text-align:center;">Help &amp; Support</span>
+      </div>
+      <div style="width:40px; flex-shrink:0;"></div>
+    </div>
+
+    <!-- Scrollable Content -->
+    <div style="padding: 20px 20px calc(100px + env(safe-area-inset-bottom)) 20px; display: flex; flex-direction: column; gap: 24px;">
+
+      <!-- Search Bar -->
+      <div class="hs-search-bar" role="search">
+        <label for="hs-search-input" class="hidden" style="display:none;">Search for help</label>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="search" id="hs-search-input" placeholder="Search for help…" autocomplete="off" inputmode="search"
+          style="-webkit-user-select: auto; user-select: auto;" aria-label="Search for help" />
+        <button id="hs-clear-btn" class="hidden" aria-label="Clear search" style="display:none; background:none; border:none; cursor:pointer; padding:2px; line-height:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Offline Banner -->
+      <div id="hs-offline-banner" class="hidden" style="display:none; background:#FEF3C7; border-radius:12px; padding:12px 16px; display:flex; align-items:center; gap:10px; font-size:14px; color:#111827; font-weight:600; line-height:1.6;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        You are offline. Some features require Internet access.
+      </div>
+
+      <!-- Search Results (shown when searching) -->
+      <div id="hs-search-results" class="hidden" style="display:none; flex-direction:column; gap:8px;">
+        <p style="font-size:14px; color:#111827; margin:0 0 12px 0; font-weight:600; line-height:1.6;" id="hs-search-count"></p>
+        <div id="hs-search-results-list" role="list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        <div id="hs-no-results" class="hidden" style="display:none; text-align:center; padding:40px 20px;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 16px;display:block;" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="9" y1="9" x2="13" y2="13"></line><line x1="13" y1="9" x2="9" y2="13"></line></svg>
+          <p style="font-size:14px;font-weight:600;color:#111827;margin:0 0 6px 0;line-height:1.6;">No results found</p>
+          <p style="font-size:14px;color:#6B7280;margin:0;font-weight:600;line-height:1.6;">Try a different search term</p>
+        </div>
+      </div>
+
+      <!-- Default Content (hidden when searching) -->
+      <div id="hs-default-content" style="display:flex; flex-direction:column; gap:24px;">
+
+        <!-- Help Categories -->
+        <section aria-labelledby="hs-cat-heading">
+          <h2 id="hs-cat-heading" style="font-size:14px; font-weight:600; color:#111827; margin:0 0 12px 0; line-height:1.6;">Browse by Category</h2>
+          <div id="hs-categories-grid" style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px;" role="list"></div>
+        </section>
+
+        <!-- Support Requests -->
+        <section>
+          <button id="hs-tickets-nav-btn" style="width:100%; background:#FFFFFF; border:none; border-radius:16px; padding:16px 20px; display:flex; align-items:center; gap:16px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; text-align:left;" aria-label="View Support Requests">
+            <div style="width:40px; height:40px; background:#F5F7FA; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <div style="width:24px; height:24px; background-color:#2563EB; -webkit-mask:url('./message-question.svg') no-repeat center / contain; mask:url('./message-question.svg') no-repeat center / contain;"></div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:14px; font-weight:600; color:#111827; line-height:1.6;">Support Requests</div>
+              <div style="font-size:12px; color:#6B7280; margin-top:2px; font-weight:600; line-height:1.6;">View and track your submitted requests</div>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </section>
+
+        <!-- Report an Issue -->
+        <section>
+          <button id="hs-report-nav-btn" style="width:100%; background:#FFFFFF; border:none; border-radius:16px; padding:16px 20px; display:flex; align-items:center; gap:16px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; text-align:left;" aria-label="Report an Issue">
+            <div style="width:40px; height:40px; background:#F5F7FA; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+              <div style="width:24px; height:24px; background-color:#2563EB; -webkit-mask:url('./document-text.svg') no-repeat center / contain; mask:url('./document-text.svg') no-repeat center / contain;"></div>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:14px; font-weight:600; color:#111827; line-height:1.6;">Report an Issue</div>
+              <div style="font-size:12px; color:#6B7280; margin-top:2px; font-weight:600; line-height:1.6;">Submit a complaint or report a problem</div>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+        </section>
+
+        <!-- FAQs -->
+        <section aria-labelledby="hs-faq-heading">
+          <h2 id="hs-faq-heading" style="font-size:14px; font-weight:600; color:#111827; margin:0 0 12px 0; line-height:1.6;">Frequently Asked Questions</h2>
+          <div id="hs-faq-list" style="display:flex; flex-direction:column; gap:8px;" role="list"></div>
+        </section>
+
+        <!-- Troubleshooting -->
+        <section aria-labelledby="hs-trouble-heading">
+          <h2 id="hs-trouble-heading" style="font-size:14px; font-weight:600; color:#111827; margin:0 0 12px 0; line-height:1.6;">Troubleshooting</h2>
+          <div id="hs-troubleshooting-list" style="display:flex; flex-direction:column; gap:8px;" role="list"></div>
+        </section>
+
+        <!-- Contact Support — horizontal rectangular cards -->
+        <section aria-labelledby="hs-contact-heading">
+          <h2 id="hs-contact-heading" style="font-size:14px; font-weight:600; color:#111827; margin:0 0 12px 0; line-height:1.6;">Contact Support</h2>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <!-- Chat -->
+            <button id="hs-chat-btn" class="hs-contact-rect-btn" aria-label="Chat with Support">
+              <div style="width:40px; height:40px; background:transparent; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <div style="width:24px; height:24px; background-color:#2563EB; -webkit-mask:url('./sms.svg') no-repeat center / contain; mask:url('./sms.svg') no-repeat center / contain;"></div>
+              </div>
+              <div style="flex:1; text-align:left;">
+                <div style="font-size:14px; font-weight:600; color:#111827; line-height:1.6;">Chat with Support</div>
+                <div style="font-size:12px; color:#6B7280; font-weight:600; line-height:1.6; margin-top:1px;">Start a chat with our team</div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+
+            <!-- Email -->
+            <button id="hs-email-btn" class="hs-contact-rect-btn" aria-label="Email Support">
+              <div style="width:40px; height:40px; background:transparent; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <div style="width:24px; height:24px; background-color:#2563EB; -webkit-mask:url('./assets/send-square2.svg') no-repeat center / contain; mask:url('./assets/send-square2.svg') no-repeat center / contain;"></div>
+              </div>
+              <div style="flex:1; text-align:left;">
+                <div style="font-size:14px; font-weight:600; color:#111827; line-height:1.6;">Email Support</div>
+                <div style="font-size:12px; color:#6B7280; font-weight:600; line-height:1.6; margin-top:1px;">support@nexride.in</div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+        </section>
+
+        <!-- Safety & Emergency -->
+        <section aria-labelledby="hs-safety-heading">
+          <h2 id="hs-safety-heading" style="font-size:14px; font-weight:600; color:#111827; margin:0 0 12px 0; line-height:1.6;">Safety &amp; Emergency</h2>
+          <div style="background:#FFFFFF; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.04); overflow:hidden;">
+            <div style="padding:16px 20px; border-bottom:1px solid #F3F4F6;">
+              <p style="font-size:14px; color:#111827; margin:0; line-height:1.6; font-weight:600; text-align:justify;">
+                The <strong>SOS feature</strong> can help you quickly access emergency assistance during a safety-related situation. Tap the NexRide banner <strong>three times</strong> to activate it, then slide to confirm. Your location is shared with your trusted contacts.
+              </p>
+            </div>
+            <button id="hs-sos-link-btn" style="width:100%; background:none; border:none; padding:16px 20px; display:flex; align-items:center; gap:14px; cursor:pointer; text-align:left;" aria-label="Open Safety features">
+              <div style="width:36px; height:36px; background:transparent; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                <div style="width:28px; height:28px; background-color:#2563EB; -webkit-mask:url('./ai-antenna.svg') no-repeat center / contain; mask:url('./ai-antenna.svg') no-repeat center / contain;"></div>
+              </div>
+              <div style="flex:1;">
+                <div style="font-size:14px; font-weight:600; color:#111827; line-height:1.6;">Open Safety Settings</div>
+                <div style="font-size:12px; color:#6B7280; margin-top:2px; font-weight:600; line-height:1.6;">Manage trusted contacts &amp; emergency actions</div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+        </section>
+
+      </div><!-- /#hs-default-content -->
+    </div><!-- /scrollable -->
+  </div><!-- /#help-support-page -->
+
+
+  <!-- =============================================
+       HELP & SUPPORT — CATEGORY DRILL-DOWN
+       z-index: 3600
+       ============================================= -->
+  <div id="hs-category-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 3600; display: flex; flex-direction: column;">
+
+    <div style="background:#FFFFFF; position:sticky; top:0; z-index:10; display:flex; align-items:center; padding:calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom:1px solid #F3F4F6;">
+      <button id="back-hs-category" class="back-btn" aria-label="Go back"
+        style="background:#F5F7FA; border-radius:50%; width:40px; height:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div style="flex:1; display:flex; justify-content:center;">
+        <span id="hs-category-title" style="font-weight:700; font-size:18px; color:#111827; text-align:center;"></span>
+      </div>
+      <div style="width:40px; flex-shrink:0;"></div>
+    </div>
+
+    <div style="padding:20px 20px calc(80px + env(safe-area-inset-bottom)) 20px;">
+      <div id="hs-category-faq-list" style="display:flex; flex-direction:column; gap:8px;" role="list"></div>
+    </div>
+  </div>
+
+
+  <!-- =============================================
+       HELP & SUPPORT — REPORT AN ISSUE
+       z-index: 3700
+       ============================================= -->
+  <div id="hs-report-page" class="page-overlay push-overlay hidden"
+    style="background-color: #FFFFFF; height: 100dvh; z-index: 3700; display: flex; flex-direction: column;">
+
+    <div style="background:#FFFFFF; position:sticky; top:0; z-index:10; display:flex; align-items:center; padding:calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom:1px solid #F3F4F6;">
+      <button id="back-hs-report" class="back-btn" aria-label="Go back"
+        style="background:#F5F7FA; border-radius:50%; width:40px; height:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div style="flex:1; display:flex; justify-content:center;">
+        <span style="font-weight:700; font-size:18px; color:#111827; text-align:center;">Report an Issue</span>
+      </div>
+      <div style="width:40px; flex-shrink:0;"></div>
+    </div>
+
+    <!-- Form -->
+    <div style="flex:1; overflow-y:auto;" id="hs-report-scroll">
+      <div style="padding:24px 20px; display:flex; flex-direction:column; gap:20px;">
+
+        <!-- Success State -->
+        <div id="hs-report-success" class="hidden" style="display:none; text-align:center; padding:40px 20px;">
+          <div style="width:64px; height:64px; background:#F0FDF4; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px auto;">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+          <h3 style="font-size:18px; font-weight:700; color:#111827; margin:0 0 8px 0;">Request Submitted</h3>
+          <p style="font-size:14px; color:#6B7280; margin:0 0 24px 0;" id="hs-report-ticket-id"></p>
+          <button id="hs-report-done-btn" style="background:#2563EB; color:white; border:none; padding:14px 32px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer;">Done</button>
+        </div>
+
+        <!-- Form State -->
+        <div id="hs-report-form-content">
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <label for="hs-report-category" style="font-size:14px; font-weight:600; color:#111827;">Issue Category *</label>
+            <div style="position:relative;">
+              <select id="hs-report-category" style="width:100%; padding:14px 16px; border-radius:12px; border:1.5px solid #E5E7EB; font-size:15px; font-weight:600; color:#111827; background:#FFFFFF; outline:none; appearance:none; -webkit-appearance:none; cursor:pointer; transition:border-color 0.2s;" aria-required="true">
+                <option value="">Select a category</option>
+                <option value="bus">Bus Issue</option>
+                <option value="epass">E-Pass Issue</option>
+                <option value="payment">Payment Issue</option>
+                <option value="app">App Technical Issue</option>
+                <option value="safety">Safety Issue</option>
+                <option value="other">Other</option>
+              </select>
+              <svg style="position:absolute; right:14px; top:50%; transform:translateY(-50%); pointer-events:none;" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+            <label for="hs-report-description" style="font-size:14px; font-weight:600; color:#111827;">Describe the Issue *</label>
+            <textarea id="hs-report-description" placeholder="Please describe what happened in detail…" rows="5"
+              style="-webkit-user-select:auto; user-select:auto; width:100%; padding:14px 16px; border-radius:12px; border:1.5px solid #E5E7EB; font-size:15px; font-weight:500; color:#111827; background:#FFFFFF; outline:none; resize:none; font-family:inherit; line-height:1.6; transition:border-color 0.2s;" aria-required="true"></textarea>
+            <p style="font-size:12px; color:#9CA3AF; margin:0; text-align:right;" id="hs-report-char-count">0 / 500</p>
+          </div>
+
+          <div id="hs-report-error" class="hidden" style="display:none; background:#FEF2F2; border-radius:10px; padding:12px 14px; font-size:13px; color:#DC2626; font-weight:600;"></div>
+
+          <div id="hs-report-offline-msg" class="hidden" style="display:none; background:#FEF3C7; border-radius:10px; padding:12px 14px; font-size:13px; color:#92400E; font-weight:600;">
+            You are offline. Internet access is required to submit a support request.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit Button fixed at bottom -->
+    <div style="padding:16px 20px calc(20px + env(safe-area-inset-bottom)) 20px; background:#FFFFFF; border-top:1px solid #F3F4F6;" id="hs-report-form-content-footer">
+      <button id="hs-report-submit-btn" style="width:100%; background:#2563EB; color:white; border:none; padding:16px; border-radius:12px; font-size:16px; font-weight:600; cursor:pointer; transition:opacity 0.2s; position:relative;" aria-label="Submit report">
+        Submit Report
+      </button>
+    </div>
+  </div>
+
+
+  <!-- =============================================
+       HELP & SUPPORT — MY SUPPORT REQUESTS
+       z-index: 3800
+       ============================================= -->
+  <div id="hs-tickets-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 3800; display: flex; flex-direction: column;">
+
+    <div style="background:#FFFFFF; position:sticky; top:0; z-index:10; display:flex; align-items:center; padding:calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom:1px solid #F3F4F6;">
+      <button id="back-hs-tickets" class="back-btn" aria-label="Go back"
+        style="background:#F5F7FA; border-radius:50%; width:40px; height:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div style="flex:1; display:flex; justify-content:center;">
+        <span style="font-weight:700; font-size:18px; color:#111827; text-align:center;">Support Requests</span>
+      </div>
+      <div style="width:40px; flex-shrink:0;"></div>
+    </div>
+
+    <div style="padding:20px 20px calc(80px + env(safe-area-inset-bottom)) 20px; flex:1;">
+      <!-- Loading -->
+      <div id="hs-tickets-loading" style="text-align:center; padding:40px 20px;">
+        <div style="width:32px; height:32px; border:3px solid #E5E7EB; border-top-color:#2563EB; border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 12px auto;"></div>
+        <p style="font-size:14px; color:#6B7280; margin:0; text-align:center;">Loading requests…</p>
+      </div>
+
+      <!-- Error -->
+      <div id="hs-tickets-error" class="hidden" style="display:none; text-align:center; padding:40px 20px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 16px;display:block;" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        <p style="font-size:15px; font-weight:600; color:#111827; margin:0 0 8px 0; text-align:center;">Unable to load requests</p>
+        <p style="font-size:13px; color:#6B7280; margin:0 0 20px 0; text-align:center;">Please check your connection and try again.</p>
+        <div style="display:flex; justify-content:center;">
+          <button id="hs-tickets-retry-btn" style="background:#2563EB; color:white; border:none; padding:12px 24px; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer;">Try Again</button>
+        </div>
+      </div>
+
+      <!-- Empty -->
+      <div id="hs-tickets-empty" class="hidden" style="display:none; text-align:center; padding:60px 20px;">
+        <div style="width:56px; height:56px; background-color:#D1D5DB; -webkit-mask:url('./document-like.svg') no-repeat center / contain; mask:url('./document-like.svg') no-repeat center / contain; margin:0 auto 16px auto;"></div>
+        <p style="font-size:16px; font-weight:600; color:#111827; margin:0 0 8px 0; text-align:center;">No requests yet</p>
+        <p style="font-size:14px; color:#6B7280; margin:0; text-align:center;">Your submitted support requests will appear here.</p>
+      </div>
+
+      <!-- Ticket list -->
+      <div id="hs-tickets-list" class="hidden" style="display:none; flex-direction:column; gap:12px;" role="list"></div>
+    </div>
+  </div>
+
+
+  <!-- =============================================
+       HELP & SUPPORT — TICKET DETAIL
+       z-index: 3900
+       ============================================= -->
+  <div id="hs-ticket-detail-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; overflow-y: auto; height: 100dvh; z-index: 3900; display: flex; flex-direction: column;">
+
+    <div style="background:#FFFFFF; position:sticky; top:0; z-index:10; display:flex; align-items:center; padding:calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom:1px solid #F3F4F6;">
+      <button id="back-hs-ticket-detail" class="back-btn" aria-label="Go back"
+        style="background:#F5F7FA; border-radius:50%; width:40px; height:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div style="flex:1; display:flex; justify-content:center;">
+        <span style="font-weight:700; font-size:18px; color:#111827; text-align:center;">Request Details</span>
+      </div>
+      <div style="width:40px; flex-shrink:0;"></div>
+    </div>
+
+    <div style="padding:20px 20px calc(80px + env(safe-area-inset-bottom)) 20px; flex:1; display:flex; flex-direction:column; gap:16px;" id="hs-ticket-detail-content">
+      <!-- Content rendered by JS -->
+    </div>
+  </div>
+
+
+  <!-- =============================================
+       HELP & SUPPORT — CHAT SHEET (mock UI)
+       z-index: 4000
+       ============================================= -->
+  <div id="hs-chat-page" class="page-overlay push-overlay hidden"
+    style="background-color: #F8F9FA; height: 100dvh; z-index: 4000; display: flex; flex-direction: column;">
+
+    <div style="background:#FFFFFF; position:sticky; top:0; z-index:10; display:flex; align-items:center; padding:calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom:1px solid #F3F4F6;">
+      <button id="back-hs-chat" class="back-btn" aria-label="Go back"
+        style="background:#F5F7FA; border-radius:50%; width:40px; height:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div style="flex:1; display:flex; justify-content:center; padding-right:40px;">
+        <span style="font-weight:700; font-size:18px; color:#111827;">Chat with Support</span>
+      </div>
+    </div>
+
+    <!-- Chat messages -->
+    <div id="hs-chat-messages" style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; justify-content:flex-start;">
+        <div style="max-width:80%; background:#FFFFFF; border-radius:4px 16px 16px 16px; padding:12px 14px; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+          <p style="font-size:14px; color:#111827; margin:0 0 4px 0; font-weight:600;">NexRide Support</p>
+          <p style="font-size:14px; color:#374151; margin:0; line-height:1.5; font-weight:500;">Hello! 👋 How can we help you today?</p>
+          <p style="font-size:11px; color:#9CA3AF; margin:6px 0 0 0; text-align:right;">Support Team</p>
+        </div>
+      </div>
+      <div style="text-align:center; padding:8px 0;">
+        <span style="font-size:12px; color:#9CA3AF; background:#F3F4F6; padding:4px 12px; border-radius:20px;">Live chat coming soon — use Call or Email for immediate help</span>
+      </div>
+    </div>
+
+    <!-- Input bar -->
+    <div style="background:#FFFFFF; border-top:1px solid #F3F4F6; padding:12px 16px calc(16px + env(safe-area-inset-bottom)) 16px; display:flex; align-items:center; gap:10px;">
+      <input type="text" id="hs-chat-input" placeholder="Type a message…" disabled
+        style="-webkit-user-select:auto; user-select:auto; flex:1; border:1.5px solid #E5E7EB; border-radius:24px; padding:10px 16px; font-size:14px; font-family:inherit; outline:none; background:#F9FAFB; color:#9CA3AF;" aria-label="Chat message input" />
+      <button disabled style="width:40px; height:40px; background:#E5E7EB; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; cursor:not-allowed;" aria-label="Send message">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- =============================================
+       BUS SEARCH PAGE OVERLAY (ORIGINAL - UNCHANGED)
+       ============================================= -->
   <!-- Bus Search Page Overlay -->
   <div id="bus-search-page" class="page-overlay push-overlay hidden"
     style="background-color: #F5F7FA; overflow-y: auto; height: 100dvh; z-index: 6000; display: flex; flex-direction: column;">
