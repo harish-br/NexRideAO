@@ -867,7 +867,13 @@ function wireNavigation() {
   // Report
   var reportNavBtn = el('hs-report-nav-btn');
   if (reportNavBtn) {
-    reportNavBtn.addEventListener('click', function() { openPage(pages.report); });
+    reportNavBtn.addEventListener('click', function() {
+      if (window.openReportIssuePage) {
+        window.openReportIssuePage();
+      } else {
+        openPage(pages.report);
+      }
+    });
   }
   var backReport = el('back-hs-report');
   if (backReport) {
@@ -886,8 +892,12 @@ function wireNavigation() {
   var ticketsNavBtn = el('hs-tickets-nav-btn');
   if (ticketsNavBtn) {
     ticketsNavBtn.addEventListener('click', function() {
-      openPage(pages.tickets);
-      loadTickets();
+      if (window.openMyReportsPage) {
+        window.openMyReportsPage();
+      } else {
+        openPage(pages.tickets);
+        loadTickets();
+      }
     });
   }
   var backTickets = el('back-hs-tickets');

@@ -1,0 +1,904 @@
+/* ==========================================================================
+   NexRide — AI Chat Support & Issue Reporting (Minimalist Clean UI)
+   Dynamic bubble sizing, strictly separated AI (LEFT) vs USER (RIGHT)
+   alignment, content-based dimensions, and zero clipping.
+   ========================================================================== */
+
+#report-issue-page {
+  z-index: 6500;
+  display: flex;
+  flex-direction: column;
+  background-color: #FFFFFF;
+  height: 100%;
+  height: 100dvh;
+  width: 100%;
+  max-width: 600px;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  transform: translateY(100%);
+  overflow: hidden;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  visibility: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  text-align: left !important;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 600px) {
+  #report-issue-page {
+    box-shadow: none;
+  }
+}
+
+#report-issue-page *,
+.report-chat-scroll-area,
+.report-chat-scroll-area *,
+.report-chat-bubble,
+.report-chat-bubble *,
+.report-chat-card,
+.report-chat-card *,
+.report-edit-modal-box,
+.report-edit-modal-box * {
+  text-align: left !important;
+  text-align-last: left !important;
+  word-spacing: normal !important;
+  letter-spacing: normal !important;
+  -webkit-hyphens: manual;
+  hyphens: manual;
+  box-sizing: border-box;
+}
+
+#report-issue-page:not(.hidden) {
+  transform: translateY(0) !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+}
+
+#report-issue-page.hidden {
+  transform: translateY(100%) !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* --------------------------------------------------------------------------
+   1. Clean Minimal Header (Permanently Fixed Top)
+   -------------------------------------------------------------------------- */
+.report-chat-header {
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
+  position: sticky !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 100 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px 16px !important;
+  border-bottom: 1px solid #F3F4F6 !important;
+  min-height: 60px !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+}
+
+.report-chat-header-left {
+  display: flex;
+  align-items: center;
+  flex: 0 0 44px;
+}
+
+.report-chat-back-btn {
+  background: #FFFFFF;
+  border-radius: 50%;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #E5E7EB;
+  cursor: pointer;
+  color: #111827;
+  transition: background 0.15s, transform 0.15s;
+  padding: 0;
+}
+
+.report-chat-back-btn:active {
+  background: #F3F4F6;
+  transform: scale(0.95);
+}
+
+.report-chat-header-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.report-chat-title {
+  font-weight: 700;
+  font-size: 18px;
+  color: #1F2937;
+  line-height: 1.2;
+  letter-spacing: -0.2px;
+  text-align: center !important;
+}
+
+.report-chat-header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 44px;
+}
+
+.report-chat-my-reports-btn {
+  display: none;
+}
+
+/* --------------------------------------------------------------------------
+   2. Scrollable Messages Area
+   -------------------------------------------------------------------------- */
+.report-chat-scroll-area {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  background: #FFFFFF;
+}
+
+#report-chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+}
+
+.report-chat-message-row {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+}
+
+.report-chat-message-row.ai {
+  align-items: flex-start !important;
+  align-self: flex-start !important;
+}
+
+.report-chat-message-row.user {
+  align-items: flex-end !important;
+  align-self: flex-end !important;
+}
+
+.report-chat-ai-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748B;
+  margin-bottom: 4px;
+  padding-left: 2px;
+  display: block;
+  text-align: left;
+  flex: 0 0 auto;
+}
+
+/* Chat Bubbles: TRANSPARENT BACKGROUND */
+.report-chat-bubble {
+  display: inline-block !important;
+  width: fit-content !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  flex: 0 0 auto !important;
+  font-size: 15px !important;
+  line-height: 1.45 !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: pre-wrap !important;
+  position: relative;
+  text-align: left !important;
+  word-spacing: normal !important;
+  letter-spacing: normal !important;
+  box-sizing: border-box !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 2px 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #111827 !important;
+  font-weight: 500 !important;
+}
+
+.report-chat-message-row.ai .report-chat-bubble {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #111827 !important;
+  padding: 2px 0 !important;
+  max-width: 90% !important;
+  align-self: flex-start !important;
+  border-radius: 0 !important;
+}
+
+.report-chat-message-row.user .report-chat-bubble {
+  background: transparent !important;
+  background-color: transparent !important;
+  color: #111827 !important;
+  padding: 2px 0 !important;
+  max-width: 85% !important;
+  align-self: flex-end !important;
+  border-radius: 0 !important;
+}
+
+.report-chat-timestamp {
+  font-size: 12px;
+  color: #64748B;
+  font-weight: 500;
+  margin-top: 4px;
+  padding: 0 2px;
+  display: block;
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.report-chat-message-row.ai .report-chat-timestamp {
+  align-self: flex-start !important;
+  text-align: left !important;
+}
+
+.report-chat-message-row.user .report-chat-timestamp {
+  align-self: flex-end !important;
+  text-align: right !important;
+}
+
+/* Minimal Typing Indicator */
+.report-chat-typing-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-radius: 0;
+  width: fit-content;
+  height: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+
+.report-chat-typing-dot {
+  width: 5.5px;
+  height: 5.5px;
+  border-radius: 50%;
+  background: #4B5563;
+  animation: chatBounce 1.4s infinite ease-in-out both;
+}
+
+.report-chat-typing-dot:nth-child(1) { animation-delay: -0.32s; }
+.report-chat-typing-dot:nth-child(2) { animation-delay: -0.16s; }
+.report-chat-typing-dot:nth-child(3) { animation-delay: 0s; }
+
+@keyframes chatBounce {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; background: #111827; }
+}
+
+/* Image Attachment inside Bubble */
+.report-chat-bubble-image-wrap {
+  margin-bottom: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+  max-width: 220px;
+  max-height: 220px;
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.report-chat-bubble-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   3. Quick Category Chips
+   -------------------------------------------------------------------------- */
+.report-chat-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+.report-chat-chip-btn {
+  background: #F3F4F6;
+  border: 1px solid #E5E7EB;
+  color: #1F2937;
+  padding: 7px 14px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.report-chat-chip-btn:hover {
+  background: #E5E7EB;
+  color: #111827;
+}
+
+.report-chat-chip-btn:active,
+.report-chat-chip-btn.selected {
+  border-color: #9CA3AF;
+  background: #CBD2DA;
+  color: #111827;
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   4. Structured Summary Card
+   -------------------------------------------------------------------------- */
+.report-chat-card {
+  background: #F9FAFB;
+  border: 1.5px solid #E5E7EB;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+  box-sizing: border-box;
+  text-align: left !important;
+}
+
+.report-chat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #E5E7EB;
+  padding-bottom: 8px;
+}
+
+.report-chat-card-title {
+  font-weight: 700;
+  font-size: 14.5px;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.report-chat-card-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.report-chat-card-badge.critical {
+  background: #FEF2F2;
+  color: #DC2626;
+  border: 1px solid #FEE2E2;
+}
+
+.report-chat-card-badge.high {
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid #FFEDD5;
+}
+
+.report-chat-card-badge.medium {
+  background: #EFF6FF;
+  color: #1D4ED8;
+  border: 1px solid #DBEAFE;
+}
+
+.report-chat-card-badge.low {
+  background: #F3F4F6;
+  color: #475569;
+  border: 1px solid #E5E7EB;
+}
+
+.report-chat-card-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.report-chat-card-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  font-size: 13px;
+  gap: 12px;
+}
+
+.report-chat-card-key {
+  color: #6B7280;
+  font-weight: 500;
+  flex-shrink: 0;
+  text-align: left !important;
+}
+
+.report-chat-card-val {
+  color: #111827;
+  font-weight: 600;
+  text-align: right !important;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.report-chat-narrative-box {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-chat-narrative-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6B7280;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.report-chat-narrative-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #1F2937;
+  font-weight: 450;
+  margin: 0;
+  text-align: left !important;
+}
+
+.report-chat-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 6px;
+  width: 100%;
+}
+
+.report-chat-action-btn-primary {
+  width: 100%;
+  background: #1F2937;
+  color: #FFFFFF;
+  border: none;
+  padding: 11px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.report-chat-action-btn-primary:active {
+  transform: scale(0.98);
+  background: #111827;
+}
+
+.report-chat-action-btn-secondary {
+  width: 100%;
+  background: #FFFFFF;
+  color: #374151;
+  border: 1px solid #D1D5DB;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.report-chat-action-btn-secondary:active {
+  background: #F3F4F6;
+}
+
+/* --------------------------------------------------------------------------
+   5. Staged Attachment Previews
+   -------------------------------------------------------------------------- */
+.report-chat-staged-attachments {
+  padding: 8px 16px;
+  background: #FFFFFF;
+  border-top: 1px solid #E5E7EB;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.report-chat-staged-item {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #E5E7EB;
+  flex-shrink: 0;
+}
+
+.report-chat-staged-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.report-chat-staged-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.8);
+  color: white;
+  border: none;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+/* --------------------------------------------------------------------------
+   6. Bottom Capsule Input & Send Button (Reference Image)
+   -------------------------------------------------------------------------- */
+.report-chat-input-container {
+  background: #FFFFFF;
+  border-top: 1px solid #E5E7EB;
+  padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px)) 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.report-chat-input-pill {
+  flex: 1;
+  background: #FFFFFF;
+  border: 1.5px solid #1E293B;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  padding: 4px 12px 4px 18px;
+  gap: 8px;
+  min-height: 48px;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.report-chat-input-field {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 400;
+  color: #111827;
+  font-family: inherit;
+  padding: 8px 0;
+  max-height: 80px;
+  min-height: 22px;
+  resize: none;
+  line-height: 1.4;
+  -webkit-user-select: auto;
+  user-select: auto;
+  text-align: left !important;
+  box-sizing: border-box;
+}
+
+.report-chat-input-field::placeholder {
+  color: #6B7280;
+  font-weight: 400;
+}
+
+.report-chat-attach-btn {
+  background: transparent;
+  border: none;
+  color: #1E293B;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: transform 0.15s;
+}
+
+.report-chat-attach-btn:active {
+  transform: scale(0.9);
+}
+
+.report-chat-voice-btn {
+  display: none;
+}
+
+.report-chat-send-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #2B2D33;
+  color: #FFFFFF;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.15s, opacity 0.15s, background 0.15s;
+  padding: 0;
+}
+
+.report-chat-send-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.report-chat-send-btn:not(:disabled):active {
+  transform: scale(0.92);
+  background: #111827;
+}
+
+/* --------------------------------------------------------------------------
+   7. Attachment Action Sheet Modal
+   -------------------------------------------------------------------------- */
+.report-attach-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9999 !important;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.report-attach-sheet-backdrop.active {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.report-attach-sheet-box {
+  background: #FFFFFF;
+  width: 100%;
+  max-width: 500px;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 18px 18px calc(20px + env(safe-area-inset-bottom, 0px)) 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.report-attach-sheet-backdrop.active .report-attach-sheet-box {
+  transform: translateY(0) !important;
+}
+
+.report-attach-sheet-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  text-align: center !important;
+  margin-bottom: 4px;
+}
+
+.report-attach-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  background: #F9FAFB;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  transition: background 0.15s;
+  width: 100%;
+  text-align: left !important;
+}
+
+.report-attach-option-btn:active {
+  background: #F3F4F6;
+}
+
+.report-attach-option-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1F2937;
+  flex-shrink: 0;
+}
+
+.report-attach-sheet-cancel {
+  padding: 11px;
+  background: transparent;
+  border: none;
+  color: #6B7280;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: center !important;
+}
+
+/* --------------------------------------------------------------------------
+   8. Edit Details Modal Sheet
+   -------------------------------------------------------------------------- */
+.report-edit-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 9999 !important;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+
+.report-edit-modal-backdrop.active {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.report-edit-modal-box {
+  background: #FFFFFF;
+  width: 100%;
+  max-width: 500px;
+  max-height: 85dvh;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 18px 18px calc(20px + env(safe-area-inset-bottom, 0px)) 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
+}
+
+.report-edit-modal-backdrop.active .report-edit-modal-box {
+  transform: translateY(0) !important;
+}
+
+.report-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #E5E7EB;
+  padding-bottom: 8px;
+}
+
+.report-edit-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.report-edit-close {
+  background: #F3F4F6;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4B5563;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.report-edit-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-edit-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4B5563;
+}
+
+.report-edit-input,
+.report-edit-select,
+.report-edit-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid #D1D5DB;
+  font-size: 13.5px;
+  color: #111827;
+  font-family: inherit;
+  outline: none;
+  background: #FFFFFF;
+}
+
+.report-edit-input:focus,
+.report-edit-select:focus,
+.report-edit-textarea:focus {
+  border-color: #1F2937;
+}

@@ -27,9 +27,12 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   let currentY = snapPoints.DEFAULT;
+  let startX = 0;
   let startY = 0;
-  let initialTranslateY = 0;
   let isDragging = false;
+  let hasDragged = false;
+  const DRAG_THRESHOLD = 6;
+  let initialTranslateY = 0;
   let lastTimestamp = 0;
   let lastY = 0;
   let velocity = 0;
@@ -105,6 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const handlePointerDown = (e) => {
     isDragging = true;
+    hasDragged = false;
+    startX = e.clientX;
     startY = e.clientY;
     initialTranslateY = currentY;
     lastY = e.clientY;
@@ -123,6 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const handlePointerMove = (e) => {
     if (!isDragging) return;
+
+    if (Math.hypot(e.clientX - startX, e.clientY - startY) > DRAG_THRESHOLD) {
+      hasDragged = true;
+    }
 
     // Calculate velocity for throw physics
     const now = performance.now();
@@ -156,12 +165,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const handlePointerUp = (e) => {
     if (!isDragging) return;
     isDragging = false;
-    if (e.target.hasPointerCapture) {
+    if (e.target.hasPointerCapture && e.target.hasPointerCapture(e.pointerId)) {
       e.target.releasePointerCapture(e.pointerId);
     }
 
     // Apply snap physics
     snapToNearest();
+
+    if (hasDragged) {
+      const preventClick = (evt) => {
+        evt.stopImmediatePropagation();
+        evt.preventDefault();
+      };
+      window.addEventListener('click', preventClick, { capture: true, once: true });
+      setTimeout(() => {
+        window.removeEventListener('click', preventClick, { capture: true });
+      }, 100);
+    }
   };
 
   // Attach gesture listeners to the entire container
@@ -184,11 +204,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const piBackBtn = document.getElementById('pi-back-btn');
 
   if (btnPersonalInfo && personalInfoPage && piBackBtn) {
-    btnPersonalInfo.addEventListener('pointerdown', () => {
+    btnPersonalInfo.addEventListener('click', () => {
       personalInfoPage.classList.remove('hidden');
     });
 
-    piBackBtn.addEventListener('pointerdown', () => {
+    piBackBtn.addEventListener('click', () => {
       personalInfoPage.classList.add('hidden');
     });
   }
@@ -305,7 +325,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   if (addContactBtn && contactList) {
-    addContactBtn.addEventListener('pointerdown', () => {
+    addContactBtn.addEventListener('click', () => {
       const addContactPage = document.getElementById('add-contact-page');
       if (addContactPage) {
         addContactPage.classList.remove('hidden');
@@ -328,7 +348,7 @@ document.addEventListener('DOMContentLoaded', () => {
         validateForm();
       };
 
-      backAddContactBtn.addEventListener('pointerdown', closeAddContactPage);
+      backAddContactBtn.addEventListener('click', closeAddContactPage);
 
       const validateForm = () => {
         const nameValid = newContactName.value.trim().length > 0;
@@ -351,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
         newContactPhone.addEventListener(evt, validateForm);
       });
 
-      saveNewContactBtn.addEventListener('pointerdown', async () => {
+      saveNewContactBtn.addEventListener('click', async () => {
         if (saveNewContactBtn.getAttribute('data-disabled') === 'true') return;
 
         const name = newContactName.value.trim();
@@ -469,7 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const tcDoneBtn = document.getElementById('done-trusted-contacts');
 
   if (btnTrustedContacts && tcPage && tcBackBtn && tcDoneBtn) {
-    btnTrustedContacts.addEventListener('pointerdown', () => {
+    btnTrustedContacts.addEventListener('click', () => {
       tcPage.classList.remove('hidden');
     });
 
@@ -477,8 +497,8 @@ document.addEventListener('DOMContentLoaded', () => {
       tcPage.classList.add('hidden');
     };
 
-    tcBackBtn.addEventListener('pointerdown', closeTcPage);
-    tcDoneBtn.addEventListener('pointerdown', closeTcPage);
+    tcBackBtn.addEventListener('click', closeTcPage);
+    tcDoneBtn.addEventListener('click', closeTcPage);
   }
 
   // Safety Check-ins overlay logic
@@ -488,7 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const scDoneBtn = document.getElementById('done-safety-checkin');
 
   if (btnSafetyCheckin && scPage && scBackBtn && scDoneBtn) {
-    btnSafetyCheckin.addEventListener('pointerdown', () => {
+    btnSafetyCheckin.addEventListener('click', () => {
       scPage.classList.remove('hidden');
     });
 
@@ -496,8 +516,8 @@ document.addEventListener('DOMContentLoaded', () => {
       scPage.classList.add('hidden');
     };
 
-    scBackBtn.addEventListener('pointerdown', closeScPage);
-    scDoneBtn.addEventListener('pointerdown', closeScPage);
+    scBackBtn.addEventListener('click', closeScPage);
+    scDoneBtn.addEventListener('click', closeScPage);
   }
 
   // Emergency Actions overlay logic
@@ -506,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const eaBackBtn = document.getElementById('back-emergency-actions');
 
   if (btnEmergencyActions && eaPage && eaBackBtn) {
-    btnEmergencyActions.addEventListener('pointerdown', () => {
+    btnEmergencyActions.addEventListener('click', () => {
       eaPage.classList.remove('hidden');
     });
 
@@ -514,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
       eaPage.classList.add('hidden');
     };
 
-    eaBackBtn.addEventListener('pointerdown', closeEaPage);
+    eaBackBtn.addEventListener('click', closeEaPage);
   }
 
   // Safety overlay logic
@@ -523,11 +543,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const safetyBackBtn = document.getElementById('back-safety');
 
   if (btnSafety && safetyPage && safetyBackBtn) {
-    btnSafety.addEventListener('pointerdown', () => {
+    btnSafety.addEventListener('click', () => {
       safetyPage.classList.remove('hidden');
     });
 
-    safetyBackBtn.addEventListener('pointerdown', () => {
+    safetyBackBtn.addEventListener('click', () => {
       safetyPage.classList.add('hidden');
     });
   }
@@ -547,17 +567,55 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Report overlay logic
+  const btnReport = document.getElementById('report-card-btn');
+  const reportPage = document.getElementById('report-issue-page');
+
+  if (btnReport) {
+    btnReport.addEventListener('click', () => {
+      if (window.openReportIssuePage) {
+        window.openReportIssuePage();
+      } else if (reportPage) {
+        reportPage.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Fees overlay logic
+  const btnFees = document.getElementById('fees-btn');
+  const feesPage = document.getElementById('fees-page');
+  const feesBackBtn = document.getElementById('back-fees');
+  const feesPageBackBtn = document.getElementById('fees-page-back-btn');
+
+  if (btnFees && feesPage) {
+    btnFees.addEventListener('click', () => {
+      feesPage.classList.remove('hidden');
+    });
+
+    if (feesBackBtn) {
+      feesBackBtn.addEventListener('click', () => {
+        feesPage.classList.add('hidden');
+      });
+    }
+
+    if (feesPageBackBtn) {
+      feesPageBackBtn.addEventListener('click', () => {
+        feesPage.classList.add('hidden');
+      });
+    }
+  }
+
   // About Us overlay logic
   const btnAboutUs = document.getElementById('about-us-btn');
   const aboutUsPage = document.getElementById('about-us-page');
   const aboutUsBackBtn = document.getElementById('back-about-us');
 
   if (btnAboutUs && aboutUsPage && aboutUsBackBtn) {
-    btnAboutUs.addEventListener('pointerdown', () => {
+    btnAboutUs.addEventListener('click', () => {
       aboutUsPage.classList.remove('hidden');
     });
 
-    aboutUsBackBtn.addEventListener('pointerdown', () => {
+    aboutUsBackBtn.addEventListener('click', () => {
       aboutUsPage.classList.add('hidden');
     });
   }
@@ -568,11 +626,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const termsBackBtn = document.getElementById('back-terms');
 
   if (btnTerms && termsPage && termsBackBtn) {
-    btnTerms.addEventListener('pointerdown', () => {
+    btnTerms.addEventListener('click', () => {
       termsPage.classList.remove('hidden');
     });
 
-    termsBackBtn.addEventListener('pointerdown', () => {
+    termsBackBtn.addEventListener('click', () => {
       termsPage.classList.add('hidden');
     });
   }
@@ -583,11 +641,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const privacyBackBtn = document.getElementById('back-privacy');
 
   if (btnPrivacy && privacyPage && privacyBackBtn) {
-    btnPrivacy.addEventListener('pointerdown', () => {
+    btnPrivacy.addEventListener('click', () => {
       privacyPage.classList.remove('hidden');
     });
 
-    privacyBackBtn.addEventListener('pointerdown', () => {
+    privacyBackBtn.addEventListener('click', () => {
       privacyPage.classList.add('hidden');
     });
   }
@@ -618,11 +676,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const notificationsBackBtn = document.getElementById('back-notifications');
 
   if (btnNotifications && notificationsPage && notificationsBackBtn) {
-    btnNotifications.addEventListener('pointerdown', () => {
+    btnNotifications.addEventListener('click', () => {
       notificationsPage.classList.remove('hidden');
     });
 
-    notificationsBackBtn.addEventListener('pointerdown', () => {
+    notificationsBackBtn.addEventListener('click', () => {
       notificationsPage.classList.add('hidden');
     });
   }
@@ -636,11 +694,11 @@ document.addEventListener('DOMContentLoaded', () => {
       profilePage.classList.add('hidden');
     };
 
-    navHome.addEventListener('pointerdown', goHome);
+    navHome.addEventListener('click', goHome);
 
-    if (profileBackBtn) profileBackBtn.addEventListener('pointerdown', goHome);
+    if (profileBackBtn) profileBackBtn.addEventListener('click', goHome);
 
-    navLive.addEventListener('pointerdown', () => {
+    navLive.addEventListener('click', () => {
       navLive.classList.add('active');
       navHome.classList.remove('active');
       navProfile.classList.remove('active');
@@ -648,7 +706,7 @@ document.addEventListener('DOMContentLoaded', () => {
       profilePage.classList.add('hidden');
     });
 
-    navProfile.addEventListener('pointerdown', () => {
+    navProfile.addEventListener('click', () => {
       navProfile.classList.add('active');
       navHome.classList.remove('active');
       navLive.classList.remove('active');
@@ -659,7 +717,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Check URL parameters for tab selection
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('tab') === 'profile') {
-      navProfile.dispatchEvent(new Event('pointerdown'));
+      navProfile.click();
     }
   }
 });

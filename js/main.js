@@ -287,5 +287,5 @@ if (blueCard && sosThumb) {
     }
   };
 
-  blueCard.addEventListener('pointerdown', handleTap);
+  blueCard.addEventListener('click', handleTap);
 }
