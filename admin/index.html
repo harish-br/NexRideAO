@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NexRide Admin Transport Control Center</title>
+  <link rel="icon" type="image/svg+xml" href="/NexRide-AO.svg" />
+  <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96x96.png" />
+  <link rel="shortcut icon" href="/NexRide-AO.svg" />
+  <link rel="apple-touch-icon" href="/favicon/apple-touch-icon.png" />
   <link rel="stylesheet" href="./admin.css" />
   <link rel="stylesheet" href="./manage-buses.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -14,7 +18,9 @@
   <div id="admin-login-page" class="admin-login-container hidden">
     <div class="login-card">
       <div class="login-header">
-        <div class="login-brand-badge">AO</div>
+        <div class="login-brand-badge">
+          <img src="/favicon/apple-touch-icon.png" alt="NexRide Logo" />
+        </div>
         <h1>NexRide Admin Portal</h1>
         <p>Centralized Transport Management System</p>
       </div>
@@ -28,7 +34,7 @@
           <input type="password" id="admin-password" placeholder="••••••••" required />
         </div>
         <div id="login-error" class="error-msg hidden"></div>
-        <button type="submit" id="login-btn" class="primary-btn" style="width: 100%;">Secure Login</button>
+        <button type="submit" id="login-submit-btn" class="primary-btn" style="width: 100%; height: 42px; margin-top: 8px;">Sign In to Transport Center</button>
       </form>
     </div>
   </div>
@@ -39,44 +45,67 @@
     <!-- TOP NAVBAR -->
     <nav class="top-navbar">
       <div class="nav-left">
-        <div class="brand-logo" id="nav-brand-btn" title="NexRide Transport Center">AO</div>
+        <div class="brand-logo" id="nav-brand-btn" title="NexRide AO">
+          <img src="/NexRide-AO.svg" alt="NexRide AO" />
+        </div>
         <ul class="nav-links">
           <li><a href="#dashboard" class="nav-item active" data-view="dashboard-view">Dashboard</a></li>
-          <li><a href="#live-tracking" class="nav-item" data-view="live-tracking-view">Live Tracking</a></li>
-          <li><a href="#buses" class="nav-item" data-view="buses-view">Buses</a></li>
-          <li><a href="#drivers" class="nav-item" data-view="drivers-view">Drivers</a></li>
-          <li><a href="#students" class="nav-item" data-view="students-view">Students</a></li>
+          <li><a href="#buses" class="nav-item" data-view="buses-view">Report Bus</a></li>
+          <li><a href="#places" class="nav-item" data-view="places-view">Places</a></li>
           <li><a href="#routes" class="nav-item" data-view="routes-view">Routes</a></li>
-          <li><a href="#timings" class="nav-item" data-view="timings-view">Bus Timings</a></li>
-          <li><a href="#issues" class="nav-item" data-view="issues-view">Issues &amp; Support</a></li>
-          <li class="nav-dropdown" style="position: relative;">
-            <a href="#" id="more-menu-btn" class="nav-dropdown-toggle">More &#9662;</a>
-            <div class="nav-dropdown-menu hidden" id="more-menu-dropdown">
-              <a href="#trips" class="nav-item dropdown-item" data-view="trips-view">Live Trips</a>
-              <a href="#documents" class="nav-item dropdown-item" data-view="documents-view">Documents</a>
-              <a href="#approvals" class="nav-item dropdown-item" data-view="approvals-view">Approvals</a>
-              <a href="#audit-logs" class="nav-item dropdown-item" data-view="audit-logs-view">Audit Logs</a>
-              <a href="#settings" class="nav-item dropdown-item" data-view="settings-view">Settings</a>
-            </div>
-          </li>
+          <li><a href="#timings" class="nav-item" data-view="timings-view">Buses &amp; Timings</a></li>
+          <li><a href="#approvals" class="nav-item" data-view="approvals-view">Approvals</a></li>
+          <li><a href="#audit-logs" class="nav-item" data-view="audit-logs-view">Audit Logs</a></li>
+          <li><a href="#settings" class="nav-item" data-view="settings-view">Settings</a></li>
+          <li><a href="#legal" class="nav-item" data-view="legal-view">Legal</a></li>
         </ul>
       </div>
 
       <div class="nav-right">
-        <div class="connection-indicator" id="nav-connection-indicator" title="Firestore Real-time Synchronization">
-          <span class="connection-dot" id="nav-connection-dot"></span>
-          <span id="nav-connection-text">Real-time Active</span>
-        </div>
-
         <div class="search-bar" style="position: relative;">
-          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input type="text" id="global-search-input" placeholder="Global Search (Bus, Driver, Route, Student)..." autocomplete="off" />
+          <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="global-search-input" placeholder="Search..." autocomplete="off" />
           
           <!-- Omni Search Dropdown -->
           <div id="global-search-results" class="search-results-box hidden"></div>
         </div>
 
-        <button id="logout-btn" class="logout-btn">Logout</button>
+        <!-- PROFILE OPTION IN HEADER -->
+        <div class="header-profile-container" style="position: relative;">
+          <button id="header-profile-btn" class="header-profile-btn" title="Admin Profile">
+            <div class="profile-avatar">
+              <img src="/assets/profile.svg" alt="Profile" class="profile-icon-svg" />
+            </div>
+          </button>
+          
+          <div id="header-profile-dropdown" class="header-profile-dropdown hidden">
+            <div class="profile-dropdown-header">
+              <div class="profile-dropdown-avatar">
+                <img src="/assets/profile.svg" alt="Profile" class="profile-icon-svg" />
+              </div>
+              <div class="profile-dropdown-info">
+                <div class="profile-name" id="header-profile-name">Administrator</div>
+                <div class="profile-email" id="header-profile-email">teamnexride@gmail.com</div>
+              </div>
+            </div>
+            <div class="profile-dropdown-divider"></div>
+            <a href="#settings" class="profile-dropdown-item" id="profile-settings-link">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              <span>Settings</span>
+            </a>
+            <a href="#audit-logs" class="profile-dropdown-item" id="profile-audit-link">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              <span>Audit Logs</span>
+            </a>
+            <div class="profile-dropdown-divider"></div>
+            <button id="profile-logout-btn" class="profile-dropdown-item profile-logout-item">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+              <span>Logout</span>
+            </button>
+          </div>
+        </div>
+
+        <button id="logout-btn" class="logout-btn hidden">Logout</button>
       </div>
     </nav>
 
@@ -89,11 +118,10 @@
       <section id="dashboard-view" class="admin-view">
         <div class="page-header">
           <h1>Dashboard</h1>
-          <p>Real-time overview of the NexRide transport network.</p>
         </div>
 
         <!-- STAT CARDS ROW 1 -->
-        <div class="stats-grid">
+        <div class="stats-grid-row1">
           <div class="stat-card">
             <div class="stat-title">Total Places</div>
             <div class="stat-value" id="stat-total-places">250</div>
@@ -108,27 +136,15 @@
           </div>
           <div class="stat-card">
             <div class="stat-title">Active Services</div>
-            <div class="stat-value" id="stat-active-services">2407</div>
+            <div class="stat-value text-green" id="stat-active-services">2407</div>
           </div>
         </div>
 
-        <!-- STAT CARDS ROW 2 -->
-        <div class="stats-grid mt-4">
+        <!-- STAT CARDS ROW 2 (ONLY INACTIVE SERVICES AS IN SCREENSHOT) -->
+        <div class="stats-grid-row2">
           <div class="stat-card">
             <div class="stat-title">Inactive Services</div>
-            <div class="stat-value" id="stat-inactive-services">0</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-title">Total Buses</div>
-            <div class="stat-value" id="stat-total-buses">48</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-title">Active Drivers</div>
-            <div class="stat-value" id="stat-active-drivers">32</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-title">Open Reports</div>
-            <div class="stat-value" id="stat-open-issues">0</div>
+            <div class="stat-value text-red" id="stat-inactive-services">0</div>
           </div>
         </div>
 
@@ -143,57 +159,43 @@
           <div class="alert-banner-tags" id="dash-attention-tags"></div>
         </div>
 
-        <!-- LIVE TRANSPORT STATUS SECTION -->
-        <div class="widget-card mt-6">
-          <div class="section-header-row">
-            <div>
-              <h2 style="margin-bottom: 2px;">Live Transport Status</h2>
-              <p style="font-size: 13.5px; font-weight: 600; color: var(--text-secondary);">Real-time fleet operational status synced across the network.</p>
-            </div>
-            <span class="status-badge badge-blue">Live Realtime Feed</span>
-          </div>
-
-          <div class="stats-grid">
-            <div class="stat-card" style="padding: 20px 24px;">
-              <div class="stat-title">Buses Running</div>
-              <div class="stat-value" id="live-stat-running">0</div>
-              <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-top: 6px;">Active on live trips</div>
-            </div>
-
-            <div class="stat-card" style="padding: 20px 24px;">
-              <div class="stat-title">Delayed Trips</div>
-              <div class="stat-value" id="live-stat-delayed">0</div>
-              <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-top: 6px;">Over 5 mins deviation</div>
-            </div>
-
-            <div class="stat-card" style="padding: 20px 24px;">
-              <div class="stat-title">Critical Issues</div>
-              <div class="stat-value" style="color: var(--color-red) !important;" id="live-stat-critical">0</div>
-              <div style="font-size: 12px; font-weight: 600; color: var(--color-red); margin-top: 6px;">Safety &amp; breakdown alerts</div>
-            </div>
-
-            <div class="stat-card" style="padding: 20px 24px;">
-              <div class="stat-title">Not Active / Idle</div>
-              <div class="stat-value" id="live-stat-idle">0</div>
-              <div style="font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-top: 6px;">Parked at campus/depot</div>
-            </div>
-          </div>
-        </div>
-
         <!-- BOTTOM WIDGETS -->
-        <div class="widgets-grid mt-6">
+        <div class="widgets-grid">
           
           <!-- RECENT UPDATES -->
           <div class="widget-card">
-            <h2>Recent Transport Activity</h2>
+            <h2 class="section-title-line">Recent Updates</h2>
             <div class="updates-list" id="recent-updates-list">
-              <div style="color: var(--text-secondary); font-size: 14px;">Loading real-time activity...</div>
+              <div class="update-item">
+                <div class="update-marker"></div>
+                <div>
+                  <div class="update-title">APPROVE BUS REQUEST</div>
+                  <div class="update-desc">Approved bus timing for Erode to Mettur</div>
+                  <div class="update-meta">25/6/2026, 12:41:17 PM • by teamnexride@gmail.com</div>
+                </div>
+              </div>
+              <div class="update-item">
+                <div class="update-marker"></div>
+                <div>
+                  <div class="update-title">ADD TIMING</div>
+                  <div class="update-desc">Added 19:26 to route erode_mettur</div>
+                  <div class="update-meta">25/6/2026, 12:41:16 PM • by teamnexride@gmail.com</div>
+                </div>
+              </div>
+              <div class="update-item">
+                <div class="update-marker"></div>
+                <div>
+                  <div class="update-title">ADD ROUTE</div>
+                  <div class="update-desc">Added route: Erode to Mettur</div>
+                  <div class="update-meta">25/6/2026, 12:41:15 PM • by teamnexride@gmail.com</div>
+                </div>
+              </div>
             </div>
           </div>
 
           <!-- SYSTEM STATUS -->
-          <div class="widget-card">
-            <h2>System Status</h2>
+          <div class="widget-card system-status-card">
+            <h2 class="section-title-plain">System Status</h2>
             
             <div class="status-row">
               <span class="status-label">Database Sync:</span>
@@ -205,23 +207,8 @@
               <span class="status-badge badge-green">100% Compatible</span>
             </div>
 
-            <div class="status-row">
-              <span class="status-label">Pending Approvals:</span>
-              <span class="status-badge badge-orange" id="sys-queue">0 Pending</span>
-            </div>
-
-            <div class="status-row">
-              <span class="status-label">Document Compliance:</span>
-              <span class="status-badge badge-blue" id="sys-doc-compliance">98% Verified</span>
-            </div>
-
-            <div class="status-row">
-              <span class="status-label">Active Listeners:</span>
-              <span class="status-badge badge-gray" id="sys-listeners">Connected</span>
-            </div>
-
-            <p style="font-size: 13px; color: var(--text-secondary); margin-top: 14px; line-height: 1.5;">
-              The dashboard is natively synced with Firestore. All modifications made across fleet, drivers, routes, and tickets are broadcast live to the student and driver applications without manual reload.
+            <p class="system-status-desc">
+              The dashboard is natively synced with Firestore. Any changes made here are instantly reflected in the live NexRide application without needing a manual refresh.
             </p>
           </div>
         </div>
@@ -823,6 +810,62 @@
               <span class="status-label">Audit Logs:</span>
               <span class="status-badge badge-gray">Read-Only Immutable</span>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =============================================
+           14. PLACES VIEW
+           ============================================= -->
+      <section id="places-view" class="admin-view hidden">
+        <div class="section-header-row">
+          <div>
+            <h1>Manage Places &amp; Stops</h1>
+            <p style="color: var(--text-secondary); font-size: 14px;">Geographic bus stops, landmarks, and campus boarding points.</p>
+          </div>
+        </div>
+        <div class="stats-grid-row1">
+          <div class="stat-card">
+            <div class="stat-title">Total Places</div>
+            <div class="stat-value">250</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Active Boarding Zones</div>
+            <div class="stat-value text-green">184</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Depot Locations</div>
+            <div class="stat-value">12</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">Coverage Ratio</div>
+            <div class="stat-value text-green">99.4%</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- =============================================
+           15. LEGAL VIEW
+           ============================================= -->
+      <section id="legal-view" class="admin-view hidden">
+        <div class="section-header-row">
+          <div>
+            <h1>Legal &amp; Regulatory Compliance</h1>
+            <p style="color: var(--text-secondary); font-size: 14px;">Transport licensing, compliance terms, passenger privacy, and data governance policies.</p>
+          </div>
+        </div>
+        <div class="widgets-grid">
+          <div class="widget-card">
+            <h2>Terms of Transport Service</h2>
+            <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.6;">
+              NexRide operates as a unified transport orchestration software connecting transport operators, drivers, and commuters. All fleet assets must adhere to local transport department guidelines and maintain valid permits, fitness certifications, and insurance policies.
+            </p>
+          </div>
+          <div class="widget-card">
+            <h2>Privacy &amp; Telemetry Data Policy</h2>
+            <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.6;">
+              GPS tracking coordinates and user telemetry are strictly processed for live routing, estimated arrival calculations, safety SOS emergency dispatch, and authorized transport management.
+            </p>
           </div>
         </div>
       </section>

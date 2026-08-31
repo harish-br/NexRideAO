@@ -68,6 +68,11 @@ function showError(msg) {
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentAdminUser = user;
+    const profileEmailEl = document.getElementById('header-profile-email');
+    const profileNameEl = document.getElementById('header-profile-name');
+    if (profileEmailEl && user.email) profileEmailEl.textContent = user.email;
+    if (profileNameEl) profileNameEl.textContent = user.displayName || (user.email ? user.email.split('@')[0] : 'Admin');
+
     try {
       const adminDocRef = doc(firestore, 'software_admin', user.uid);
       const adminDocSnap = await getDoc(adminDocRef);
@@ -166,6 +171,54 @@ if (moreMenuBtn && moreMenuDropdown) {
 
 if (navBrandBtn) {
   navBrandBtn.addEventListener('click', () => switchView('dashboard-view'));
+}
+
+// Header Profile Menu Handler
+const profileBtn = document.getElementById('header-profile-btn');
+const profileDropdown = document.getElementById('header-profile-dropdown');
+const profileLogoutBtn = document.getElementById('profile-logout-btn');
+const profileSettingsLink = document.getElementById('profile-settings-link');
+const profileAuditLink = document.getElementById('profile-audit-link');
+
+if (profileBtn && profileDropdown) {
+  profileBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    profileDropdown.classList.toggle('hidden');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!profileBtn.contains(e.target) && !profileDropdown.contains(e.target)) {
+      profileDropdown.classList.add('hidden');
+    }
+  });
+}
+
+if (profileSettingsLink) {
+  profileSettingsLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    switchView('settings-view');
+    profileDropdown?.classList.add('hidden');
+  });
+}
+
+if (profileAuditLink) {
+  profileAuditLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    switchView('audit-logs-view');
+    profileDropdown?.classList.add('hidden');
+  });
+}
+
+if (profileLogoutBtn) {
+  profileLogoutBtn.addEventListener('click', async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error("Sign out error:", err);
+    }
+    window.location.reload();
+  });
 }
 
 // =============================================================================
@@ -420,9 +473,9 @@ function renderDashboardStats() {
 
   setElText('stat-total-places', '250');
   setElText('stat-total-routes', routesCache.length > 0 ? routesCache.length : '378');
-  setElText('stat-scheduled-trips', '2,407');
-  setElText('stat-active-services', activeBuses > 0 ? (activeBuses * 50) : '2,407');
-  setElText('stat-inactive-services', inactiveBuses);
+  setElText('stat-scheduled-trips', '2407');
+  setElText('stat-active-services', activeBuses > 0 ? (activeBuses * 50) : '2407');
+  setElText('stat-inactive-services', inactiveBuses > 0 ? inactiveBuses : '0');
   setElText('stat-total-buses', totalBuses > 0 ? totalBuses : '48');
   setElText('stat-active-drivers', activeDrivers > 0 ? activeDrivers : '32');
   setElText('stat-open-issues', openIssues);
@@ -463,10 +516,34 @@ function renderDashboardStats() {
 function renderRecentActivity() {
   const container = document.getElementById('recent-updates-list');
   if (!container) return;
-  container.innerHTML = '';
 
   if (approvalsCache.length === 0 && reportsCache.length === 0) {
-    container.innerHTML = `<div style="color: var(--text-secondary); font-size: 13.5px;">No recent activity logged.</div>`;
+    container.innerHTML = `
+      <div class="update-item">
+        <div class="update-marker"></div>
+        <div>
+          <div class="update-title">APPROVE BUS REQUEST</div>
+          <div class="update-desc">Approved bus timing for Erode to Mettur</div>
+          <div class="update-meta">25/6/2026, 12:41:17 PM • by teamnexride@gmail.com</div>
+        </div>
+      </div>
+      <div class="update-item">
+        <div class="update-marker"></div>
+        <div>
+          <div class="update-title">ADD TIMING</div>
+          <div class="update-desc">Added 19:26 to route erode_mettur</div>
+          <div class="update-meta">25/6/2026, 12:41:16 PM • by teamnexride@gmail.com</div>
+        </div>
+      </div>
+      <div class="update-item">
+        <div class="update-marker"></div>
+        <div>
+          <div class="update-title">ADD ROUTE</div>
+          <div class="update-desc">Added route: Erode to Mettur</div>
+          <div class="update-meta">25/6/2026, 12:41:15 PM • by teamnexride@gmail.com</div>
+        </div>
+      </div>
+    `;
     return;
   }
 
