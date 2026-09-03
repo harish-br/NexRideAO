@@ -570,13 +570,26 @@ document.addEventListener('DOMContentLoaded', () => {
   // Report overlay logic
   const btnReport = document.getElementById('report-card-btn');
   const reportPage = document.getElementById('report-issue-page');
+  const reportBackBtn = document.getElementById('back-report-issue');
 
   if (btnReport) {
     btnReport.addEventListener('click', () => {
       if (window.openReportIssuePage) {
         window.openReportIssuePage();
       } else if (reportPage) {
+        reportPage.style.display = 'flex';
         reportPage.classList.remove('hidden');
+      }
+    });
+  }
+
+  if (reportBackBtn && reportPage) {
+    reportBackBtn.addEventListener('click', () => {
+      if (window.closeReportIssuePage) {
+        window.closeReportIssuePage();
+      } else {
+        reportPage.classList.add('hidden');
+        reportPage.style.display = 'none';
       }
     });
   }

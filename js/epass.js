@@ -411,3 +411,22 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
         }
     }, 100);
 }
+
+// Synchronize E-Pass when user updates profile
+window.addEventListener('nexride:profileUpdated', (e) => {
+    const detail = e.detail || {};
+    const profilePicEl = document.getElementById('epass-profile-pic');
+    const nameEl = document.getElementById('epass-name');
+    
+    if (detail.photoURL && profilePicEl) {
+        profilePicEl.src = detail.photoURL;
+    }
+    if (detail.name && nameEl && detail.name !== 'User') {
+        nameEl.textContent = detail.name.toUpperCase();
+    }
+    if (auth && auth.currentUser) {
+        barcodeLoaded = false;
+        fetchAndRenderPass(auth.currentUser.uid).catch(err => console.warn('[EPass] Sync error:', err));
+    }
+});
+

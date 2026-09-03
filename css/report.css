@@ -51,6 +51,7 @@
 #report-issue-page:not(.hidden),
 #my-reports-page:not(.hidden),
 #report-details-page:not(.hidden) {
+  display: flex !important;
   transform: translateY(0) !important;
   pointer-events: auto !important;
   visibility: visible !important;
@@ -59,6 +60,7 @@
 #report-issue-page.hidden,
 #my-reports-page.hidden,
 #report-details-page.hidden {
+  display: none !important;
   transform: translateY(100%) !important;
   pointer-events: none !important;
   visibility: hidden !important;
@@ -400,6 +402,14 @@ input[type="datetime-local"].report-text-input:focus {
   background-color: #FFFFFF;
   border-color: #2563EB;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.report-field-error,
+.report-text-input.report-field-error,
+.report-textarea-input.report-field-error,
+.report-select-input.report-field-error {
+  /* Neutral: No color changes, no red borders or backgrounds per specification */
+  outline: none;
 }
 
 .report-textarea,

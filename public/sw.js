@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexride-cache-v7';
+const CACHE_NAME = 'nexride-cache-v16';
 const urlsToCache = [
   '/',
   '/index.html',

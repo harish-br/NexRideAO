@@ -1131,11 +1131,53 @@ function buildSupportTicketSummaryCard(draft) {
   };
 }
 
+function validateChatDraft(draft) {
+  if (!draft) return 'Report information is missing';
+  const cat = (draft.category || '').toUpperCase();
+
+  if (cat === 'DELAY') {
+    if (!draft.busNumber) return 'bus number';
+    if (!draft.routeName && !draft.routeId) return 'route';
+    if (!draft.stop && !draft.location) return 'waiting stop / stage';
+    if (!draft.expectedTime) return 'expected arrival time';
+    if (!draft.actualTime) return 'actual arrival time';
+  } else if (cat === 'NOT_AVAILABLE') {
+    if (!draft.routeName && !draft.routeId) return 'route';
+    if (!draft.stop && !draft.location) return 'waiting stop / stage';
+    if (!draft.expectedTime) return 'scheduled time';
+  } else if (cat === 'DRIVER') {
+    if (!draft.busNumber) return 'bus number';
+    if (!draft.routeName && !draft.routeId) return 'route';
+    if (!draft.driverName) return 'driver name';
+  } else if (cat === 'BUS') {
+    if (!draft.busNumber) return 'bus number';
+  } else if (cat === 'ROUTE') {
+    if (!draft.routeName && !draft.routeId) return 'route';
+    if (!draft.stop && !draft.location) return 'stop location';
+  }
+
+  if (!draft.description && !draft.aiSummary) return 'detailed description of the issue';
+  return null;
+}
+
 // =============================================================================
 // TICKET SUBMISSION & FIRESTORE INTEGRATION
 // =============================================================================
 export async function submitSupportTicket() {
   if (isSubmitted || !currentDraft) return;
+
+  // Independent mandatory validation of structured draft
+  const missingField = validateChatDraft(currentDraft);
+  if (missingField) {
+    conversationMessages.push({
+      id: 'msg_' + Date.now(),
+      sender: 'AI',
+      text: `Before submitting, could you please provide the ${missingField}?`,
+      timestamp: formatCurrentTime()
+    });
+    renderMessages();
+    return;
+  }
 
   isSubmitted = true;
   isAiThinking = true;
@@ -1158,15 +1200,18 @@ export async function submitSupportTicket() {
 
     const catObj = SUPPORT_CATEGORIES[currentDraft.category] || SUPPORT_CATEGORIES.OTHER;
 
-    // Structured Support Ticket Document
+    // Structured Support Ticket Document (Standardized Reports Schema)
     const ticketDoc = {
-      ticketId: ticketId,
+      reportId: ticketId,
       reportNumber: ticketId,
+      ticketId: ticketId,
       userId: uid,
       userName: userName,
+      userPhone: userProfile?.phone || user?.phoneNumber || '',
       userEmail: userEmail,
       userRole: userRole,
       category: currentDraft.category || 'OTHER',
+      categoryName: catObj.name,
       categoryLabel: catObj.name,
       subcategory: currentDraft.subcategory || 'General Issue',
       title: `Report of ${currentDraft.subcategory || catObj.name}`,
@@ -1174,7 +1219,7 @@ export async function submitSupportTicket() {
       description: currentDraft.aiSummary || generateFactualTicketSummary(currentDraft),
       rawDescription: currentDraft.description || '',
       severity: currentDraft.severity || 'MEDIUM',
-      status: 'OPEN',
+      status: 'Submitted',
       priority: currentDraft.priority || 'NORMAL',
       busId: currentDraft.busId || (currentDraft.busNumber ? `bus_${currentDraft.busNumber}` : ''),
       busNumber: currentDraft.busNumber || '',
@@ -1184,8 +1229,8 @@ export async function submitSupportTicket() {
       location: currentDraft.location || currentDraft.stop || '',
       driverId: null,
       driverName: currentDraft.driverName || 'Unknown',
-      incidentDate: currentDraft.incidentDate,
-      incidentTime: currentDraft.incidentTime,
+      incidentDate: currentDraft.incidentDate || new Date().toISOString().split('T')[0],
+      incidentTime: currentDraft.incidentTime || '',
       expectedTime: currentDraft.expectedTime || '',
       actualTime: currentDraft.actualTime || '',
       evidenceUrls: attachmentPayload,
@@ -1194,16 +1239,30 @@ export async function submitSupportTicket() {
       aiSummary: currentDraft.aiSummary || generateFactualTicketSummary(currentDraft),
       recommendedDepartment: currentDraft.recommendedDepartment || 'Transport Operations',
       recommendedPriority: currentDraft.severity || 'MEDIUM',
+      assignedTo: null,
+      assignedAt: null,
       assignedAdminId: null,
       assignedTeam: null,
-      resolution: null,
+      adminResponse: null,
+      adminResponseAt: null,
+      adminReply: null,
       resolvedAt: null,
+      closedAt: null,
+      conversationId: ticketId,
       createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+      updatedAt: serverTimestamp(),
+      statusHistory: [
+        {
+          status: 'Submitted',
+          timestamp: new Date().toISOString(),
+          message: 'Report received and registered in system via AI Assistant.'
+        }
+      ]
     };
 
     if (db) {
       await setDoc(doc(db, 'supportTickets', ticketId), ticketDoc);
+      await setDoc(doc(db, 'reports', ticketId), ticketDoc);
 
       for (const msg of conversationMessages) {
         await addDoc(collection(db, 'supportTickets', ticketId, 'messages'), {
@@ -1213,21 +1272,28 @@ export async function submitSupportTicket() {
         });
       }
 
-      await addDoc(collection(db, 'supportTickets', ticketId, 'activity'), {
-        action: 'TICKET_CREATED',
-        from: null,
-        to: 'OPEN',
+      await addDoc(collection(db, 'reports', ticketId, 'activity'), {
+        action: 'REPORT_SUBMITTED',
+        status: 'Submitted',
         performedBy: uid,
         timestamp: serverTimestamp()
       });
 
-      await setDoc(doc(db, 'reports', ticketId), ticketDoc);
+      await addDoc(collection(db, 'supportTickets', ticketId, 'activity'), {
+        action: 'TICKET_CREATED',
+        from: null,
+        to: 'Submitted',
+        performedBy: uid,
+        timestamp: serverTimestamp()
+      });
 
       if (uid && uid !== 'student_guest') {
         await addDoc(collection(db, 'users', uid, 'notifications'), {
-          title: 'Ticket Submitted',
-          body: `Your ticket ${ticketId} (${catObj.name}) has been created and assigned for review.`,
-          type: 'ticket',
+          title: 'Report Submitted',
+          body: `Your report ${ticketId} (${catObj.name}) has been created and logged for review.`,
+          type: 'report_status',
+          reportId: ticketId,
+          reportNumber: ticketId,
           ticketId: ticketId,
           read: false,
           createdAt: serverTimestamp()
@@ -1282,14 +1348,12 @@ export async function submitSupportTicket() {
   }
 }
 
-// Generate Unique Ticket ID: NR-{YYYYMMDD}-{random 5 digits}
+// Generate Unique Report/Ticket ID: NXR-{YYYY}-{random 6 digits}
 function generateTicketId() {
   const d = new Date();
   const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const randNum = String(Math.floor(10000 + Math.random() * 90000)).padStart(5, '0');
-  return `NR-${yyyy}${mm}${dd}-${randNum}`;
+  const randNum = String(Math.floor(100000 + Math.random() * 900000));
+  return `NXR-${yyyy}-${randNum}`;
 }
 
 // =============================================================================

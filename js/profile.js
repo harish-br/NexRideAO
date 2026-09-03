@@ -1,9 +1,10 @@
 import { auth, firestore, storage } from './firebase-config.js';
-import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
+import { onAuthStateChanged, updateProfile } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
 
 let currentUser = null;
+let processedPhoto = null; // { dataUrl: string, blob: Blob }
 
 // Personal Info DOM
 const valName = document.getElementById('val-name');
@@ -13,6 +14,9 @@ const valEmail = document.getElementById('val-email');
 const phoneBadge = document.getElementById('val-phone-badge');
 const phoneVerifiedText = document.getElementById('val-phone-verified-text');
 const piEditBtn = document.getElementById('pi-edit-btn');
+const piAvatarCustom = document.getElementById('pi-avatar-custom');
+const piProfileImg = document.getElementById('pi-profile-img');
+const piDefaultSvg = document.getElementById('pi-default-svg');
 const profileUserNameDisplay = document.getElementById('profile-user-name-display');
 
 // Update Profile DOM
@@ -32,7 +36,22 @@ const upPhotoContainer = document.getElementById('up-photo-container');
 const upInputPhoto = document.getElementById('up-input-photo');
 const upProfilePreview = document.getElementById('up-profile-preview');
 const upDefaultSvg = document.getElementById('up-default-svg');
-let selectedPhotoFile = null;
+
+// Clickable Personal Info rows to edit profile
+const rowName = document.getElementById('row-name');
+const rowGender = document.getElementById('row-gender');
+const rowEmail = document.getElementById('row-email');
+
+// Initial cached load for instantaneous zero-flicker UI
+try {
+    const cachedProfile = localStorage.getItem('nexride_user_profile');
+    if (cachedProfile) {
+        const cachedData = JSON.parse(cachedProfile);
+        applyProfileData(cachedData);
+    }
+} catch (e) {
+    console.warn("[Profile] Error reading cached profile:", e);
+}
 
 // Initial Load / Auth State
 if (auth) {
@@ -40,11 +59,11 @@ if (auth) {
         if (user) {
             currentUser = user;
             if (user.phoneNumber) {
-                valPhone.textContent = user.phoneNumber;
-                phoneBadge.style.display = 'inline-block';
-                phoneVerifiedText.style.display = 'inline-block';
-                upInputPhone.value = user.phoneNumber;
-            } else {
+                if (valPhone) valPhone.textContent = user.phoneNumber;
+                if (phoneBadge) phoneBadge.style.display = 'inline-block';
+                if (phoneVerifiedText) phoneVerifiedText.style.display = 'inline-block';
+                if (upInputPhone) upInputPhone.value = user.phoneNumber;
+            } else if (valPhone) {
                 valPhone.textContent = "Not verified";
             }
             await fetchUserProfile(user.uid);
@@ -57,28 +76,99 @@ if (auth) {
     console.warn("Auth not initialized. Using default profile state.");
 }
 
+/**
+ * Updates all profile images across the entire app
+ */
+function updateAllProfileImages(photoUrl) {
+    if (photoUrl) {
+        if (mainProfileImg) {
+            mainProfileImg.src = photoUrl;
+            mainProfileImg.classList.remove('hidden');
+        }
+        if (defaultProfileSvg) defaultProfileSvg.classList.add('hidden');
+
+        if (piProfileImg) {
+            piProfileImg.src = photoUrl;
+            piProfileImg.classList.remove('hidden');
+        }
+        if (piDefaultSvg) piDefaultSvg.classList.add('hidden');
+
+        if (upProfilePreview) {
+            upProfilePreview.src = photoUrl;
+            upProfilePreview.classList.remove('hidden');
+        }
+        if (upDefaultSvg) upDefaultSvg.classList.add('hidden');
+
+        const epassPic = document.getElementById('epass-profile-pic');
+        if (epassPic) {
+            epassPic.src = photoUrl;
+        }
+    } else {
+        if (mainProfileImg) {
+            mainProfileImg.src = "";
+            mainProfileImg.classList.add('hidden');
+        }
+        if (defaultProfileSvg) defaultProfileSvg.classList.remove('hidden');
+
+        if (piProfileImg) {
+            piProfileImg.src = "";
+            piProfileImg.classList.add('hidden');
+        }
+        if (piDefaultSvg) piDefaultSvg.classList.add('hidden');
+
+        if (upProfilePreview) {
+            upProfilePreview.src = "";
+            upProfilePreview.classList.add('hidden');
+        }
+        if (upDefaultSvg) upDefaultSvg.classList.remove('hidden');
+    }
+}
+
+/**
+ * Applies profile data fields to DOM elements
+ */
+function applyProfileData(data) {
+    if (!data) return;
+
+    const hasCustomName = data.name && data.name !== "User" && data.name !== "Add your name";
+    if (valName) valName.textContent = hasCustomName ? data.name : "Add your name";
+    if (profileUserNameDisplay) profileUserNameDisplay.textContent = hasCustomName ? data.name : "User";
+
+    if (data.gender && valGender) {
+        valGender.textContent = data.gender;
+    }
+    if (data.email && valEmail) {
+        valEmail.textContent = data.email;
+        valEmail.style.color = '#111111';
+    }
+    if (data.phone && valPhone) {
+        valPhone.textContent = data.phone;
+        if (phoneBadge) phoneBadge.style.display = 'inline-block';
+        if (phoneVerifiedText) phoneVerifiedText.style.display = 'inline-block';
+        if (upInputPhone) upInputPhone.value = data.phone;
+    }
+
+    const photo = data.photoURL || data.profilePic || data.avatar || null;
+    if (photo) {
+        updateAllProfileImages(photo);
+    }
+}
+
 function resetToDefault() {
-    valName.textContent = "Add your name";
+    if (valName) valName.textContent = "Add your name";
     if (profileUserNameDisplay) profileUserNameDisplay.textContent = "User";
-    valGender.textContent = "Select gender";
-    valEmail.textContent = "Add email";
-    valEmail.style.color = '#1A73E8';
-    valPhone.textContent = "";
-
-    if (mainProfileImg) {
-        mainProfileImg.src = "";
-        mainProfileImg.classList.add('hidden');
+    if (valGender) valGender.textContent = "Select gender";
+    if (valEmail) {
+        valEmail.textContent = "Add email";
+        valEmail.style.color = '#1A73E8';
     }
-    if (defaultProfileSvg) defaultProfileSvg.classList.remove('hidden');
+    if (valPhone) valPhone.textContent = "";
+    if (phoneBadge) phoneBadge.style.display = 'none';
+    if (phoneVerifiedText) phoneVerifiedText.style.display = 'none';
+    if (upInputPhone) upInputPhone.value = "";
 
-    if (upProfilePreview) {
-        upProfilePreview.src = "";
-        upProfilePreview.classList.add('hidden');
-    }
-    if (upDefaultSvg) upDefaultSvg.classList.remove('hidden');
-    phoneBadge.style.display = 'none';
-    phoneVerifiedText.style.display = 'none';
-    upInputPhone.value = "";
+    updateAllProfileImages(null);
+    processedPhoto = null;
 }
 
 async function fetchUserProfile(uid) {
@@ -89,211 +179,360 @@ async function fetchUserProfile(uid) {
 
         if (docSnap.exists()) {
             const data = docSnap.data();
+            applyProfileData(data);
+
+            // Update local cache
+            try {
+                localStorage.setItem('nexride_user_profile', JSON.stringify({ ...data, uid }));
+            } catch (e) {}
 
             const isNewUser = (!data.name || data.name === "User" || data.name === "Add your name");
+            if (isNewUser) {
+                openUpdateProfile(true);
+            }
 
-            if (data.name && data.name !== "User") {
-                valName.textContent = data.name;
-                if (profileUserNameDisplay) profileUserNameDisplay.textContent = data.name;
-            }
-            if (data.gender) valGender.textContent = data.gender;
-            if (data.email) {
-                valEmail.textContent = data.email;
-                valEmail.style.color = '#111111';
-            }
-            if (data.photoURL) {
-                if (mainProfileImg) {
-                    mainProfileImg.src = data.photoURL;
-                    mainProfileImg.classList.remove('hidden');
-                }
-                if (defaultProfileSvg) defaultProfileSvg.classList.add('hidden');
-
-                if (upProfilePreview) {
-                    upProfilePreview.src = data.photoURL;
-                    upProfilePreview.classList.remove('hidden');
-                }
-                if (upDefaultSvg) upDefaultSvg.classList.add('hidden');
-            }
-            // Update lastLogin
-            const updatePromise = setDoc(docRef, { lastLogin: serverTimestamp() }, { merge: true });
-            const timeoutPromise1 = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
-            await Promise.race([updatePromise, timeoutPromise1]).catch(e => console.warn("Background update lastLogin timeout", e));
+            // Update lastLogin in background without blocking
+            setDoc(docRef, { lastLogin: serverTimestamp() }, { merge: true }).catch(e => 
+                console.warn("[Profile] Background lastLogin update failed:", e)
+            );
         } else {
             // Create default user profile in database
-            const createPromise = setDoc(docRef, {
+            const defaultData = {
                 uid: uid,
                 phone: currentUser && currentUser.phoneNumber ? currentUser.phoneNumber : "",
                 name: "User",
                 photoURL: null,
                 createdAt: serverTimestamp(),
                 lastLogin: serverTimestamp()
-            });
+            };
+
+            const createPromise = setDoc(docRef, defaultData);
             const timeoutPromise2 = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
-            await Promise.race([createPromise, timeoutPromise2]).catch(e => console.warn("Background create profile timeout", e));
+            await Promise.race([createPromise, timeoutPromise2]).catch(e => 
+                console.warn("[Profile] Background create profile timeout:", e)
+            );
 
             console.log("[DEBUG] Default user profile created in Firestore.");
-
-            // New User flow: Automatically push the Update Profile screen forcefully
             openUpdateProfile(true);
         }
-
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            const isNewUser = (!data.name || data.name === "User" || data.name === "Add your name");
-            if (isNewUser) {
-                openUpdateProfile(true);
-            }
-        }
     } catch (err) {
-        console.error("Error fetching profile:", err);
+        console.error("[Profile] Error fetching profile:", err);
     }
 }
 
-// Navigation Logic
-piEditBtn.addEventListener('click', () => {
-    if (!currentUser) {
-        // Simulating edit flow for demo if not logged in
-        console.warn("User not logged in. Opening in local simulation mode.");
-        openUpdateProfile();
-        return;
-    }
-    openUpdateProfile();
-});
+/**
+ * Compresses and center-crops an image file to a lightweight square avatar.
+ * Target: Max 400x400 square JPEG, quality 0.85 (typically ~15KB - 30KB).
+ */
+function processProfileImage(file, maxDimension = 400, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+        if (!file || !file.type.startsWith('image/')) {
+            return reject(new Error('Please select a valid image file.'));
+        }
 
-// Photo Upload Preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    let { width, height } = img;
+
+                    // Crop to square from center
+                    const minDim = Math.min(width, height);
+                    const startX = (width - minDim) / 2;
+                    const startY = (height - minDim) / 2;
+
+                    const finalDim = Math.min(minDim, maxDimension);
+                    canvas.width = finalDim;
+                    canvas.height = finalDim;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+
+                    // Draw center square crop
+                    ctx.drawImage(
+                        img,
+                        startX, startY, minDim, minDim,
+                        0, 0, finalDim, finalDim
+                    );
+
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    canvas.toBlob((blob) => {
+                        resolve({ dataUrl, blob: blob || file });
+                    }, 'image/jpeg', quality);
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            img.onerror = () => reject(new Error('Failed to load image.'));
+            img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error('Failed to read file.'));
+        reader.readAsDataURL(file);
+    });
+}
+
+// Navigation & Trigger Listeners
+if (piEditBtn) {
+    piEditBtn.addEventListener('click', () => openUpdateProfile());
+}
+if (piAvatarCustom) {
+    piAvatarCustom.addEventListener('click', () => openUpdateProfile());
+}
+if (rowName) {
+    rowName.addEventListener('click', () => openUpdateProfile());
+}
+if (rowGender) {
+    rowGender.addEventListener('click', () => openUpdateProfile());
+}
+if (rowEmail) {
+    rowEmail.addEventListener('click', () => openUpdateProfile());
+}
+
+// Photo Upload Selection & Instant Preview
 if (upPhotoContainer && upInputPhoto) {
     upPhotoContainer.addEventListener('click', () => {
         upInputPhoto.click();
     });
 
-    upInputPhoto.addEventListener('change', (e) => {
+    upInputPhoto.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (file) {
-            selectedPhotoFile = file;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                upProfilePreview.src = e.target.result;
-                upProfilePreview.classList.remove('hidden');
-                upDefaultSvg.classList.add('hidden');
-            };
-            reader.readAsDataURL(file);
+            try {
+                // Show immediate temporary preview while processing
+                const tempUrl = URL.createObjectURL(file);
+                if (upProfilePreview) {
+                    upProfilePreview.src = tempUrl;
+                    upProfilePreview.classList.remove('hidden');
+                }
+                if (upDefaultSvg) upDefaultSvg.classList.add('hidden');
+
+                // Process and optimize image
+                processedPhoto = await processProfileImage(file);
+                if (upProfilePreview) {
+                    upProfilePreview.src = processedPhoto.dataUrl;
+                }
+            } catch (err) {
+                console.error("[Profile] Error processing photo:", err);
+                showError("Invalid image file. Please try another image.");
+            }
         }
     });
 }
 
-upBackBtn.addEventListener('click', closeUpdateProfile);
+if (upBackBtn) {
+    upBackBtn.addEventListener('click', closeUpdateProfile);
+}
 
 function openUpdateProfile(force = false) {
-    upErrorMsg.classList.add('hidden');
+    if (upErrorMsg) upErrorMsg.classList.add('hidden');
 
-    if (force) {
-        upBackBtn.style.display = 'none'; // Hide back button for new users
-    } else {
-        upBackBtn.style.display = 'block'; // Show it for existing users
+    if (upBackBtn) {
+        if (force) {
+            upBackBtn.style.display = 'none'; // Hide back button for new users
+        } else {
+            upBackBtn.style.display = 'block'; // Show it for existing users
+        }
     }
 
     // Pre-fill inputs
-    upInputName.value = valName.textContent !== "Add your name" ? valName.textContent : "";
-    upInputEmail.value = valEmail.textContent !== "Add email" ? valEmail.textContent : "";
-    upInputGender.value = valGender.textContent !== "Select gender" ? valGender.textContent : "Male";
-
-    if (currentUser && currentUser.phoneNumber) {
+    if (upInputName) {
+        upInputName.value = (valName && valName.textContent !== "Add your name") ? valName.textContent : "";
+    }
+    if (upInputEmail) {
+        upInputEmail.value = (valEmail && valEmail.textContent !== "Add email") ? valEmail.textContent : "";
+    }
+    if (upInputGender) {
+        upInputGender.value = (valGender && valGender.textContent !== "Select gender") ? valGender.textContent : "Male";
+    }
+    if (currentUser && currentUser.phoneNumber && upInputPhone) {
         upInputPhone.value = currentUser.phoneNumber;
     }
 
-    updateProfilePage.classList.remove('hidden');
+    // Ensure preview matches current photo
+    const currentPhoto = (mainProfileImg && !mainProfileImg.classList.contains('hidden')) ? mainProfileImg.src : null;
+    if (currentPhoto && upProfilePreview && upDefaultSvg) {
+        upProfilePreview.src = currentPhoto;
+        upProfilePreview.classList.remove('hidden');
+        upDefaultSvg.classList.add('hidden');
+    }
+
+    if (updateProfilePage) {
+        updateProfilePage.classList.remove('hidden');
+    }
 }
 
 function closeUpdateProfile() {
-    updateProfilePage.classList.add('hidden');
+    if (updateProfilePage) {
+        updateProfilePage.classList.add('hidden');
+    }
+    processedPhoto = null;
+    if (upInputPhoto) upInputPhoto.value = '';
 }
 
+
 // Save Logic
-upContinueBtn.addEventListener('click', async () => {
-    const newName = upInputName.value.trim();
-    const newEmail = upInputEmail.value.trim();
-    const newGender = upInputGender.value;
+if (upContinueBtn) {
+    upContinueBtn.addEventListener('click', async () => {
+        const newName = upInputName ? upInputName.value.trim() : '';
+        const newEmail = upInputEmail ? upInputEmail.value.trim() : '';
+        const newGender = upInputGender ? upInputGender.value : 'Male';
 
-    if (newName === '') {
-        showError("Full Name cannot be empty.");
-        return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (newEmail === '' || !emailRegex.test(newEmail)) {
-        showError("Please enter a valid email address.");
-        return;
-    }
+        if (newName === '') {
+            showError("Full Name cannot be empty.", upInputName);
+            return;
+        }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (newEmail === '' || !emailRegex.test(newEmail)) {
+            showError("Please enter a valid email address.", upInputEmail);
+            return;
+        }
 
-    upErrorMsg.classList.add('hidden');
-    upContinueBtn.textContent = "Saving...";
-    upContinueBtn.style.opacity = "0.7";
-    upContinueBtn.disabled = true;
+        if (upErrorMsg) upErrorMsg.classList.add('hidden');
+        upContinueBtn.innerHTML = `
+            <svg class="up-btn-spinner" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" stroke-dasharray="38" stroke-linecap="round"></circle>
+            </svg>
+        `;
+        upContinueBtn.style.opacity = "0.85";
+        upContinueBtn.disabled = true;
 
-    try {
-        const data = {
-            name: newName,
-            email: newEmail,
-            gender: newGender,
-            updatedAt: serverTimestamp()
-        };
+        try {
+            const data = {
+                name: newName,
+                email: newEmail,
+                gender: newGender,
+                updatedAt: serverTimestamp()
+            };
 
-        if (valName.textContent === "Add your name" && valEmail.textContent === "Add email") {
-            data.createdAt = serverTimestamp();
-            if (currentUser && currentUser.phoneNumber) {
-                data.phone = currentUser.phoneNumber;
+            if (valName && valName.textContent === "Add your name" && valEmail && valEmail.textContent === "Add email") {
+                data.createdAt = serverTimestamp();
+                if (currentUser && currentUser.phoneNumber) {
+                    data.phone = currentUser.phoneNumber;
+                }
             }
-        }
 
-        if (selectedPhotoFile && storage && currentUser) {
-            upContinueBtn.textContent = "Uploading photo...";
-            const photoRef = ref(storage, `profile_photos/${currentUser.uid}`);
-            await uploadBytes(photoRef, selectedPhotoFile);
-            const downloadURL = await getDownloadURL(photoRef);
-            data.photoURL = downloadURL;
-        }
+            // Handle photo upload with resilient dual-storage strategy
+            if (processedPhoto) {
+                let photoUrlToSave = processedPhoto.dataUrl; // Guaranteed fallback (compressed 20KB base64)
 
-        if (firestore && currentUser) {
-            const docRef = doc(firestore, 'users', currentUser.uid);
-            console.log("[DEBUG] Calling setDoc for user:", currentUser.uid);
+                if (storage && currentUser) {
+                    try {
+                        const photoRef = ref(storage, `profile_photos/${currentUser.uid}.jpg`);
+                        
+                        // Strict 4s timeout for Storage upload to prevent hanging
+                        const uploadPromise = uploadBytes(photoRef, processedPhoto.blob, {
+                            contentType: 'image/jpeg'
+                        });
+                        const storageTimeout = new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error("Storage upload timed out")), 4000)
+                        );
+                        await Promise.race([uploadPromise, storageTimeout]);
 
-            const savePromise = setDoc(docRef, data, { merge: true });
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Timeout: Could not reach Firebase. Check if your Firestore database is created in the console and your internet is stable.")), 10000)
-            );
+                        const downloadUrlPromise = getDownloadURL(photoRef);
+                        const urlTimeout = new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error("URL fetch timed out")), 3000)
+                        );
+                        const downloadURL = await Promise.race([downloadUrlPromise, urlTimeout]);
 
-            await Promise.race([savePromise, timeoutPromise]);
-            console.log("[DEBUG] setDoc successful!");
-        } else {
-            console.warn("Firestore/Auth not initialized. Simulating save locally.");
-        }
+                        if (downloadURL) {
+                            photoUrlToSave = downloadURL;
+                            console.log("[Profile] Photo stored in Firebase Storage successfully:", downloadURL);
+                        }
+                    } catch (storageErr) {
+                        console.warn("[Profile] Storage upload skipped/failed; saving optimized image to Firestore directly:", storageErr?.message || storageErr);
+                        photoUrlToSave = processedPhoto.dataUrl;
+                    }
+                }
 
-        // Update Personal Info UI locally
-        valName.textContent = newName;
-        if (profileUserNameDisplay) profileUserNameDisplay.textContent = newName;
-        valGender.textContent = newGender;
-        valEmail.textContent = newEmail;
-        valEmail.style.color = '#111111';
-
-        if (data.photoURL) {
-            if (mainProfileImg) {
-                mainProfileImg.src = data.photoURL;
-                mainProfileImg.classList.remove('hidden');
+                data.photoURL = photoUrlToSave;
+                data.profilePic = photoUrlToSave;
+                data.avatar = photoUrlToSave;
             }
-            if (defaultProfileSvg) defaultProfileSvg.classList.add('hidden');
+
+            // Save to Firestore
+            if (firestore && currentUser) {
+                const docRef = doc(firestore, 'users', currentUser.uid);
+                console.log("[Profile] Saving user profile to Firestore:", currentUser.uid);
+
+                const savePromise = setDoc(docRef, data, { merge: true });
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Timeout: Could not reach Firestore. Please check your internet connection.")), 8000)
+                );
+
+                await Promise.race([savePromise, timeoutPromise]);
+                console.log("[Profile] Profile saved to Firestore successfully!");
+            } else {
+                console.warn("[Profile] Firestore or Auth not active. Simulating save locally.");
+            }
+
+            // Sync with Firebase Auth Profile
+            if (auth && auth.currentUser) {
+                try {
+                    await updateProfile(auth.currentUser, {
+                        displayName: newName,
+                        photoURL: data.photoURL || auth.currentUser.photoURL || null
+                    });
+                } catch (authProfErr) {
+                    console.warn("[Profile] Auth updateProfile notice:", authProfErr?.message);
+                }
+            }
+
+            // Update local storage cache
+            try {
+                const existing = JSON.parse(localStorage.getItem('nexride_user_profile') || '{}');
+                const merged = { ...existing, ...data, name: newName, email: newEmail, gender: newGender };
+                if (data.photoURL) merged.photoURL = data.photoURL;
+                localStorage.setItem('nexride_user_profile', JSON.stringify(merged));
+            } catch (e) {}
+
+            // Update UI elements across app
+            applyProfileData({
+                ...data,
+                name: newName,
+                email: newEmail,
+                gender: newGender,
+                photoURL: data.photoURL || (mainProfileImg && mainProfileImg.src) || null
+            });
+
+            // Dispatch global event for other components (like epass)
+            window.dispatchEvent(new CustomEvent('nexride:profileUpdated', {
+                detail: {
+                    ...data,
+                    name: newName,
+                    email: newEmail,
+                    gender: newGender,
+                    uid: currentUser?.uid
+                }
+            }));
+
+            closeUpdateProfile();
+        } catch (err) {
+            console.error("[Profile] Error saving profile:", err);
+            showError("Error: " + (err.message || "Failed to save profile."));
+        } finally {
+            upContinueBtn.innerHTML = "Continue";
+            upContinueBtn.style.opacity = "1";
+            upContinueBtn.disabled = false;
         }
+    });
+}
 
-        closeUpdateProfile();
-    } catch (err) {
-        console.error("Error saving to Firestore:", err);
-        showError("Error: " + (err.message || "Failed to save."));
-    } finally {
-        upContinueBtn.textContent = "Continue";
-        upContinueBtn.style.opacity = "1";
-        upContinueBtn.disabled = false;
+function showError(msg, focusEl = null) {
+    if (upErrorMsg) {
+        upErrorMsg.textContent = msg;
+        upErrorMsg.classList.remove('hidden');
     }
-});
-
-function showError(msg) {
-    upErrorMsg.textContent = msg;
-    upErrorMsg.classList.remove('hidden');
+    if (focusEl) {
+        focusEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+            focusEl.focus();
+            if (typeof focusEl.setSelectionRange === 'function') {
+                const len = focusEl.value.length;
+                focusEl.setSelectionRange(len, len);
+            }
+        }, 120);
+    }
 }

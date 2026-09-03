@@ -891,20 +891,24 @@ function wireNavigation() {
       if (window.openReportIssuePage) {
         window.openReportIssuePage();
       } else {
-        openPage(pages.report);
+        var repPage = document.getElementById('report-issue-page');
+        if (repPage) {
+          repPage.style.display = 'flex';
+          repPage.classList.remove('hidden');
+        }
       }
     });
   }
   var backReport = el('back-hs-report');
   if (backReport) {
     backReport.addEventListener('click', function() {
-      closePage(pages.report);
-      var successEl = el('hs-report-success');
-      var formEl    = el('hs-report-form-content');
-      var footerEl  = el('hs-report-form-content-footer');
-      if (successEl) { successEl.style.display = 'none'; successEl.classList.add('hidden'); }
-      if (formEl)    formEl.style.display = 'block';
-      if (footerEl)  footerEl.style.display = 'block';
+      if (window.closeReportIssuePage) {
+        window.closeReportIssuePage();
+      }
+      var hsRep = el('hs-report-page');
+      if (hsRep) { hsRep.classList.add('hidden'); hsRep.style.display = 'none'; }
+      var repPage = document.getElementById('report-issue-page');
+      if (repPage) { repPage.classList.add('hidden'); repPage.style.display = 'none'; }
     });
   }
 
@@ -959,7 +963,7 @@ function init() {
   // Refresh page refs (DOM is ready at this point)
   pages.helpSupport  = el('help-support-page');
   pages.category     = el('hs-category-page');
-  pages.report       = el('hs-report-page');
+  pages.report       = el('report-issue-page') || el('hs-report-page');
   pages.tickets      = el('hs-tickets-page');
   pages.ticketDetail = el('hs-ticket-detail-page');
   pages.chat         = el('hs-chat-page');

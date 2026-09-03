@@ -120,7 +120,21 @@ let myReportsCache = [];
 let allBusesList = [];
 let userProfile = null;
 let isFormDirty = false;
+let isSubmitting = false;
 let userNotifications = [];
+let activeReportDetailId = null;
+
+// Expose immediate top-level global handlers so inline HTML onclicks never fail
+window.hasUnsavedData = () => hasUnsavedData();
+window.handleBackWithDiscardCheck = () => handleBackWithDiscardCheck();
+window.forceCloseReportIssuePage = () => forceCloseReportIssuePage();
+window.validateReport = (draft) => validateReport(draft);
+window.getReportDraft = () => getReportDraft();
+window.handleReportSubmission = () => handleReportSubmission();
+window.openReportIssuePage = () => openReportIssuePage();
+window.closeReportIssuePage = () => handleBackWithDiscardCheck();
+window.openMyReportsPage = () => openMyReportsPage();
+window.openReportDetails = (id) => openReportDetails(id);
 
 // =============================================================================
 // DOM INITIALIZATION
@@ -153,10 +167,21 @@ export function initReportModule() {
   // 4. Render Category Options in Bottom Sheet
   renderCategorySheetOptions();
 
-  // 5. Initialize Form Elements
+  // 5. Pre-render initial category & dynamic fields so inputs exist immediately in DOM
+  selectCategory(selectedCategory || REPORT_CATEGORIES[0]);
+
+  // Pre-fill date/time if not already set
+  const dateInput = document.getElementById('rep-field-datetime');
+  if (dateInput && !dateInput.value) {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    dateInput.value = now.toISOString().slice(0, 16);
+  }
+
+  // 6. Initialize Form Elements
   setupFormListeners();
 
-  // 6. Initialize My Reports Filter Bar
+  // 7. Initialize My Reports Filter Bar
   setupFilterPills();
 }
 
@@ -169,7 +194,15 @@ if (document.readyState === 'loading') {
 
 // Expose to window for global access
 window.openReportIssuePage = openReportIssuePage;
+window.closeReportIssuePage = () => {
+  handleBackWithDiscardCheck();
+};
+window.handleReportSubmission = handleReportSubmission;
+window.resetReportForm = resetReportForm;
+window.showSuccessScreen = showSuccessScreen;
+window.generateReportId = generateReportId;
 window.openMyReportsPage = openMyReportsPage;
+window.closeMyReportsPage = closeMyReportsPage;
 window.openReportDetails = openReportDetails;
 window.openCategoryModal = () => {
   renderCategorySheetOptions();
@@ -237,6 +270,19 @@ function subscribeToMyReports(uid) {
         return timeB - timeA;
       });
       renderMyReportsList();
+
+      // Real-Time Sync: If student is currently viewing a report in details page, update it live
+      if (activeReportDetailId) {
+        const updated = myReportsCache.find(r => 
+          r.id === activeReportDetailId || 
+          r.reportId === activeReportDetailId || 
+          r.reportNumber === activeReportDetailId
+        );
+        const detailsPage = document.getElementById('report-details-page');
+        if (updated && detailsPage && !detailsPage.classList.contains('hidden')) {
+          openReportDetails(updated);
+        }
+      }
     }, (error) => {
       console.warn('[Report] Reports subscription error:', error);
     });
@@ -322,6 +368,7 @@ function bindNavigation() {
   const backReportDetailsBtn = document.getElementById('back-report-details');
   if (backReportDetailsBtn) {
     backReportDetailsBtn.addEventListener('click', () => {
+      activeReportDetailId = null;
       closePage('report-details-page');
     });
   }
@@ -367,6 +414,9 @@ function bindNavigation() {
 export function openReportIssuePage() {
   const page = document.getElementById('report-issue-page');
   if (page) {
+    page.style.display = 'flex';
+    page.classList.remove('hidden');
+
     // Reset dirty state on fresh open
     isFormDirty = false;
 
@@ -385,7 +435,6 @@ export function openReportIssuePage() {
     autoCaptureLocation();
     
     isFormDirty = false;
-    page.classList.remove('hidden');
   }
 }
 
@@ -394,12 +443,23 @@ export function openMyReportsPage() {
   if (page) {
     renderMyReportsList();
     page.classList.remove('hidden');
+    page.style.display = 'flex';
+    page.style.transform = 'translateY(0)';
+    page.style.visibility = 'visible';
+    page.style.pointerEvents = 'auto';
   }
+}
+
+export function closeMyReportsPage() {
+  closePage('my-reports-page');
 }
 
 function closePage(pageId) {
   const page = document.getElementById(pageId);
-  if (page) page.classList.add('hidden');
+  if (page) {
+    page.classList.add('hidden');
+    page.style.display = 'none';
+  }
 }
 
 function showModal(modalId) {
@@ -412,13 +472,126 @@ function hideModal(modalId) {
   if (modal) modal.classList.remove('active');
 }
 
-function handleBackWithDiscardCheck() {
-  if (isFormDirty) {
+export function hasUnsavedData() {
+  const busNum = document.getElementById('rep-field-bus-number');
+  if (busNum && busNum.value.trim()) return true;
+
+  const routeName = document.getElementById('rep-field-route-name');
+  if (routeName && routeName.value.trim()) return true;
+
+  const stopName = document.getElementById('rep-field-stop-name');
+  if (stopName && stopName.value.trim()) return true;
+
+  const subject = document.getElementById('rep-field-subject');
+  if (subject && subject.value.trim()) return true;
+
+  const desc = document.getElementById('rep-field-description');
+  if (desc && desc.value.trim()) return true;
+
+  if (attachedFiles && attachedFiles.length > 0) return true;
+
+  const dynamicInputs = document.querySelectorAll('#rep-dynamic-fields-container input, #rep-dynamic-fields-container textarea');
+  for (const input of dynamicInputs) {
+    if (input.value && input.value.trim()) return true;
+  }
+
+  return false;
+}
+
+export function handleBackWithDiscardCheck() {
+  if (hasUnsavedData()) {
     showModal('report-discard-modal');
   } else {
-    resetReportForm();
-    closePage('report-issue-page');
+    forceCloseReportIssuePage();
   }
+}
+
+export function forceCloseReportIssuePage() {
+  hideModal('report-discard-modal');
+  closePage('report-issue-page');
+  resetReportForm();
+}
+
+export function resetReportForm() {
+  isFormDirty = false;
+  isSubmitting = false;
+
+  const formWrap = document.getElementById('report-form-wrap');
+  const footerBar = document.getElementById('report-footer-bar');
+  const successView = document.getElementById('report-success-view');
+  if (formWrap) formWrap.style.display = '';
+  if (footerBar) footerBar.style.display = '';
+  if (successView) successView.style.display = 'none';
+
+  const submitBtn = document.getElementById('report-submit-btn');
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit Report';
+  }
+
+  // Clear Subject
+  const subjectInput = document.getElementById('rep-field-subject');
+  if (subjectInput) {
+    subjectInput.value = '';
+    const counter = document.getElementById('rep-subject-counter');
+    if (counter) counter.textContent = '0 / 100';
+  }
+
+  // Clear Description
+  const descInput = document.getElementById('rep-field-description');
+  if (descInput) {
+    descInput.value = '';
+    const counter = document.getElementById('rep-desc-counter');
+    if (counter) counter.textContent = '0 / 1000';
+  }
+
+  // Reset Date/time
+  const dateInput = document.getElementById('rep-field-datetime');
+  if (dateInput) {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    dateInput.value = now.toISOString().slice(0, 16);
+  }
+
+  // Clear dynamic fields
+  const dynamicContainer = document.getElementById('rep-dynamic-fields-container');
+  if (dynamicContainer) {
+    const inputs = dynamicContainer.querySelectorAll('input, select, textarea');
+    inputs.forEach(input => input.value = '');
+  }
+
+  // Clear attachments
+  attachedFiles = [];
+  renderAttachmentThumbnails();
+
+  // Reset anonymous checkbox
+  const anonCheck = document.getElementById('rep-field-anonymous');
+  if (anonCheck) anonCheck.checked = false;
+
+  // Reset priority
+  selectedPriority = 'Normal';
+
+  // Reset location
+  capturedLocation = null;
+}
+
+export function showSuccessScreen(reportId) {
+  const formWrap = document.getElementById('report-form-wrap');
+  const footerBar = document.getElementById('report-footer-bar');
+  const successView = document.getElementById('report-success-view');
+  const idVal = document.getElementById('rep-success-id-val');
+
+  if (formWrap) formWrap.style.display = 'none';
+  if (footerBar) footerBar.style.display = 'none';
+  if (successView) successView.style.display = 'flex';
+  if (idVal) idVal.textContent = reportId || 'NXR-2026-000000';
+
+  const page = document.getElementById('report-issue-page');
+  if (page) page.scrollTop = 0;
+}
+
+function showFormError(msg) {
+  if (msg) alert(msg);
 }
 
 // =============================================================================
@@ -625,6 +798,10 @@ function renderDynamicCategoryFields(cat) {
           </div>
         </div>
         <div class="report-input-group">
+          <label class="report-input-label">Waiting Stop / Stage <span class="required-star">*</span></label>
+          <input type="text" id="rep-field-stop-name" class="report-text-input" placeholder="Enter waiting stop" />
+        </div>
+        <div class="report-input-group">
           <label class="report-input-label">Specific Issue Type / Delay Duration</label>
           <input type="text" id="rep-field-delay-duration" class="report-text-input" placeholder="" />
         </div>
@@ -758,7 +935,10 @@ function setupFormListeners() {
   // Submit Button
   const submitBtn = document.getElementById('report-submit-btn');
   if (submitBtn) {
-    submitBtn.addEventListener('click', handleReportSubmission);
+    submitBtn.onclick = (e) => {
+      if (e) e.preventDefault();
+      handleReportSubmission();
+    };
   }
 
   // Success Screen Buttons
@@ -992,246 +1172,389 @@ function ensureLocationCaptured() {
 }
 
 // =============================================================================
-// SUBMISSION LOGIC
+// SUBMISSION & VALIDATION LOGIC (NO COLOR VALIDATION, PLACEHOLDER INDICATION)
 // =============================================================================
-async function handleReportSubmission() {
-  hideFormError();
 
-  const subjectInput = document.getElementById('rep-field-subject');
-  const descInput = document.getElementById('rep-field-description');
-  const dateInput = document.getElementById('rep-field-datetime');
-  const anonCheck = document.getElementById('rep-anon-checkbox');
-  const submitBtn = document.getElementById('report-submit-btn');
-
-  const subject = subjectInput?.value.trim() || '';
-  const description = descInput?.value.trim() || '';
-  const eventDateTime = dateInput?.value || new Date().toISOString();
-  const isAnonymous = anonCheck ? anonCheck.checked : false;
-
-  // Validation
-  if (!subject) {
-    showFormError('Please enter a subject for your report.', subjectInput);
-    return;
-  }
-  if (description.length < 10) {
-    showFormError('Please provide a detailed description (minimum 10 characters).', descInput);
+function indicateMissingField(el, placeholderText) {
+  if (!el) {
+    console.warn('[Report] indicateMissingField called with null element');
     return;
   }
 
-  // Ensure mandatory location is resolved
-  if (!capturedLocation) {
-    await ensureLocationCaptured();
+  // Clear whitespace if user only entered spaces so placeholder is visible
+  if (el.value !== undefined && !el.value.trim()) {
+    el.value = '';
   }
 
-  // Category specific validation
+  // Save original placeholder if not already saved
+  if (el.dataset.originalPlaceholder === undefined && el.placeholder !== undefined) {
+    el.dataset.originalPlaceholder = el.placeholder || '';
+  }
+
+  // Set instructional placeholder
+  if (placeholderText && el.placeholder !== undefined) {
+    el.placeholder = placeholderText;
+  }
+
+  // Explicitly scroll the scroll container #report-form-wrap directly to the element
+  const scrollBody = document.getElementById('report-form-wrap');
+  if (scrollBody && el) {
+    try {
+      const elRect = el.getBoundingClientRect();
+      const bodyRect = scrollBody.getBoundingClientRect();
+      const targetScroll = scrollBody.scrollTop + (elRect.top - bodyRect.top) - (bodyRect.height / 3);
+      scrollBody.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+    } catch (e) {}
+  }
+  try {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } catch (e) {}
+
+  // Focus immediately to place the cursor inside the input box ready for typing
+  setTimeout(() => {
+    try {
+      el.focus({ preventScroll: true });
+      if (typeof el.showPicker === 'function' && (el.type === 'time' || el.type === 'datetime-local' || el.type === 'date')) {
+        try { el.showPicker(); } catch (e) {}
+      }
+    } catch (e) {}
+  }, 100);
+
+  // Auto-restore placeholder as soon as user types or selects a value
+  const onInput = () => {
+    if (el.dataset.originalPlaceholder !== undefined) {
+      el.placeholder = el.dataset.originalPlaceholder;
+    }
+    el.removeEventListener('input', onInput);
+    el.removeEventListener('change', onInput);
+  };
+  el.addEventListener('input', onInput);
+  el.addEventListener('change', onInput);
+}
+
+// =============================================================================
+// STRUCTURED REPORT EXTRACTION & VALIDATION (SECTIONS 6, 7, 8, 9, 10, 11, 12)
+// =============================================================================
+
+export function getReportDraft() {
+  const cat = selectedCategory ? selectedCategory.id : 'bus';
+
   const busNumEl = document.getElementById('rep-field-bus-number');
+  const busNumber = busNumEl ? busNumEl.value.trim() : '';
+
   const routeNameEl = document.getElementById('rep-field-route-name');
-  const busNumber = busNumEl?.value.trim() || '';
-  const routeName = routeNameEl?.value.trim() || '';
-
-  if (selectedCategory.requiresBus && !busNumber) {
-    showFormError('Please enter the bus number.', busNumEl);
-    return;
-  }
-
-  // Extra fields harvest
-  const extraFields = {};
-  const issueTypeEl = document.getElementById('rep-field-issue-type') || 
-                      document.getElementById('rep-field-epass-issue-type') ||
-                      document.getElementById('rep-field-route-issue-type') ||
-                      document.getElementById('rep-field-payment-issue');
-  if (issueTypeEl && issueTypeEl.value.trim()) extraFields.issueType = issueTypeEl.value.trim();
-
-  const driverNameEl = document.getElementById('rep-field-driver-name');
-  if (driverNameEl && driverNameEl.value.trim()) extraFields.driverName = driverNameEl.value.trim();
-
-  const driverBehaviourEl = document.getElementById('rep-field-driver-behaviour');
-  if (driverBehaviourEl && driverBehaviourEl.value.trim()) extraFields.driverBehaviour = driverBehaviourEl.value.trim();
+  const routeName = routeNameEl ? routeNameEl.value.trim() : '';
 
   const stopNameEl = document.getElementById('rep-field-stop-name');
-  if (stopNameEl && stopNameEl.value.trim()) extraFields.stopName = stopNameEl.value.trim();
+  const stop = stopNameEl ? stopNameEl.value.trim() : '';
 
-  const delayDurationEl = document.getElementById('rep-field-delay-duration');
-  if (delayDurationEl && delayDurationEl.value.trim()) extraFields.delayDuration = delayDurationEl.value.trim();
-
-  const epassIdEl = document.getElementById('rep-field-epass-id');
-  if (epassIdEl && epassIdEl.value.trim()) extraFields.epassId = epassIdEl.value.trim();
-
-  const txnIdEl = document.getElementById('rep-field-txn-id');
-  if (txnIdEl && txnIdEl.value.trim()) extraFields.transactionId = txnIdEl.value.trim();
-
-  const amountEl = document.getElementById('rep-field-amount');
-  if (amountEl && amountEl.value) extraFields.amount = amountEl.value;
-
-  const itemCatEl = document.getElementById('rep-field-item-cat');
-  if (itemCatEl && itemCatEl.value.trim()) extraFields.itemCategory = itemCatEl.value.trim();
-
-  const appModuleEl = document.getElementById('rep-field-app-module');
-  if (appModuleEl && appModuleEl.value.trim()) extraFields.appModule = appModuleEl.value.trim();
-
-  // Lock UI for submission
-  submitBtn.disabled = true;
-  submitBtn.innerHTML = `
-    <svg style="animation: spin 1s linear infinite; height: 18px; width: 18px; margin-right: 8px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity:0.25;"></circle>
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-    </svg>
-    Submitting Report…
-  `;
-
-  // Generate Unique Human-Readable Report ID (e.g. NXR-2026-004128)
-  const reportNumber = generateReportId();
-  const user = auth?.currentUser;
-  const uid = user ? user.uid : 'guest_user';
-
-  const reportPayload = {
-    reportNumber: reportNumber,
-    userId: uid,
-    userName: isAnonymous ? 'Anonymous Student' : (userProfile?.name || 'NexRide Student'),
-    userPhone: isAnonymous ? 'Hidden' : (userProfile?.phone || user?.phoneNumber || ''),
-    userEmail: isAnonymous ? 'Hidden' : (userProfile?.email || user?.email || ''),
-    category: selectedCategory.id,
-    categoryName: selectedCategory.name,
-    subject: subject,
-    description: description,
-    busNumber: busNumber,
-    routeName: routeName,
-    priority: selectedPriority,
-    status: 'Submitted',
-    isAnonymous: isAnonymous,
-    eventDateTime: eventDateTime,
-    location: capturedLocation,
-    extraFields: extraFields,
-    attachments: attachedFiles.map(a => a.dataUrl), // data URLs for immediate high-res access
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    statusHistory: [
-      {
-        status: 'Submitted',
-        timestamp: new Date().toISOString(),
-        message: 'Report received and registered in system.'
-      }
-    ],
-    adminResponse: null
-  };
-
-  try {
-    if (db) {
-      const docRef = await addDoc(collection(db, 'reports'), reportPayload);
-      console.log('[Report] Saved with ID:', docRef.id, reportNumber);
-
-      // Create notification for user
-      if (user) {
-        await addDoc(collection(db, 'users', user.uid, 'notifications'), {
-          title: 'Report Submitted',
-          body: `Your report ${reportNumber} (${subject}) has been logged successfully.`,
-          reportId: docRef.id,
-          reportNumber: reportNumber,
-          type: 'report_status',
-          read: false,
-          createdAt: serverTimestamp()
-        });
-      }
-    } else {
-      console.warn('[Report] Firestore not connected. Saving report locally in session.');
-      myReportsCache.unshift({
-        id: 'local_' + Date.now(),
-        ...reportPayload,
-        createdAt: new Date()
-      });
-    }
-
-    isFormDirty = false;
-    showSuccessScreen(reportNumber);
-  } catch (err) {
-    console.error('[Report] Error submitting report:', err);
-    showFormError('Unable to submit your report. Please check your internet connection and try again.');
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Submit Report';
+  const dateInput = document.getElementById('rep-field-datetime');
+  const eventDateTime = dateInput ? dateInput.value : '';
+  let incidentDate = '';
+  let incidentTime = '';
+  if (eventDateTime) {
+    const parts = eventDateTime.split('T');
+    incidentDate = parts[0] || '';
+    incidentTime = parts[1] || '';
   }
-}
 
-function generateReportId() {
-  const year = new Date().getFullYear();
-  const randomSeq = Math.floor(100000 + Math.random() * 900000);
-  return `NXR-${year}-${randomSeq}`;
-}
+  const expectedTimeEl = document.getElementById('rep-field-expected-time');
+  const expectedTime = expectedTimeEl ? expectedTimeEl.value : '';
 
-function showSuccessScreen(reportNumber) {
-  const formWrap = document.getElementById('report-form-wrap');
-  const footerBar = document.getElementById('report-footer-bar');
-  const successView = document.getElementById('report-success-view');
-  const idValEl = document.getElementById('rep-success-id-val');
+  const actualTimeEl = document.getElementById('rep-field-actual-time');
+  const actualTime = actualTimeEl ? actualTimeEl.value : '';
 
-  if (formWrap) formWrap.style.display = 'none';
-  if (footerBar) footerBar.style.display = 'none';
-  if (idValEl) idValEl.textContent = reportNumber;
-  if (successView) successView.style.display = 'flex';
-}
+  const schedTimeEl = document.getElementById('rep-field-scheduled-time');
+  const scheduledTime = schedTimeEl ? schedTimeEl.value : '';
 
-function resetReportForm() {
-  const formWrap = document.getElementById('report-form-wrap');
-  const footerBar = document.getElementById('report-footer-bar');
-  const successView = document.getElementById('report-success-view');
-
-  if (formWrap) formWrap.style.display = 'flex';
-  if (footerBar) footerBar.style.display = 'block';
-  if (successView) successView.style.display = 'none';
+  const descInput = document.getElementById('rep-field-description');
+  const description = descInput ? descInput.value.trim() : '';
 
   const subjectInput = document.getElementById('rep-field-subject');
-  const descInput = document.getElementById('rep-field-description');
-  const anonCheck = document.getElementById('rep-anon-checkbox');
+  const subject = subjectInput ? subjectInput.value.trim() : '';
+
+  const txnEl = document.getElementById('rep-field-txn-id');
+  const transactionId = txnEl ? txnEl.value.trim() : '';
+
+  const itemCatEl = document.getElementById('rep-field-item-cat');
+  const itemCategory = itemCatEl ? itemCatEl.value.trim() : '';
+
+  const driverNameEl = document.getElementById('rep-field-driver-name');
+  const driverName = driverNameEl ? driverNameEl.value.trim() : '';
+
+  return {
+    category: cat,
+    busNumber,
+    route: routeName,
+    routeName,
+    stop,
+    incidentDate,
+    incidentTime,
+    expectedTime,
+    actualTime,
+    scheduledTime,
+    description,
+    subject,
+    transactionId,
+    itemCategory,
+    driverName,
+    attachments: attachedFiles.map(a => a.dataUrl),
+    isAnonymous: !!(document.getElementById('rep-anon-checkbox')?.checked)
+  };
+}
+
+export function validateReport(reportDraft) {
+  const missingFields = [];
+  const cat = (reportDraft.category || '').toLowerCase();
+
+  // Category specific validation strictly matching Section 7:
+  if (cat === 'delay' || cat === 'bus_delay') {
+    // BUS_DELAY: category, busNumber, route, stop, incidentDate, expectedTime, actualTime, description
+    if (!reportDraft.busNumber) missingFields.push('busNumber');
+    if (!reportDraft.route) missingFields.push('route');
+    if (!reportDraft.stop) missingFields.push('stop');
+    if (!reportDraft.incidentDate) missingFields.push('incidentDate');
+    if (!reportDraft.expectedTime) missingFields.push('expectedTime');
+    if (!reportDraft.actualTime) missingFields.push('actualTime');
+    if (!reportDraft.description) missingFields.push('description');
+  } else if (cat === 'driver' || cat === 'driver_behaviour') {
+    // DRIVER_BEHAVIOUR: category, busNumber, route, incidentDate, incidentTime, description
+    if (!reportDraft.busNumber) missingFields.push('busNumber');
+    if (!reportDraft.route) missingFields.push('route');
+    if (!reportDraft.incidentDate) missingFields.push('incidentDate');
+    if (!reportDraft.incidentTime) missingFields.push('incidentTime');
+    if (!reportDraft.description) missingFields.push('description');
+  } else if (cat === 'not_available' || cat === 'bus_not_available') {
+    // BUS_NOT_AVAILABLE: category, route, stop, incidentDate, scheduledTime, description
+    if (!reportDraft.route) missingFields.push('route');
+    if (!reportDraft.stop) missingFields.push('stop');
+    if (!reportDraft.incidentDate) missingFields.push('incidentDate');
+    if (!reportDraft.scheduledTime && !reportDraft.expectedTime) missingFields.push('scheduledTime');
+    if (!reportDraft.description) missingFields.push('description');
+  } else if (cat === 'bus' || cat === 'bus_issue') {
+    // BUS_ISSUE: category, busNumber, route, description, incidentDate, incidentTime
+    if (!reportDraft.busNumber) missingFields.push('busNumber');
+    if (!reportDraft.route) missingFields.push('route');
+    if (!reportDraft.description) missingFields.push('description');
+    if (!reportDraft.incidentDate) missingFields.push('incidentDate');
+    if (!reportDraft.incidentTime) missingFields.push('incidentTime');
+  } else if (cat === 'route' || cat === 'route_issue') {
+    // ROUTE_ISSUE: category, route, stop, incidentDate, incidentTime, description
+    if (!reportDraft.route) missingFields.push('route');
+    if (!reportDraft.stop) missingFields.push('stop');
+    if (!reportDraft.incidentDate) missingFields.push('incidentDate');
+    if (!reportDraft.incidentTime) missingFields.push('incidentTime');
+    if (!reportDraft.description) missingFields.push('description');
+  } else if (cat === 'epass' || cat === 'e_pass') {
+    // E_PASS: category, description, relevant E-Pass information
+    if (!reportDraft.description) missingFields.push('description');
+  } else if (cat === 'safety') {
+    // SAFETY: category, description, incidentDate, incidentTime
+    if (!reportDraft.description) missingFields.push('description');
+    if (!reportDraft.incidentDate) missingFields.push('incidentDate');
+    if (!reportDraft.incidentTime) missingFields.push('incidentTime');
+  } else {
+    // Other / Payment / Lost & Found
+    if (cat === 'payment' && !reportDraft.transactionId) missingFields.push('transactionId');
+    if (cat === 'lost_found' && !reportDraft.itemCategory) missingFields.push('itemCategory');
+    if (!reportDraft.description) missingFields.push('description');
+  }
+
+  return {
+    isValid: missingFields.length === 0,
+    missingFields: missingFields
+  };
+}
+
+export const FIELD_PLACEHOLDER_MAP = {
+  busNumber: { id: 'rep-field-bus-number', placeholder: 'Please enter bus number' },
+  route: { id: 'rep-field-route-name', placeholder: 'Please enter route' },
+  stop: { id: 'rep-field-stop-name', placeholder: 'Please enter stop' },
+  description: { id: 'rep-field-description', placeholder: 'Please describe the issue' },
+  incidentDate: { id: 'rep-field-datetime', placeholder: 'Please select incident date' },
+  incidentTime: { id: 'rep-field-datetime', placeholder: 'Please select incident time' },
+  expectedTime: { id: 'rep-field-expected-time', placeholder: 'Please enter expected time' },
+  actualTime: { id: 'rep-field-actual-time', placeholder: 'Please enter actual time' },
+  scheduledTime: { id: 'rep-field-scheduled-time', placeholder: 'Please enter scheduled time' },
+  transactionId: { id: 'rep-field-txn-id', placeholder: 'Please enter transaction ID' },
+  itemCategory: { id: 'rep-field-item-cat', placeholder: 'Please describe the item' }
+};
+
+export function generateReportId() {
+  const year = new Date().getFullYear();
+  const rand = Math.floor(100000 + Math.random() * 900000);
+  return `NXR-${year}-${rand}`;
+}
+
+export async function handleReportSubmission() {
+  if (isSubmitting) return;
+
   const submitBtn = document.getElementById('report-submit-btn');
 
-  if (subjectInput) subjectInput.value = '';
-  if (descInput) descInput.value = '';
-  if (anonCheck) anonCheck.checked = false;
+  // 1. STATE: VALIDATING
+  const draft = getReportDraft();
+  const validation = validateReport(draft);
 
-  const subjectCounter = document.getElementById('rep-subject-counter');
-  const descCounter = document.getElementById('rep-desc-counter');
-  if (subjectCounter) subjectCounter.textContent = '0 / 100';
-  if (descCounter) descCounter.textContent = '0 / 1000';
-
-  attachedFiles = [];
-  renderAttachmentsThumbnails();
-
-  capturedLocation = null;
-  const locBtn = document.getElementById('rep-location-btn');
-  const locTitle = document.getElementById('rep-location-title');
-  const locDesc = document.getElementById('rep-location-desc');
-  if (locBtn) {
-    locBtn.className = 'report-location-btn';
-    locBtn.textContent = 'Use My Location';
+  if (!validation.isValid) {
+    const firstMissing = validation.missingFields[0];
+    const mapping = FIELD_PLACEHOLDER_MAP[firstMissing];
+    if (mapping) {
+      let el = document.getElementById(mapping.id);
+      if (!el) {
+        renderDynamicCategoryFields(selectedCategory);
+        el = document.getElementById(mapping.id);
+      }
+      if (el) {
+        indicateMissingField(el, mapping.placeholder);
+      }
+    }
+    return;
   }
-  if (locTitle) locTitle.textContent = 'Attach Live Location';
-  if (locDesc) locDesc.textContent = 'Help administrators identify exact location';
 
-  setPriority('Normal');
-  hideFormError();
-  isFormDirty = false;
-
+  // 2. STATE: SUBMITTING (Disable duplicate presses and show existing loading behavior)
+  isSubmitting = true;
   if (submitBtn) {
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Submit Report';
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `
+      <svg style="animation: spin 1s linear infinite; height: 20px; width: 20px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity:0.25;"></circle>
+        <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+    `;
+  }
+
+  try {
+    const reportId = generateReportId();
+    const user = auth?.currentUser;
+    const uid = user ? user.uid : (userProfile?.uid || 'student_guest');
+    const userName = draft.isAnonymous ? 'Anonymous Student' : (userProfile?.name || user?.displayName || 'NexRide Student');
+    const userPhone = draft.isAnonymous ? 'Hidden' : (userProfile?.phone || user?.phoneNumber || '');
+    const userEmail = draft.isAnonymous ? 'Hidden' : (userProfile?.email || user?.email || '');
+
+    const impactLevel = (selectedPriority === 'Urgent' ? 'HIGH' : (selectedPriority === 'High' ? 'MEDIUM' : 'LOW'));
+    const finalSubject = draft.subject || `${selectedCategory.name}${draft.busNumber ? ` - Bus ${draft.busNumber}` : ''}${draft.routeName ? ` (${draft.routeName})` : ''}`;
+
+    const reportPayload = {
+      reportId: reportId,
+      reportNumber: reportId,
+      userId: uid,
+      userName: userName,
+      userPhone: userPhone,
+      userEmail: userEmail,
+      category: selectedCategory.id,
+      categoryName: selectedCategory.name,
+      subject: finalSubject,
+      description: draft.description,
+      busId: draft.busNumber ? `bus_${draft.busNumber}` : '',
+      busNumber: draft.busNumber,
+      routeId: draft.routeName ? `route_${draft.routeName.toLowerCase().replace(/\s+/g, '_')}` : '',
+      routeName: draft.routeName,
+      stop: draft.stop,
+      incidentDate: draft.incidentDate,
+      incidentTime: draft.incidentTime,
+      expectedTime: draft.expectedTime || draft.scheduledTime || '',
+      actualTime: draft.actualTime || '',
+      frequency: '',
+      impact: impactLevel,
+      priority: selectedPriority || 'NORMAL',
+      status: 'Submitted',
+      attachments: draft.attachments,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      adminResponse: null,
+      adminResponseAt: null,
+      adminReply: null,
+      assignedTo: null,
+      assignedAt: null,
+      resolvedAt: null,
+      closedAt: null,
+      conversationId: reportId,
+      isAnonymous: draft.isAnonymous,
+      location: capturedLocation,
+      extraFields: {
+        transactionId: draft.transactionId,
+        itemCategory: draft.itemCategory,
+        driverName: draft.driverName
+      },
+      statusHistory: [
+        {
+          status: 'Submitted',
+          timestamp: new Date().toISOString(),
+          message: 'Report received and registered in system.'
+        }
+      ]
+    };
+
+    if (db) {
+      try {
+        await setDoc(doc(db, 'reports', reportId), reportPayload);
+        console.log('[Report] Document written successfully to Firestore with ID:', reportId);
+
+        // Create activity log subcollection
+        try {
+          await addDoc(collection(db, 'reports', reportId, 'activity'), {
+            action: 'REPORT_SUBMITTED',
+            status: 'Submitted',
+            timestamp: serverTimestamp(),
+            performedBy: uid
+          });
+        } catch (e) {
+          console.warn('[Report] Activity log warning:', e);
+        }
+
+        // Create in-app notification
+        if (uid && uid !== 'student_guest') {
+          try {
+            await addDoc(collection(db, 'users', uid, 'notifications'), {
+              title: 'Report Submitted',
+              body: `Your report ${reportId} (${finalSubject}) has been logged successfully.`,
+              reportId: reportId,
+              reportNumber: reportId,
+              type: 'report_status',
+              read: false,
+              createdAt: serverTimestamp()
+            });
+          } catch (e) {
+            console.warn('[Report] Notification log warning:', e);
+          }
+        }
+      } catch (firestoreErr) {
+        console.warn('[Report] Firestore cloud write warning (offline or permissions):', firestoreErr);
+      }
+    }
+
+    // Update local cache with serializable date strings
+    const safePayload = {
+      id: reportId,
+      ...reportPayload,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    myReportsCache.unshift(safePayload);
+    try {
+      localStorage.setItem('nexride_my_reports_cache', JSON.stringify(myReportsCache));
+    } catch (e) {
+      console.warn('[Report] localStorage cache warning:', e);
+    }
+
+    // 3. STATE: SUCCESS (Show existing success UI with real report ID)
+    isFormDirty = false;
+    isSubmitting = false;
+    showSuccessScreen(reportId);
+
+  } catch (err) {
+    // 4. STATE: ERROR (Allow retry and preserve all entered information)
+    console.error('[Report] Error submitting report:', err);
+    isSubmitting = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit Report';
+    }
+    alert('Unable to submit the report. Please try again.');
   }
 }
 
-function showFormError(msg, focusEl) {
-  const errorBox = document.getElementById('report-inline-error');
-  if (errorBox) {
-    errorBox.textContent = msg;
-    errorBox.style.display = 'block';
-    errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-  if (focusEl && typeof focusEl.focus === 'function') {
-    focusEl.focus();
-  }
-}
 
-function hideFormError() {
-  const errorBox = document.getElementById('report-inline-error');
-  if (errorBox) errorBox.style.display = 'none';
-}
 
 // =============================================================================
 // MY REPORTS VIEW & FILTERS
@@ -1275,20 +1598,31 @@ function renderMyReportsList() {
     const statusClass = getStatusClass(report.status);
     const prioClass = getPriorityClass(report.priority);
     const dateStr = formatDate(report.createdAt);
+    const adminMsg = report.adminResponse || report.adminReply;
+    const busRouteStr = [
+      report.busNumber ? `Bus ${report.busNumber}` : '',
+      report.routeName ? report.routeName : ''
+    ].filter(Boolean).join(' • ');
 
     card.innerHTML = `
       <div class="my-report-card-top">
-        <span class="my-report-id-text">${report.reportNumber || 'NXR-REPORT'}</span>
+        <span class="my-report-id-text">${report.reportNumber || report.reportId || 'NXR-REPORT'}</span>
         <span class="report-status-badge ${statusClass}">
           ${report.status || 'Submitted'}
         </span>
       </div>
       <div class="my-report-card-title">${escapeHtml(report.subject)}</div>
+      <div style="font-size:12px; color:#6B7280; font-weight:600; margin-bottom:4px;">${escapeHtml(report.categoryName || 'General Issue')}</div>
       <div class="my-report-card-desc">${escapeHtml(report.description)}</div>
+      ${adminMsg ? `
+        <div style="margin-top:6px; padding:6px 10px; background:#EFF6FF; border-left:3px solid #2563EB; border-radius:4px; font-size:12px; color:#1E40AF;">
+          <strong>Admin Response:</strong> ${escapeHtml(adminMsg)}
+        </div>
+      ` : ''}
       <div class="my-report-card-bottom">
         <div style="display:flex; align-items:center; gap:8px;">
           <span class="report-prio-tag ${prioClass}">${report.priority || 'NORMAL'}</span>
-          ${report.busNumber ? `<span style="font-size:11.5px; color:#4B5563; font-weight:600;">Bus ${report.busNumber}</span>` : ''}
+          ${busRouteStr ? `<span style="font-size:11.5px; color:#4B5563; font-weight:600;">${escapeHtml(busRouteStr)}</span>` : ''}
         </div>
         <span class="my-report-date-text">${dateStr}</span>
       </div>
@@ -1309,6 +1643,8 @@ export function openReportDetails(report) {
   const page = document.getElementById('report-details-page');
   if (!page) return;
 
+  activeReportDetailId = report.id || report.reportId || report.reportNumber;
+
   const idEl = document.getElementById('rep-detail-id');
   const catEl = document.getElementById('rep-detail-cat');
   const statusBadge = document.getElementById('rep-detail-status-badge');
@@ -1324,7 +1660,7 @@ export function openReportDetails(report) {
   const adminMsgText = document.getElementById('rep-detail-admin-msg-text');
   const timelineEl = document.getElementById('rep-detail-timeline-container');
 
-  if (idEl) idEl.textContent = report.reportNumber || 'NXR-REPORT';
+  if (idEl) idEl.textContent = report.reportNumber || report.reportId || 'NXR-REPORT';
   if (catEl) catEl.textContent = report.categoryName || 'General Issue';
   
   if (statusBadge) {
@@ -1352,7 +1688,7 @@ export function openReportDetails(report) {
   if (dateEl) dateEl.textContent = formatDate(report.createdAt);
 
   if (locationEl) {
-    if (report.location) {
+    if (report.location && report.location.latitude && report.location.longitude) {
       locationEl.textContent = `${report.location.latitude.toFixed(4)}°, ${report.location.longitude.toFixed(4)}° (±${report.location.accuracy || 10}m)`;
       locationEl.parentElement.style.display = 'flex';
     } else {
@@ -1395,10 +1731,11 @@ export function openReportDetails(report) {
     }
   }
 
-  // Admin message / response
+  // Admin message / response (Section 15)
   if (adminMsgWrap && adminMsgText) {
-    if (report.adminResponse) {
-      adminMsgText.textContent = report.adminResponse;
+    const adminMsg = report.adminResponse || report.adminReply;
+    if (adminMsg) {
+      adminMsgText.textContent = adminMsg;
       adminMsgWrap.style.display = 'flex';
     } else {
       adminMsgWrap.style.display = 'none';
@@ -1508,6 +1845,11 @@ function updateNotificationsUI() {
   if (!notifScrollBody) return;
 
   if (userNotifications.length === 0) {
+    notifScrollBody.style.display = 'flex';
+    notifScrollBody.style.alignItems = 'center';
+    notifScrollBody.style.justifyContent = 'center';
+    notifScrollBody.style.textAlign = 'center';
+    notifScrollBody.style.padding = '20px';
     notifScrollBody.innerHTML = `
       <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center;">
         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
@@ -1521,20 +1863,26 @@ function updateNotificationsUI() {
     return;
   }
 
-  let listHtml = '<div style="padding: 16px 20px; display: flex; flex-direction: column; gap: 12px;">';
+  notifScrollBody.style.display = 'block';
+  notifScrollBody.style.alignItems = 'stretch';
+  notifScrollBody.style.justifyContent = 'flex-start';
+  notifScrollBody.style.textAlign = 'left';
+  notifScrollBody.style.padding = '16px 20px';
+
+  let listHtml = '<div style="display: flex; flex-direction: column; gap: 12px; width: 100%; text-align: left;">';
   userNotifications.forEach(n => {
     const dateStr = formatDate(n.createdAt);
     listHtml += `
-      <div class="user-notif-item" data-report-id="${n.reportId || ''}" style="background:#FFFFFF; border-radius:14px; padding:14px 16px; border:1px solid #F3F4F6; box-shadow:0 2px 6px rgba(0,0,0,0.03); display:flex; gap:12px; align-items:flex-start; cursor:pointer;">
-        <div style="width:36px; height:36px; border-radius:10px; background:#EFF6FF; color:#2563EB; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <div class="user-notif-item" data-report-id="${n.reportId || ''}" style="background:#FFFFFF; border-radius:14px; padding:14px 16px; border:1px solid #F3F4F6; box-shadow:0 2px 6px rgba(0,0,0,0.03); display:flex; gap:14px; align-items:flex-start; cursor:pointer; text-align:left; width:100%; box-sizing:border-box;">
+        <div style="width:38px; height:38px; border-radius:10px; background:#EFF6FF; color:#2563EB; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
         </div>
-        <div style="flex:1;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:14px; font-weight:700; color:#111827;">${escapeHtml(n.title)}</span>
-            <span style="font-size:11px; color:#9CA3AF;">${dateStr}</span>
+        <div style="flex:1; text-align:left; min-width:0;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px;">
+            <span style="font-size:14.5px; font-weight:700; color:#111827; text-align:left; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(n.title)}</span>
+            <span style="font-size:11.5px; color:#9CA3AF; flex-shrink:0; font-weight:500; text-align:right;">${dateStr}</span>
           </div>
-          <p style="font-size:12.5px; color:#4B5563; margin:4px 0 0 0; line-height:1.4;">${escapeHtml(n.body)}</p>
+          <p style="font-size:13px; color:#4B5563; margin:0; line-height:1.45; text-align:left; word-break:break-word;">${escapeHtml(n.body)}</p>
         </div>
       </div>
     `;

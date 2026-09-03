@@ -1,0 +1,176 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // HELPER & SECURITY FUNCTIONS
+    // ==========================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/software_admin/$(request.auth.uid)) ||
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin' ||
+        (request.auth.token.email != null && request.auth.token.email == 'admin@nexride.com') ||
+        (request.auth.token.email != null && request.auth.token.email.matches('.*@admin\\.nexride\\.com'))
+      );
+    }
+
+    // ==========================================
+    // 1. User Profiles & Subcollections
+    // ==========================================
+    match /users/{userId} {
+      // Allows reading and writing to the main user profile
+      allow read, write: if isOwner(userId) || isAdmin();
+      
+      // 1a. E-Pass & Barcode Subcollections
+      match /epass/{document=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      match /barcode/{document=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      
+      // 1b. Trusted Contacts Subcollection
+      match /trustedContacts/{contactId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+      
+      // 1c. DigitalID Subcollection
+      match /DigitalID/{document=**} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+
+      // 1d. User Notifications Subcollection
+      match /notifications/{notifId} {
+        allow read, update, delete: if isOwner(userId) || isAdmin();
+        allow create: if isAuthenticated();
+      }
+    }
+    
+    // ==========================================
+    // 2. Admin Authentication
+    // ==========================================
+    match /software_admin/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isAdmin();
+    }
+    
+    // ==========================================
+    // 3. Live Buses Data
+    // ==========================================
+    match /buses/{document=**} {
+      // Allow anyone (even logged out) to track the buses
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // ==========================================
+    // 4. Other Public Data (Stops, Routes, Drivers, Timings)
+    // ==========================================
+    match /stops/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    match /routes/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    match /drivers/{document=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+    match /timings/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // ==========================================
+    // 5. Pending Approvals Queue
+    // ==========================================
+    match /pending_approvals/{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ==========================================
+    // 6. Reports Collection
+    // ==========================================
+    match /reports/{reportId} {
+      // Students can read their own reports; Admins can read all reports
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // Students can create reports with initial status 'Submitted'
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'Submitted'
+      ) || isAdmin();
+      
+      // Admins can update any report (status, adminResponse, notes, etc.)
+      // Students can only update non-administrative fields of their own reports
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.status == resource.data.status &&
+        request.resource.data.adminResponse == resource.data.adminResponse
+      );
+      
+      // Only admins can delete reports
+      allow delete: if isAdmin();
+
+      // Activity subcollection
+      match /activity/{activityId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/reports/$(reportId)).data.userId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated();
+        allow update, delete: if isAdmin();
+      }
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/reports/$(reportId)).data.userId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated();
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // ==========================================
+    // 7. Support Tickets Collection (Chat / AI tickets mirror)
+    // ==========================================
+    match /supportTickets/{ticketId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isAdmin() || (
+        isAuthenticated() && 
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.status == resource.data.status
+      );
+      allow delete: if isAdmin();
+
+      match /activity/{activityId} {
+        allow read, create: if isAuthenticated();
+      }
+      match /messages/{messageId} {
+        allow read, create: if isAuthenticated();
+      }
+    }
+
+    // ==========================================
+    // 8. Audit Logs
+    // ==========================================
+    match /auditLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

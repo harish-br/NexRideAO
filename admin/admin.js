@@ -6,7 +6,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { 
   doc, getDoc, setDoc, collection, onSnapshot, query, where, 
-  limit, orderBy, getDocs, deleteDoc, updateDoc, addDoc, serverTimestamp 
+  limit, orderBy, getDocs, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion 
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 // =============================================================================
@@ -1259,21 +1259,53 @@ function setupModalListeners() {
         };
 
         if (replyText) {
+          updatePayload.adminResponse = replyText;
           updatePayload.adminReply = replyText;
+          updatePayload.adminResponseAt = serverTimestamp();
           updatePayload.resolvedBy = currentAdminUser?.email || 'Admin';
         }
+
+        if (newStatus === 'Resolved') {
+          updatePayload.resolvedAt = serverTimestamp();
+        } else if (newStatus === 'Closed') {
+          updatePayload.closedAt = serverTimestamp();
+        }
+
+        const historyEntry = {
+          status: newStatus,
+          oldStatus: currentInspectingTicket.status || 'Submitted',
+          changedBy: currentAdminUser?.email || 'Admin',
+          message: replyText || `Status updated to ${newStatus} by Admin`,
+          timestamp: new Date().toISOString()
+        };
+        updatePayload.statusHistory = arrayUnion(historyEntry);
 
         await updateDoc(doc(firestore, 'reports', currentInspectingTicket.id), updatePayload);
 
         // Add to subcollection activity
         await addDoc(collection(firestore, 'reports', currentInspectingTicket.id, 'activity'), {
           action: `STATUS_CHANGED_TO_${newStatus.toUpperCase()}`,
+          oldStatus: currentInspectingTicket.status || 'Submitted',
+          newStatus: newStatus,
           note: replyText || `Status updated by Admin`,
           timestamp: serverTimestamp(),
           adminEmail: currentAdminUser?.email || 'Admin'
         });
 
-        await logAuditEvent('TICKET_RESOLVED', 'reports', currentInspectingTicket.id, { newStatus, newPrio });
+        // Create in-app notification for student
+        if (currentInspectingTicket.userId && currentInspectingTicket.userId !== 'student_guest') {
+          await addDoc(collection(firestore, 'users', currentInspectingTicket.userId, 'notifications'), {
+            title: `Report Update: ${newStatus}`,
+            body: replyText ? `Admin response: "${replyText}"` : `Your report ${currentInspectingTicket.reportNumber || currentInspectingTicket.id} status was changed to ${newStatus}.`,
+            reportId: currentInspectingTicket.id,
+            reportNumber: currentInspectingTicket.reportNumber || currentInspectingTicket.id,
+            type: 'report_status',
+            read: false,
+            createdAt: serverTimestamp()
+          });
+        }
+
+        await logAuditEvent('TICKET_RESOLVED', 'reports', currentInspectingTicket.id, { newStatus, newPrio, replyText });
 
         ticketModal?.classList.add('hidden');
         alert(`Ticket ${currentInspectingTicket.reportNumber || 'NXR-REP'} updated.`);

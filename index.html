@@ -5,11 +5,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
   <title>NexRide</title>
-  <link rel="stylesheet" href="./css/style.css" />
-  <link rel="stylesheet" href="./css/safety.css" />
-  <link rel="stylesheet" href="./css/epass.css" />
-  <link rel="stylesheet" href="./css/bus-search.css" />
-  <link rel="stylesheet" href="./css/report.css" />
+  <link rel="stylesheet" href="./css/style.css?v=5" />
+  <link rel="stylesheet" href="./css/safety.css?v=5" />
+  <link rel="stylesheet" href="./css/epass.css?v=5" />
+  <link rel="stylesheet" href="./css/bus-search.css?v=5" />
+  <link rel="stylesheet" href="./css/report.css?v=5" />
 
   <!-- Cache Clearing & SW Management -->
   <script>
@@ -151,7 +151,7 @@
             </div>
             <span class="transit-label">E-Pass</span>
           </div>
-          <div class="transit-item" id="report-card-btn" style="cursor: pointer;">
+          <div class="transit-item" id="report-card-btn" style="cursor: pointer;" onclick="if(window.openReportIssuePage){window.openReportIssuePage();}else{var p=document.getElementById('report-issue-page');if(p){p.style.display='flex';p.classList.remove('hidden');}}">
             <div class="transit-icon-box">
               <img src="./assets/report.png?v=1" alt="Report" class="report-icon-img" />
             </div>
@@ -366,8 +366,9 @@
         <h1 class="pi-title">Personal info</h1>
 
         <div class="pi-avatar-container">
-          <div class="pi-avatar-custom">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <div class="pi-avatar-custom" id="pi-avatar-custom" style="cursor: pointer;" title="Change profile picture">
+            <img id="pi-profile-img" class="hidden" alt="Profile Photo" />
+            <svg id="pi-default-svg" width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="12" cy="8" r="4.5" fill="#1A73E8" />
               <ellipse cx="12" cy="17" rx="8" ry="4" fill="#1A73E8" />
             </svg>
@@ -1509,17 +1510,14 @@
   </div>
 
 
-  <script type="module" src="./js/auth-ui.js?v=3"></script>
-  <script type="module" src="./js/main.js"></script>
-
-
-
-
-  <script type="module" src="./js/live-tracking.js"></script>
-  <script type="module" src="./js/sheet.js"></script>
-  <script type="module" src="./js/profile.js"></script>
-  <script type="module" src="./js/safety.js"></script>
-  <script type="module" src="./js/help-support.js"></script>
+  <script type="module" src="./js/auth-ui.js?v=6"></script>
+  <script type="module" src="./js/main.js?v=5"></script>
+  <script type="module" src="./js/live-tracking.js?v=5"></script>
+  <script type="module" src="./js/sheet.js?v=5"></script>
+  <script type="module" src="./js/profile.js?v=5"></script>
+  <script type="module" src="./js/safety.js?v=5"></script>
+  <script type="module" src="./js/help-support.js?v=5"></script>
+  <script type="module" src="./js/report.js?v=16"></script>
 
 
   <!-- =============================================
@@ -1605,7 +1603,7 @@
 
         <!-- Report an Issue -->
         <section>
-          <button id="hs-report-nav-btn" style="width:100%; background:#FFFFFF; border:none; border-radius:16px; padding:16px 20px; display:flex; align-items:center; gap:16px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; text-align:left;" aria-label="Report an Issue">
+          <button id="hs-report-nav-btn" style="width:100%; background:#FFFFFF; border:none; border-radius:16px; padding:16px 20px; display:flex; align-items:center; gap:16px; box-shadow:0 2px 8px rgba(0,0,0,0.05); cursor:pointer; text-align:left;" aria-label="Report an Issue" onclick="if(window.openReportIssuePage){window.openReportIssuePage();}else{var p=document.getElementById('report-issue-page');if(p){p.style.display='flex';p.classList.remove('hidden');}}">
             <div style="width:40px; height:40px; background:#F5F7FA; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
               <div style="width:24px; height:24px; background-color:#2563EB; -webkit-mask:url('./document-text.svg') no-repeat center / contain; mask:url('./document-text.svg') no-repeat center / contain;"></div>
             </div>
@@ -1718,7 +1716,7 @@
     style="background-color: #FFFFFF; height: 100dvh; z-index: 3700; display: flex; flex-direction: column;">
 
     <div style="background:#FFFFFF; position:sticky; top:0; z-index:10; display:flex; align-items:center; padding:calc(16px + env(safe-area-inset-top)) 20px 16px 20px; border-bottom:1px solid #F3F4F6;">
-      <button id="back-hs-report" class="back-btn" aria-label="Go back"
+      <button id="back-hs-report" class="back-btn" aria-label="Go back" onclick="var p1=document.getElementById('hs-report-page');if(p1){p1.classList.add('hidden');p1.style.display='none';}var p2=document.getElementById('report-issue-page');if(p2){p2.classList.add('hidden');p2.style.display='none';}"
         style="background:#F5F7FA; border-radius:50%; width:40px; height:40px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border:none; cursor:pointer;">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
       </button>
@@ -2019,14 +2017,14 @@
     <!-- Header -->
     <header class="report-header">
       <div class="report-header-left">
-        <button id="back-report-issue" class="report-back-btn" aria-label="Go back">
+        <button id="back-report-issue" class="report-back-btn" aria-label="Go back" onclick="if(window.handleBackWithDiscardCheck){window.handleBackWithDiscardCheck();}else if(window.closeReportIssuePage){window.closeReportIssuePage();}else{var p=document.getElementById('report-issue-page');if(p){p.classList.add('hidden');p.style.display='none';}}">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
         </button>
         <span class="report-header-title">Report an Issue</span>
       </div>
-      <button id="report-my-reports-nav-btn" class="report-header-icon-btn" aria-label="My Reports" title="My Reports">
+      <button id="report-my-reports-nav-btn" class="report-header-icon-btn" aria-label="My Reports" title="My Reports" onclick="if(window.openMyReportsPage){window.openMyReportsPage();}else{console.warn('openMyReportsPage not ready');}">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
       </button>
     </header>
@@ -2125,7 +2123,7 @@
 
     <!-- Sticky Bottom Submit Footer -->
     <div id="report-footer-bar" class="report-footer-bar">
-      <button type="button" id="report-submit-btn" class="report-submit-btn">
+      <button type="button" id="report-submit-btn" class="report-submit-btn" onclick="if(window.handleReportSubmission){window.handleReportSubmission();}else{console.warn('handleReportSubmission not ready')}">
         Submit Report
       </button>
     </div>
@@ -2173,16 +2171,15 @@
     <!-- Header -->
     <header class="report-header">
       <div class="report-header-left">
-        <button id="back-my-reports" class="report-back-btn" aria-label="Go back">
+        <button id="back-my-reports" class="report-back-btn" aria-label="Go back" onclick="if(window.closeMyReportsPage){window.closeMyReportsPage();}else{var p=document.getElementById('my-reports-page');if(p){p.classList.add('hidden');p.style.display='none';}}">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111827" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
         </button>
         <span class="report-header-title">My Reports</span>
       </div>
-      <button id="my-reports-new-btn" class="report-header-action-btn" aria-label="New Report">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        New Report
+      <button id="my-reports-new-btn" class="report-header-icon-btn" aria-label="New Report" title="New Report" onclick="if(window.closeMyReportsPage){window.closeMyReportsPage();}if(window.openReportIssuePage){window.openReportIssuePage();}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
       </button>
     </header>
 
@@ -2193,6 +2190,7 @@
       <button type="button" class="report-filter-pill" data-status="Under Review">Under Review</button>
       <button type="button" class="report-filter-pill" data-status="In Progress">In Progress</button>
       <button type="button" class="report-filter-pill" data-status="Resolved">Resolved</button>
+      <button type="button" class="report-filter-pill" data-status="Rejected">Rejected</button>
       <button type="button" class="report-filter-pill" data-status="Closed">Closed</button>
     </div>
 
@@ -2201,9 +2199,6 @@
 
     <!-- Empty State -->
     <div id="my-reports-empty-state" class="report-empty-state-container" style="display: none;">
-      <div class="report-empty-icon-circle">
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
-      </div>
       <h3 class="report-empty-title">No reports yet</h3>
       <p class="report-empty-desc">Any issue you report will appear here with live tracking updates.</p>
       <button type="button" onclick="document.getElementById('my-reports-new-btn').click()" class="report-empty-action-btn">Report an Issue</button>
@@ -2302,11 +2297,11 @@
           <path d="M21.76 15.92L15.36 4.4C14.5 2.85 13.31 2 12 2C10.69 2 9.49998 2.85 8.63998 4.4L2.23998 15.92C1.42998 17.39 1.33998 18.8 1.98998 19.91C2.63998 21.02 3.91998 21.63 5.59998 21.63H18.4C20.08 21.63 21.36 21.02 22.01 19.91C22.66 18.8 22.57 17.38 21.76 15.92ZM11.25 9C11.25 8.59 11.59 8.25 12 8.25C12.41 8.25 12.75 8.59 12.75 9V14C12.75 14.41 12.41 14.75 12 14.75C11.59 14.75 11.25 14.41 11.25 14V9ZM12.71 17.71C12.66 17.75 12.61 17.79 12.56 17.83C12.5 17.87 12.44 17.9 12.38 17.92C12.32 17.95 12.26 17.97 12.19 17.98C12.13 17.99 12.06 18 12 18C11.94 18 11.87 17.99 11.8 17.98C11.74 17.97 11.68 17.95 11.62 17.92C11.56 17.9 11.5 17.87 11.44 17.83C11.39 17.79 11.34 17.75 11.29 17.71C11.11 17.52 11 17.26 11 17C11 16.74 11.11 16.48 11.29 16.29C11.34 16.25 11.39 16.21 11.44 16.17C11.5 16.13 11.56 16.1 11.62 16.08C11.68 16.05 11.74 16.03 11.8 16.02C11.93 15.99 12.07 15.99 12.19 16.02C12.26 16.03 12.32 16.05 12.38 16.08C12.44 16.1 12.5 16.13 12.56 16.17C12.61 16.21 12.66 16.25 12.71 16.29C12.89 16.48 13 16.74 13 17C13 17.26 12.89 17.52 12.71 17.71Z"/>
         </svg>
       </div>
-      <h3 class="report-discard-title">Discard Report?</h3>
-      <p class="report-discard-desc">You have unsaved information. Are you sure you want to leave and lose your changes?</p>
+      <h3 class="report-discard-title">Leave Report?</h3>
+      <p class="report-discard-desc">Your report has not been submitted. Are you sure you want to leave?</p>
       <div class="report-discard-actions">
-        <button type="button" id="report-discard-stay-btn" class="report-discard-primary-btn">Continue Editing</button>
-        <button type="button" id="report-discard-confirm-btn" class="report-discard-secondary-btn">Discard</button>
+        <button type="button" id="report-discard-stay-btn" class="report-discard-primary-btn">Continue</button>
+        <button type="button" id="report-discard-confirm-btn" class="report-discard-secondary-btn">Leave</button>
       </div>
     </div>
   </div>
@@ -2323,7 +2318,6 @@
   <script defer src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
   <script type="module" src="./js/epass.js"></script>
   <script type="module" src="./js/bus-search.js"></script>
-  <script type="module" src="./js/report.js"></script>
 </body>
 
 </html>
