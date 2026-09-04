@@ -1,5 +1,5 @@
 import { firestore as db } from './firebase-config.js';
-import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { collection, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const busSearchBtn = document.getElementById('bus-search-btn');
@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Modal Toggle ---
   function openModal() {
     busSearchPage.classList.remove('hidden');
+    syncBusesFromDB();
     renderSmartSuggestions();
     detectLocation();
   }
@@ -49,37 +50,106 @@ document.addEventListener('DOMContentLoaded', () => {
   if (busSearchBtn) busSearchBtn.addEventListener('click', openModal);
   if (backBtn) backBtn.addEventListener('click', closeModal);
 
-  // --- Global Cache for Instant Search ---
+  // --- Live Real-Time & Frequent Database Synchronization ---
   let cachedBusesData = null;
   let isBusesLoading = false;
+  let unsubscribeBusesSnapshot = null;
+  let lastSyncTimestamp = 0;
+  const SYNC_INTERVAL_MS = 15000; // 15 seconds heartbeat for reliable continuous updates
 
-  async function ensureBusesLoaded() {
-    if (cachedBusesData) return;
-    if (isBusesLoading) {
-      // Wait for the existing preload to finish
-      while (isBusesLoading) {
-        await new Promise(r => setTimeout(r, 100));
-      }
-      return;
-    }
-    isBusesLoading = true;
-    try {
-      console.log('[BusSearch] Fetching buses from backend...');
-      const busesSnapshot = await getDocs(collection(db, 'buses'));
-      cachedBusesData = [];
-      busesSnapshot.forEach(doc => {
-        cachedBusesData.push(doc.data());
-      });
-      console.log(`[BusSearch] Preloaded ${cachedBusesData.length} buses successfully.`);
-    } catch (error) {
-      console.error('[BusSearch] Error preloading buses:', error);
-    } finally {
-      isBusesLoading = false;
+  function processBusesData(snapshotDocs) {
+    const updated = [];
+    snapshotDocs.forEach(doc => {
+      const data = typeof doc.data === 'function' ? doc.data() : doc;
+      const id = doc.id || data.id || '';
+      updated.push({ id, ...data });
+    });
+    cachedBusesData = updated;
+    lastSyncTimestamp = Date.now();
+    console.log(`[BusSearch] Live sync completed with ${cachedBusesData.length} buses from Firestore at ${new Date().toLocaleTimeString()}`);
+
+    // If modal is open and user is actively searching, update results live in place
+    const query = searchInput ? searchInput.value.trim() : '';
+    if (query.length > 0 && searchResultsArea && !searchResultsArea.classList.contains('hidden')) {
+      performSearch(query, true);
     }
   }
 
-  // Preload immediately when app opens!
-  ensureBusesLoaded();
+  // Real-time listener: triggers instantly whenever Firestore changes
+  function initRealtimeSync() {
+    if (unsubscribeBusesSnapshot) {
+      try { unsubscribeBusesSnapshot(); } catch (e) {}
+      unsubscribeBusesSnapshot = null;
+    }
+
+    try {
+      const busesCol = collection(db, 'buses');
+      unsubscribeBusesSnapshot = onSnapshot(busesCol, (snapshot) => {
+        processBusesData(snapshot.docs);
+      }, (error) => {
+        console.warn('[BusSearch] onSnapshot error, falling back to polling:', error);
+        syncBusesFromDB(true);
+      });
+    } catch (e) {
+      console.warn('[BusSearch] Could not attach onSnapshot:', e);
+      syncBusesFromDB(true);
+    }
+  }
+
+  // Active sync function (used for initial load, modal open, visibility change, and heartbeat)
+  async function syncBusesFromDB(force = false) {
+    const now = Date.now();
+    if (!force && cachedBusesData && (now - lastSyncTimestamp < 5000)) {
+      return cachedBusesData; // Throttle excessive calls within 5s
+    }
+
+    if (isBusesLoading) return;
+    isBusesLoading = true;
+
+    try {
+      const busesSnapshot = await getDocs(collection(db, 'buses'));
+      processBusesData(busesSnapshot.docs);
+    } catch (error) {
+      console.error('[BusSearch] Database sync error:', error);
+    } finally {
+      isBusesLoading = false;
+    }
+    return cachedBusesData;
+  }
+
+  async function ensureBusesLoaded() {
+    if (cachedBusesData && cachedBusesData.length > 0) return;
+    await syncBusesFromDB(true);
+  }
+
+  // Start real-time listener immediately
+  initRealtimeSync();
+  syncBusesFromDB(true);
+
+  // Periodic background heartbeat: re-verify every 15s for 100% reliable continuous updates
+  setInterval(() => {
+    if (!document.hidden) {
+      syncBusesFromDB();
+    }
+  }, SYNC_INTERVAL_MS);
+
+  // Re-sync immediately whenever user switches back to the tab or app wakes from sleep
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      console.log('[BusSearch] App visible, re-synchronizing buses with database...');
+      syncBusesFromDB(true);
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    syncBusesFromDB(true);
+  });
+
+  window.addEventListener('online', () => {
+    console.log('[BusSearch] Network restored, re-initializing sync...');
+    initRealtimeSync();
+    syncBusesFromDB(true);
+  });
 
   // --- Location & Database Search ---
 
@@ -252,9 +322,28 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.focus();
   });
 
-  async function performSearch(query) {
-    resultsList.innerHTML = '';
+  async function performSearch(query, isLiveUpdate = false) {
     const q = query.toLowerCase();
+
+    // Remember open route accordions so live database sync doesn't close them unexpectedly
+    const openRouteNos = new Set();
+    if (isLiveUpdate && resultsList) {
+      resultsList.querySelectorAll('.bs-card').forEach(c => {
+        const dd = c.querySelector('.bs-route-stops-dropdown');
+        if (dd && !dd.classList.contains('hidden') && dd.style.display !== 'none') {
+          const routeNoEl = c.querySelector('.bs-card-content span span');
+          if (routeNoEl) openRouteNos.add(routeNoEl.textContent.trim());
+        }
+      });
+    }
+
+    if (!isLiveUpdate) {
+      resultsList.innerHTML = '';
+      skeletonLoader.classList.remove('hidden');
+      skeletonLoader.style.display = 'flex';
+      emptyState.classList.add('hidden');
+      emptyState.style.display = 'none';
+    }
 
     try {
       await ensureBusesLoaded();
@@ -311,6 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       skeletonLoader.classList.add('hidden');
       skeletonLoader.style.display = 'none';
+      resultsList.innerHTML = '';
 
       if (routeResults.length > 0) {
         // Sort exact matches first for routes
@@ -333,6 +423,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         stopResults.slice(0, 10).forEach(stop => {
           resultsList.appendChild(createStopCard(stop, query));
+        });
+      }
+
+      // Re-expand previously open dropdowns smoothly if this was a live sync
+      if (openRouteNos.size > 0) {
+        resultsList.querySelectorAll('.bs-card').forEach(c => {
+          const routeNoEl = c.querySelector('.bs-card-content span span');
+          if (routeNoEl && openRouteNos.has(routeNoEl.textContent.trim())) {
+            const dd = c.querySelector('.bs-route-stops-dropdown');
+            const arr = c.querySelector('.route-dropdown-arrow');
+            if (dd && arr) {
+              dd.classList.remove('hidden');
+              dd.style.display = 'block';
+              arr.style.transform = 'rotate(180deg)';
+              c.style.background = '#F9FAFB';
+            }
+          }
         });
       }
 
