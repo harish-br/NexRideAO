@@ -3,7 +3,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
-    "site": "nexrideao",
+    "site": "nexride-ao",
     "public": "dist",
     "ignore": [
       "firebase.json",
