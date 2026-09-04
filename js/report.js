@@ -2029,8 +2029,9 @@ export function updateNotificationsUI() {
         `;
       } else {
         try {
-          // Show up to 3 recent notifications
-          const recentNotifs = userNotifications.slice(0, 3);
+          // Show up to 2 recent notifications on homepage to keep layout perfectly aligned
+          const maxHomeNotifs = 2;
+          const recentNotifs = userNotifications.slice(0, maxHomeNotifs);
           let homeHtml = '';
           recentNotifs.forEach(n => {
             const dateStr = formatRelativeDate(n.createdAt);
@@ -2057,15 +2058,26 @@ export function updateNotificationsUI() {
             `;
           });
 
-          if (userNotifications.length > 3) {
+          if (userNotifications.length > maxHomeNotifs) {
+            const remaining = userNotifications.length - maxHomeNotifs;
             homeHtml += `
-              <div style="font-size: 13px; color: #6B7280; text-align: center; margin-top: 4px;">
-                +${userNotifications.length - 3} more notifications
+              <div class="home-notif-more-btn" style="font-size: 13px; font-weight: 600; color: #2563EB; text-align: center; padding: 6px 0 2px 0; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                <span>+${remaining} more notification${remaining > 1 ? 's' : ''}</span>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
               </div>
             `;
           }
 
           homeContentArea.innerHTML = homeHtml;
+
+          // Attach click handler for '+X more notifications' button
+          const moreBtn = homeContentArea.querySelector('.home-notif-more-btn');
+          if (moreBtn) {
+            moreBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              openNotificationsPage();
+            });
+          }
 
           // Attach click handlers to each notification item on home card
           homeContentArea.querySelectorAll('.home-notif-item').forEach(item => {

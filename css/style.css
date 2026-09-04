@@ -112,7 +112,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 24px 24px calc(100px + env(safe-area-inset-bottom)) 24px;
+  padding: 24px 24px calc(88px + env(safe-area-inset-bottom)) 24px;
   /* Ensure content stops above bottom nav */
   touch-action: none;
   /* Prevent default vertical scroll/refresh during drag */
