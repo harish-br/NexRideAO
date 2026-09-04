@@ -29,16 +29,16 @@ document.addEventListener('DOMContentLoaded', () => {
   function closeModal() {
     busSearchPage.classList.add('hidden');
     searchInput.value = '';
-    
+
     clearBtn.classList.add('hidden');
     clearBtn.style.display = 'none';
-    
+
     smartSuggestionsArea.classList.remove('hidden');
     smartSuggestionsArea.style.display = 'block';
-    
+
     searchResultsArea.classList.add('hidden');
     searchResultsArea.style.display = 'none';
-    
+
     resultsList.innerHTML = '';
     emptyState.classList.add('hidden');
     emptyState.style.display = 'none';
@@ -48,6 +48,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (busSearchBtn) busSearchBtn.addEventListener('click', openModal);
   if (backBtn) backBtn.addEventListener('click', closeModal);
+
+  // --- Global Cache for Instant Search ---
+  let cachedBusesData = null;
+  let isBusesLoading = false;
+
+  async function ensureBusesLoaded() {
+    if (cachedBusesData) return;
+    if (isBusesLoading) {
+      // Wait for the existing preload to finish
+      while (isBusesLoading) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return;
+    }
+    isBusesLoading = true;
+    try {
+      console.log('[BusSearch] Fetching buses from backend...');
+      const busesSnapshot = await getDocs(collection(db, 'buses'));
+      cachedBusesData = [];
+      busesSnapshot.forEach(doc => {
+        cachedBusesData.push(doc.data());
+      });
+      console.log(`[BusSearch] Preloaded ${cachedBusesData.length} buses successfully.`);
+    } catch (error) {
+      console.error('[BusSearch] Error preloading buses:', error);
+    } finally {
+      isBusesLoading = false;
+    }
+  }
+
+  // Preload immediately when app opens!
+  ensureBusesLoaded();
 
   // --- Location & Database Search ---
 
@@ -70,9 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const stopsMap = new Map();
 
     try {
-      const busesSnapshot = await getDocs(collection(db, 'buses'));
-      busesSnapshot.forEach(doc => {
-        const busData = doc.data();
+      await ensureBusesLoaded();
+      if (!cachedBusesData) throw new Error("Could not load buses");
+
+      cachedBusesData.forEach(busData => {
         if (busData.stops && Array.isArray(busData.stops)) {
           busData.stops.forEach(stop => {
             if (stop.latitude && stop.longitude) {
@@ -108,12 +141,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const nearbyStops = Array.from(stopsMap.values());
       // Sort by distance
       nearbyStops.sort((a, b) => a.rawDistance - b.rawDistance);
-      
+
       if (nearbyStops.length === 0) {
-         nearbyStopsContainer.innerHTML = `<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">No stops found nearby. (Debug: ${busesSnapshot.size} documents found in database)</div>`;
-         return [];
+        nearbyStopsContainer.innerHTML = `<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">No stops found nearby. (Debug: ${cachedBusesData.length} routes in memory)</div>`;
+        return [];
       }
-      
+
       // Return top 5 closest stops
       return nearbyStops.slice(0, 5);
     } catch (error) {
@@ -224,12 +257,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const q = query.toLowerCase();
 
     try {
-      const busesSnapshot = await getDocs(collection(db, 'buses'));
+      await ensureBusesLoaded();
+      if (!cachedBusesData) throw new Error("Could not load buses");
+
       const routeResults = [];
       const stopResults = [];
 
-      busesSnapshot.forEach(doc => {
-        const busData = doc.data();
+      cachedBusesData.forEach(busData => {
         const bNum = busData.bus_no || busData.busNumber;
         const bNumStr = bNum ? String(bNum).trim() : null;
 
@@ -339,6 +373,23 @@ document.addEventListener('DOMContentLoaded', () => {
     return text.replace(regex, `<span class="bs-highlight">$1</span>`);
   }
 
+  function formatArrivalTime(timeStr) {
+    if (!timeStr || typeof timeStr !== 'string') return 'N/A';
+    const parts = timeStr.split(':');
+    if (parts.length >= 2) {
+      let hours = parseInt(parts[0], 10);
+      const mins = parts[1].substring(0, 2).trim();
+      if (!isNaN(hours)) {
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12; // 0 becomes 12
+        const paddedHours = String(hours).padStart(2, '0');
+        return `<span style="font-weight: 800; color: #3661E4; font-size: 15px;">${paddedHours}</span><span style="color: #111827; font-size: 14px;">:${mins} </span><span style="color: #111827; font-weight: 700; font-size: 14px;">${ampm}</span>`;
+      }
+    }
+    return timeStr;
+  }
+
   function createRouteCard(route, highlightQuery = '') {
     const card = document.createElement('div');
     card.className = 'bs-card';
@@ -365,15 +416,19 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="bs-card-content">
           <h4 class="bs-title">${highlightText(route.source, highlightQuery)}${route.destination ? ' ↔ ' + highlightText(route.destination, highlightQuery) : ''}</h4>
           <div style="margin-top: 4px; display: flex; gap: 8px; align-items: center; color: #6B7280; font-size: 13px; font-weight: 600;">
-            <span>Bus: <span style="font-weight: 700; color: #111827;">${highlightText(route.routeNo, highlightQuery)}</span></span>
+            <span>Bus: <span style="font-weight: 700; color: #3661E4;">${highlightText(route.routeNo, highlightQuery)}</span></span>
           </div>
         </div>
         <svg class="route-dropdown-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="transition: transform 0.3s; margin-left: auto; flex-shrink: 0;">
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
       </div>
-      <div class="bs-route-stops-dropdown hidden" style="display: none; width: 100%; margin-top: 16px; border-top: 1px solid #F3F4F6; padding-top: 8px;">
-        <div class="stops-list" style="display: flex; flex-direction: column;"></div>
+      <div class="bs-route-stops-dropdown hidden" style="display: none; width: calc(100% + 32px); margin: 16px -16px -10px -16px; background: transparent; border-top: 1px solid #E2E8F0; border-radius: 0 0 16px 16px; padding: 20px 16px 16px 16px; box-sizing: border-box;">
+        <div style="text-align: center; font-size: 13.5px; font-weight: 600; color: #9CA3AF; margin-bottom: 6px;">Scheduled Stages</div>
+        <div style="text-align: center; font-size: 14px; font-weight: 700; color: #4B5563; margin-bottom: 16px;">
+          ${route.routeNo} ↓ towards ${route.destination || 'Destination'}
+        </div>
+        <div class="stops-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
       </div>
     `;
 
@@ -387,16 +442,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const stopItem = document.createElement('div');
         stopItem.style.display = 'flex';
         stopItem.style.alignItems = 'stretch';
+        stopItem.style.position = 'relative';
+        stopItem.style.zIndex = '1';
 
         stopItem.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: center; width: 40px; flex-shrink: 0;">
-            <div style="width: 8px; flex: 1; background: ${index === 0 ? 'transparent' : '#F8FAFC'}; max-height: 24px;"></div>
-            <div style="width: 10px; height: 10px; border-radius: 50%; background: #CBD5E1; flex-shrink: 0; position: relative; z-index: 1;"></div>
-            <div style="width: 8px; flex: 1; background: ${isLast ? 'transparent' : '#F8FAFC'}; min-height: 24px;"></div>
-          </div>
-          <div style="flex: 1; padding: 16px 0; ${!isLast ? 'border-bottom: 1px solid #F3F4F6;' : ''}">
-            <div style="font-size: 14px; font-weight: 600; color: #111827;">${stop.stopName || stop.name || 'Unknown Stop'}</div>
-            ${stop.arrivalTime ? `<div style="font-size: 12px; color: #9CA3AF; margin-top: 4px; font-weight: 500;">ETA: ${stop.arrivalTime}</div>` : ''}
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; background: #FFFFFF; border: 1px solid #F1F5F9; border-radius: 14px; padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
+            <div style="font-size: 15px; font-weight: 700; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; padding-right: 12px;">${stop.stopName || stop.name || 'Unknown Stop'}</div>
+            <div style="font-size: 13.5px; color: #6B7280; font-weight: 600; flex-shrink: 0; min-width: 72px; text-align: right; font-variant-numeric: tabular-nums;">${stop.arrivalTime ? formatArrivalTime(stop.arrivalTime) : 'N/A'}</div>
           </div>
         `;
         stopsList.appendChild(stopItem);
@@ -411,7 +463,28 @@ document.addEventListener('DOMContentLoaded', () => {
         window.navigator.vibrate(50);
       }
 
-      if (dropdown.classList.contains('hidden')) {
+      const isCurrentlyHidden = dropdown.classList.contains('hidden');
+
+      // Close all other dropdowns in the same container
+      if (isCurrentlyHidden) {
+        const parentContainer = card.parentElement;
+        if (parentContainer) {
+          const allCards = parentContainer.querySelectorAll('.bs-card');
+          allCards.forEach(otherCard => {
+            if (otherCard === card) return;
+            const otherDropdown = otherCard.querySelector('.bs-route-stops-dropdown');
+            const otherArrow = otherCard.querySelector('.route-dropdown-arrow');
+            if (otherDropdown && !otherDropdown.classList.contains('hidden')) {
+              otherDropdown.classList.add('hidden');
+              otherDropdown.style.display = 'none';
+              otherCard.style.background = '#FFFFFF';
+              if (otherArrow) otherArrow.style.transform = 'rotate(0deg)';
+            }
+          });
+        }
+      }
+
+      if (isCurrentlyHidden) {
         dropdown.classList.remove('hidden');
         dropdown.style.display = 'block';
         card.style.background = '#F8FAFC';

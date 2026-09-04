@@ -124,11 +124,20 @@ function updateAllProfileImages(photoUrl) {
     }
 }
 
+let currentUserRole = 'student';
+
 /**
  * Applies profile data fields to DOM elements
  */
 function applyProfileData(data) {
     if (!data) return;
+    if (data.role) currentUserRole = data.role;
+
+    const upPhotoOverlay = document.querySelector('.up-photo-overlay');
+    if (upPhotoOverlay) {
+        // Completely disable camera icon overlay for everyone (admin updates this from backend)
+        upPhotoOverlay.style.display = 'none';
+    }
 
     const hasCustomName = data.name && data.name !== "User" && data.name !== "Add your name";
     if (valName) valName.textContent = hasCustomName ? data.name : "Add your name";
@@ -278,24 +287,11 @@ function processProfileImage(file, maxDimension = 400, quality = 0.85) {
 if (piEditBtn) {
     piEditBtn.addEventListener('click', () => openUpdateProfile());
 }
-if (piAvatarCustom) {
-    piAvatarCustom.addEventListener('click', () => openUpdateProfile());
-}
-if (rowName) {
-    rowName.addEventListener('click', () => openUpdateProfile());
-}
-if (rowGender) {
-    rowGender.addEventListener('click', () => openUpdateProfile());
-}
-if (rowEmail) {
-    rowEmail.addEventListener('click', () => openUpdateProfile());
-}
 
 // Photo Upload Selection & Instant Preview
 if (upPhotoContainer && upInputPhoto) {
-    upPhotoContainer.addEventListener('click', () => {
-        upInputPhoto.click();
-    });
+    // completely disabled: users cannot upload their own photos anymore
+    // upPhotoContainer.addEventListener('click', ... )
 
     upInputPhoto.addEventListener('change', async (e) => {
         const file = e.target.files[0];

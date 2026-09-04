@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexride-cache-v16';
+const CACHE_NAME = 'nexride-cache-v20';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -12,6 +12,7 @@ const urlsToCache = [
   '/js/main.js',
   '/js/auth-ui.js',
   '/js/report.js',
+  '/notification.svg',
   '/manifest.json',
   '/favicon/web-app-manifest-192x192.png',
   '/favicon/web-app-manifest-512x512.png',

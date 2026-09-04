@@ -688,8 +688,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const notificationsPage = document.getElementById('notifications-page');
   const notificationsBackBtn = document.getElementById('back-notifications');
 
+  window.openNotificationsPage = () => {
+    if (notificationsPage) notificationsPage.classList.remove('hidden');
+  };
+  window.closeNotificationsPage = () => {
+    if (notificationsPage) notificationsPage.classList.add('hidden');
+  };
+
   if (btnNotifications && notificationsPage && notificationsBackBtn) {
-    btnNotifications.addEventListener('click', () => {
+    btnNotifications.addEventListener('click', (e) => {
+      if (e.target.closest('.home-notif-item') || e.target.closest('#btn-view-all-notifs')) {
+        return;
+      }
       notificationsPage.classList.remove('hidden');
     });
 

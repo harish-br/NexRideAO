@@ -16,12 +16,12 @@
  */
 
 import { firestore as db, auth, storage } from './firebase-config.js';
-import { 
-  collection, doc, setDoc, addDoc, getDoc, getDocs, 
-  query, where, orderBy, onSnapshot, serverTimestamp 
+import {
+  collection, doc, setDoc, addDoc, getDoc, getDocs, updateDoc,
+  query, where, orderBy, onSnapshot, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
-import { 
-  ref, uploadString, getDownloadURL 
+import {
+  ref, uploadString, getDownloadURL
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
 
 // =============================================================================
@@ -122,7 +122,19 @@ let userProfile = null;
 let isFormDirty = false;
 let isSubmitting = false;
 let userNotifications = [];
+let notificationsLoaded = false;
 let activeReportDetailId = null;
+
+// Attempt to restore cached notifications immediately
+try {
+  const cachedNotifs = localStorage.getItem('nexride_user_notifs_cache');
+  if (cachedNotifs) {
+    userNotifications = JSON.parse(cachedNotifs);
+    notificationsLoaded = true;
+  }
+} catch (e) {
+  console.warn('[Report] Failed to load cached notifications:', e);
+}
 
 // Expose immediate top-level global handlers so inline HTML onclicks never fail
 window.hasUnsavedData = () => hasUnsavedData();
@@ -135,6 +147,13 @@ window.openReportIssuePage = () => openReportIssuePage();
 window.closeReportIssuePage = () => handleBackWithDiscardCheck();
 window.openMyReportsPage = () => openMyReportsPage();
 window.openReportDetails = (id) => openReportDetails(id);
+window.markNotificationAsRead = (id) => markNotificationAsRead(id);
+window.markAllNotificationsAsRead = () => markAllNotificationsAsRead();
+window.updateNotificationsUI = () => updateNotificationsUI();
+window.openNotificationDetails = (n) => openNotificationDetails(n);
+window.closeNotificationDetails = () => closeNotificationDetails();
+window.openNotificationsPage = () => openNotificationsPage();
+window.closeNotificationsPage = () => closeNotificationsPage();
 
 // =============================================================================
 // DOM INITIALIZATION
@@ -156,6 +175,8 @@ export function initReportModule() {
         userProfile = null;
         myReportsCache = [];
         userNotifications = [];
+        notificationsLoaded = true;
+        try { localStorage.removeItem('nexride_user_notifs_cache'); } catch (e) { }
         updateNotificationsUI();
       }
     });
@@ -163,6 +184,12 @@ export function initReportModule() {
 
   // 3. Bind Navigation Triggers
   bindNavigation();
+
+  // Initialize notification detail modal listeners
+  initNotificationDetailModal();
+
+  // Initialize notifications UI immediately
+  updateNotificationsUI();
 
   // 4. Render Category Options in Bottom Sheet
   renderCategorySheetOptions();
@@ -273,9 +300,9 @@ function subscribeToMyReports(uid) {
 
       // Real-Time Sync: If student is currently viewing a report in details page, update it live
       if (activeReportDetailId) {
-        const updated = myReportsCache.find(r => 
-          r.id === activeReportDetailId || 
-          r.reportId === activeReportDetailId || 
+        const updated = myReportsCache.find(r =>
+          r.id === activeReportDetailId ||
+          r.reportId === activeReportDetailId ||
           r.reportNumber === activeReportDetailId
         );
         const detailsPage = document.getElementById('report-details-page');
@@ -294,7 +321,7 @@ function subscribeToMyReports(uid) {
 function subscribeToNotifications(uid) {
   if (!db) return;
   try {
-    const q = query(collection(db, 'users', uid, 'notifications'), orderBy('createdAt', 'desc'));
+    const q = collection(db, 'users', uid, 'notifications');
     onSnapshot(q, (snapshot) => {
       userNotifications = [];
       snapshot.forEach(docSnap => {
@@ -303,12 +330,34 @@ function subscribeToNotifications(uid) {
           ...docSnap.data()
         });
       });
+      // Sort in-memory newest first safely
+      userNotifications.sort((a, b) => {
+        const getTime = (val) => {
+          if (!val) return 0;
+          if (typeof val.toMillis === 'function') return val.toMillis();
+          if (typeof val.toDate === 'function') return val.toDate().getTime();
+          if (typeof val.seconds === 'number') return val.seconds * 1000;
+          if (val instanceof Date) return val.getTime();
+          const t = new Date(val).getTime();
+          return isNaN(t) ? 0 : t;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
+      notificationsLoaded = true;
+      try {
+        localStorage.setItem('nexride_user_notifs_cache', JSON.stringify(userNotifications));
+      } catch (e) { }
+      console.log('[Report] Realtime notifications updated:', userNotifications.length, 'total');
       updateNotificationsUI();
     }, (error) => {
       console.warn('[Report] Notifications subscription error:', error);
+      notificationsLoaded = true;
+      updateNotificationsUI();
     });
   } catch (e) {
     console.warn('[Report] Notifications setup error:', e);
+    notificationsLoaded = true;
+    updateNotificationsUI();
   }
 }
 
@@ -378,6 +427,7 @@ function bindNavigation() {
   if (myReportsNewBtn) {
     myReportsNewBtn.addEventListener('click', () => {
       closePage('my-reports-page');
+      closePage('report-details-page');
       openReportIssuePage();
     });
   }
@@ -427,13 +477,13 @@ export function openReportIssuePage() {
       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
       dateInput.value = now.toISOString().slice(0, 16);
     }
-    
+
     // Select default category
     selectCategory(selectedCategory || REPORT_CATEGORIES[0]);
-    
+
     // Automatically capture mandatory current GPS location in background
     autoCaptureLocation();
-    
+
     isFormDirty = false;
   }
 }
@@ -1066,7 +1116,7 @@ function renderAttachmentsThumbnails() {
     const thumb = document.createElement('div');
     thumb.className = 'report-thumb-item';
     thumb.innerHTML = `
-      <img src="${att.dataUrl}" alt="Attachment ${idx+1}" class="report-thumb-img" />
+      <img src="${att.dataUrl}" alt="Attachment ${idx + 1}" class="report-thumb-img" />
       <button type="button" class="report-thumb-remove-btn" data-idx="${idx}">&times;</button>
     `;
 
@@ -1204,20 +1254,20 @@ function indicateMissingField(el, placeholderText) {
       const bodyRect = scrollBody.getBoundingClientRect();
       const targetScroll = scrollBody.scrollTop + (elRect.top - bodyRect.top) - (bodyRect.height / 3);
       scrollBody.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
-    } catch (e) {}
+    } catch (e) { }
   }
   try {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  } catch (e) {}
+  } catch (e) { }
 
   // Focus immediately to place the cursor inside the input box ready for typing
   setTimeout(() => {
     try {
       el.focus({ preventScroll: true });
       if (typeof el.showPicker === 'function' && (el.type === 'time' || el.type === 'datetime-local' || el.type === 'date')) {
-        try { el.showPicker(); } catch (e) {}
+        try { el.showPicker(); } catch (e) { }
       }
-    } catch (e) {}
+    } catch (e) { }
   }, 100);
 
   // Auto-restore placeholder as soon as user types or selects a value
@@ -1593,7 +1643,7 @@ function renderMyReportsList() {
   filtered.forEach(report => {
     const card = document.createElement('div');
     card.className = 'my-report-card';
-    
+
     // Status Badge Class
     const statusClass = getStatusClass(report.status);
     const prioClass = getPriorityClass(report.priority);
@@ -1604,27 +1654,46 @@ function renderMyReportsList() {
       report.routeName ? report.routeName : ''
     ].filter(Boolean).join(' • ');
 
+    // Map status to a color scheme for the icon
+    let iconBg = '#EFF6FF';
+    let iconColor = '#2563EB';
+    if (report.status === 'Resolved' || report.status === 'Closed') {
+      iconBg = '#DCFCE7';
+      iconColor = '#16A34A';
+    } else if (report.status === 'Under Review' || report.status === 'In Progress') {
+      iconBg = '#FEF9C3';
+      iconColor = '#CA8A04';
+    }
+
     card.innerHTML = `
-      <div class="my-report-card-top">
-        <span class="my-report-id-text">${report.reportNumber || report.reportId || 'NXR-REPORT'}</span>
-        <span class="report-status-badge ${statusClass}">
-          ${report.status || 'Submitted'}
-        </span>
-      </div>
-      <div class="my-report-card-title">${escapeHtml(report.subject)}</div>
-      <div style="font-size:12px; color:#6B7280; font-weight:600; margin-bottom:4px;">${escapeHtml(report.categoryName || 'General Issue')}</div>
-      <div class="my-report-card-desc">${escapeHtml(report.description)}</div>
-      ${adminMsg ? `
-        <div style="margin-top:6px; padding:6px 10px; background:#EFF6FF; border-left:3px solid #2563EB; border-radius:4px; font-size:12px; color:#1E40AF;">
-          <strong>Admin Response:</strong> ${escapeHtml(adminMsg)}
+      <div style="background:#FFFFFF; border-radius:14px; padding:14px 16px; border:1px solid #F3F4F6; box-shadow:0 2px 6px rgba(0,0,0,0.03); display:flex; gap:14px; align-items:flex-start; width:100%; box-sizing:border-box;">
+        
+        <div style="width:38px; height:38px; border-radius:10px; background:${iconBg}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
         </div>
-      ` : ''}
-      <div class="my-report-card-bottom">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span class="report-prio-tag ${prioClass}">${report.priority || 'NORMAL'}</span>
-          ${busRouteStr ? `<span style="font-size:11.5px; color:#4B5563; font-weight:600;">${escapeHtml(busRouteStr)}</span>` : ''}
+
+        <div style="flex:1; text-align:left; min-width:0;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px;">
+            <span style="font-size:14.5px; font-weight:700; color:#111827; text-align:left; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(report.subject)}</span>
+            <span class="report-status-badge ${statusClass}" style="transform: scale(0.85); transform-origin: right; flex-shrink: 0; margin-top: -2px;">${report.status || 'Submitted'}</span>
+          </div>
+          <p style="font-size:13px; color:#4B5563; margin:0 0 8px 0; line-height:1.45; text-align:left; word-break:break-word;">${escapeHtml(report.description)}</p>
+          
+          <div style="display:flex; justify-content:space-between; align-items:center; padding-top:8px; border-top:1px solid #F1F5F9;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-size:11.5px; font-weight:600; color:#2563EB;">${report.reportNumber || report.reportId || 'NXR-REPORT'}</span>
+              ${busRouteStr ? `<span style="font-size:11px; color:#6B7280; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px;">• ${escapeHtml(busRouteStr)}</span>` : ''}
+            </div>
+            <span style="font-size:11.5px; color:#9CA3AF; font-weight:500; flex-shrink:0;">${dateStr}</span>
+          </div>
         </div>
-        <span class="my-report-date-text">${dateStr}</span>
+
       </div>
     `;
 
@@ -1662,7 +1731,7 @@ export function openReportDetails(report) {
 
   if (idEl) idEl.textContent = report.reportNumber || report.reportId || 'NXR-REPORT';
   if (catEl) catEl.textContent = report.categoryName || 'General Issue';
-  
+
   if (statusBadge) {
     statusBadge.className = `report-status-badge ${getStatusClass(report.status)}`;
     statusBadge.textContent = report.status || 'Submitted';
@@ -1676,10 +1745,14 @@ export function openReportDetails(report) {
   if (subjectEl) subjectEl.textContent = report.subject;
   if (descEl) descEl.textContent = report.description;
 
+  const contextWrapper = document.getElementById('rep-detail-context-wrapper');
+  let showContextWrapper = false;
+
   if (busRouteEl) {
     if (report.busNumber || report.routeName) {
       busRouteEl.textContent = `Bus ${report.busNumber || 'N/A'} • ${report.routeName || 'Assigned Route'}`;
       busRouteEl.parentElement.style.display = 'flex';
+      showContextWrapper = true;
     } else {
       busRouteEl.parentElement.style.display = 'none';
     }
@@ -1691,25 +1764,37 @@ export function openReportDetails(report) {
     if (report.location && report.location.latitude && report.location.longitude) {
       locationEl.textContent = `${report.location.latitude.toFixed(4)}°, ${report.location.longitude.toFixed(4)}° (±${report.location.accuracy || 10}m)`;
       locationEl.parentElement.style.display = 'flex';
+      showContextWrapper = true;
     } else {
       locationEl.parentElement.style.display = 'none';
     }
   }
 
+  if (contextWrapper) {
+    contextWrapper.style.display = showContextWrapper ? 'flex' : 'none';
+  }
+
   // Extra fields (e.g. Issue type, Txn ID)
-  if (extraFieldsEl) {
+  const extraWrap = document.getElementById('rep-detail-extra-fields-wrap');
+  const emptyState = document.getElementById('rep-detail-extra-fields-empty');
+  
+  if (extraFieldsEl && extraWrap && emptyState) {
     extraFieldsEl.innerHTML = '';
     if (report.extraFields && Object.keys(report.extraFields).length > 0) {
       Object.entries(report.extraFields).forEach(([k, v]) => {
         if (!v) return;
         const row = document.createElement('div');
-        row.style.cssText = 'display:flex; justify-content:space-between; font-size:13px; padding:6px 0; border-bottom:1px solid #F8FAFC;';
-        row.innerHTML = `<span style="color:#6B7280; text-transform:capitalize;">${k.replace(/([A-Z])/g, ' $1')}:</span><span style="font-weight:600; color:#111827;">${v}</span>`;
+        row.style.cssText = 'display:flex; justify-content:space-between; font-size:13px; padding:8px 0; border-bottom:1px solid #F1F5F9;';
+        row.innerHTML = `<span style="color:#64748B; text-transform:capitalize;">${k.replace(/([A-Z])/g, ' $1')}:</span><span style="font-weight:600; color:#1E293B;">${v}</span>`;
         extraFieldsEl.appendChild(row);
       });
-      extraFieldsEl.parentElement.style.display = 'flex';
+      extraFieldsEl.style.display = 'block';
+      emptyState.style.display = 'none';
+      extraWrap.style.display = 'flex';
     } else {
-      extraFieldsEl.parentElement.style.display = 'none';
+      extraFieldsEl.style.display = 'none';
+      emptyState.style.display = 'block';
+      extraWrap.style.display = 'flex';
     }
   }
 
@@ -1721,7 +1806,7 @@ export function openReportDetails(report) {
         const thumb = document.createElement('div');
         thumb.className = 'report-thumb-item';
         thumb.style.cursor = 'pointer';
-        thumb.innerHTML = `<img src="${src}" alt="Attachment ${idx+1}" class="report-thumb-img" />`;
+        thumb.innerHTML = `<img src="${src}" alt="Attachment ${idx + 1}" class="report-thumb-img" />`;
         thumb.addEventListener('click', () => openLightbox(src));
         attachEl.appendChild(thumb);
       });
@@ -1730,6 +1815,7 @@ export function openReportDetails(report) {
       attachEl.parentElement.style.display = 'none';
     }
   }
+
 
   // Admin message / response (Section 15)
   if (adminMsgWrap && adminMsgText) {
@@ -1752,10 +1838,9 @@ export function openReportDetails(report) {
 
 function renderStatusTimeline(container, report) {
   const steps = [
-    { key: 'Submitted', label: 'Report Submitted', defaultMsg: 'Report received and registered in system.' },
-    { key: 'Under Review', label: 'Under Review', defaultMsg: 'Assigned to transport administration for investigation.' },
-    { key: 'In Progress', label: 'In Progress', defaultMsg: 'Corrective actions or bus maintenance underway.' },
-    { key: 'Resolved', label: 'Resolved', defaultMsg: 'Issue verified and successfully addressed.' }
+    { key: 'Submitted', label: 'Report Submitted', defaultMsg: 'Your report has been successfully logged.', defaultFuture: 'The report will appear here when processing begins.' },
+    { key: 'Under Review', label: 'Under Review', defaultMsg: 'Assigned to transport administration for investigation.', defaultFuture: 'The report will appear here when processing begins.' },
+    { key: 'Resolved', label: 'Resolved', defaultMsg: 'Resolution details will appear here once provided.', defaultFuture: 'Resolution details will appear here once provided.' }
   ];
 
   const currentStatus = report.status || 'Submitted';
@@ -1765,27 +1850,60 @@ function renderStatusTimeline(container, report) {
   let currentIdx = steps.findIndex(s => s.key.toLowerCase() === currentStatus.toLowerCase());
   if (currentIdx === -1) currentIdx = 0;
 
-  let html = '<div class="report-timeline">';
+  // Insert "In Progress" if the backend returns it explicitly
+  if (currentStatus === 'In Progress' || report.statusHistory?.some(h => h.status === 'In Progress')) {
+    steps.splice(2, 0, { key: 'In Progress', label: 'In Progress', defaultMsg: 'Corrective actions underway.', defaultFuture: 'Will update when actions begin.' });
+    currentIdx = steps.findIndex(s => s.key === currentStatus);
+  }
+
+  let html = '<div class="report-timeline" style="display:flex; flex-direction:column; gap:0;">';
 
   steps.forEach((s, idx) => {
     const isCompleted = idx < currentIdx || (idx === currentIdx && currentStatus === 'Resolved');
     const isActive = idx === currentIdx && currentStatus !== 'Resolved';
-    
+    const isFuture = idx > currentIdx;
+    const isLast = idx === steps.length - 1;
+
+    // Colors & icons
+    const iconColor = isCompleted ? '#2563EB' : (isActive ? '#2563EB' : '#CBD5E1');
+    const textColor = isCompleted ? '#0F172A' : (isActive ? '#1E3A8A' : '#94A3B8');
+    const msgColor = isCompleted ? '#334155' : (isActive ? '#1E40AF' : '#94A3B8');
+    const msgBg = isActive ? '#EFF6FF' : 'transparent';
+    const msgBorder = isActive ? '1px solid #BFDBFE' : 'none';
+
+    // SVG Icon (◉ for active, check for completed, ○ for future)
+    let iconSvg = '';
+    if (isCompleted) {
+      iconSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="${iconColor}" stroke="${iconColor}" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline stroke="#fff" points="8 12 11 15 16 9"></polyline></svg>`;
+    } else if (isActive) {
+      iconSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2.5"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="3" fill="${iconColor}"></circle></svg>`;
+    } else {
+      iconSvg = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${iconColor}" stroke-width="2"><circle cx="12" cy="12" r="9"></circle></svg>`;
+    }
+
     // Find matching history item
     const historyItem = report.statusHistory?.find(h => h.status.toLowerCase() === s.key.toLowerCase());
     const dateStr = historyItem ? formatDate(historyItem.timestamp) : '';
-    const msg = historyItem?.message || (idx <= currentIdx ? s.defaultMsg : '');
+    const msg = historyItem?.message || (isFuture ? s.defaultFuture : s.defaultMsg);
 
     html += `
-      <div class="timeline-step ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}">
-        <div class="timeline-line"></div>
-        <div class="timeline-node">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+      <div style="display: flex; gap: 16px; position: relative;">
+        <!-- Timeline visual column -->
+        <div style="display: flex; flex-direction: column; align-items: center; width: 16px; flex-shrink: 0;">
+          <div style="margin-top: 4px; background: #fff; z-index: 2;">${iconSvg}</div>
+          ${!isLast ? `<div style="width: 2px; flex: 1; background: ${isCompleted ? '#93C5FD' : '#E2E8F0'}; margin: 4px 0;"></div>` : ''}
         </div>
-        <div class="timeline-content">
-          <div class="timeline-title">${s.label}</div>
-          ${dateStr ? `<div class="timeline-date">${dateStr}</div>` : ''}
-          ${(idx <= currentIdx && msg) ? `<div class="timeline-message">${escapeHtml(msg)}</div>` : ''}
+        <!-- Timeline content column -->
+        <div style="flex: 1; padding-bottom: ${isLast ? '0' : '28px'};">
+          <div style="font-size: 14.5px; font-weight: ${isActive || isCompleted ? '700' : '600'}; color: ${textColor}; display: flex; align-items: center; justify-content: space-between;">
+            <span>${s.label}</span>
+            ${dateStr ? `<span style="font-size: 12px; font-weight: 500; color: #64748B;">${dateStr}</span>` : ''}
+          </div>
+          ${msg ? `
+            <div style="margin-top: 6px; font-size: 13px; color: ${msgColor}; background: ${msgBg}; border: ${msgBorder}; border-radius: 8px; padding: ${isActive ? '8px 12px' : '0'}; line-height: 1.5;">
+              ${escapeHtml(msg)}
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -1817,29 +1935,164 @@ function renderStatusTimeline(container, report) {
 // =============================================================================
 // NOTIFICATIONS SYSTEM INTEGRATION
 // =============================================================================
-function updateNotificationsUI() {
-  // 1. Home screen badge
+
+export async function markNotificationAsRead(notifId) {
+  if (!notifId) return;
+  // Optimistically mark local notification as read
+  const item = userNotifications.find(n => n.id === notifId);
+  if (item) {
+    item.read = true;
+    try {
+      localStorage.setItem('nexride_user_notifs_cache', JSON.stringify(userNotifications));
+    } catch (e) { }
+    setTimeout(() => {
+      updateNotificationsUI();
+    }, 400);
+  }
+
+  if (db && auth?.currentUser) {
+    try {
+      const uid = auth.currentUser.uid;
+      await updateDoc(doc(db, 'users', uid, 'notifications', notifId), {
+        read: true
+      });
+    } catch (err) {
+      console.warn('[Report] Could not mark notification as read in Firestore:', err);
+    }
+  }
+}
+
+export async function markAllNotificationsAsRead() {
+  const unreads = userNotifications.filter(n => !n.read);
+  if (unreads.length === 0) return;
+
+  unreads.forEach(n => { n.read = true; });
+  try {
+    localStorage.setItem('nexride_user_notifs_cache', JSON.stringify(userNotifications));
+  } catch (e) { }
+  setTimeout(() => {
+    updateNotificationsUI();
+  }, 400);
+
+  if (db && auth?.currentUser) {
+    const uid = auth.currentUser.uid;
+    for (const n of unreads) {
+      try {
+        await updateDoc(doc(db, 'users', uid, 'notifications', n.id), {
+          read: true
+        });
+      } catch (err) {
+        console.warn('[Report] Error marking notification as read:', err);
+      }
+    }
+  }
+}
+
+export function updateNotificationsUI() {
+  const unreadCount = userNotifications.filter(n => !n.read).length;
+  console.log('[Report] updateNotificationsUI: total =', userNotifications.length, ', unread =', unreadCount, ', loaded =', notificationsLoaded);
+
+  // 1. Home screen badge & content
   const notifCard = document.getElementById('btn-notifications');
   if (notifCard) {
-    let badge = notifCard.querySelector('.notif-badge-pill');
-    const unreadCount = userNotifications.filter(n => !n.read).length;
-
-    if (unreadCount > 0) {
-      if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'notif-badge-pill';
-        notifCard.appendChild(badge);
+    const badge = document.getElementById('home-notif-badge') || notifCard.querySelector('.notif-badge-pill');
+    if (badge) {
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
       }
-      badge.textContent = unreadCount;
-      badge.style.display = 'inline-flex';
-    } else if (badge) {
-      badge.style.display = 'none';
+    }
+
+    const homeContentArea = document.getElementById('home-notif-content-area');
+    if (homeContentArea) {
+      if (!notificationsLoaded && userNotifications.length === 0) {
+        homeContentArea.innerHTML = `
+          <div class="home-notif-loading" style="padding: 16px 8px; display: flex; align-items: center; gap: 12px; opacity: 0.5;">
+            <div style="width: 36px; height: 36px; border-radius: 10px; background: #E5E7EB;"></div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <div style="width: 45%; height: 12px; background: #E5E7EB; border-radius: 4px;"></div>
+              <div style="width: 80%; height: 10px; background: #F3F4F6; border-radius: 4px;"></div>
+            </div>
+          </div>
+        `;
+      } else if (userNotifications.length === 0) {
+        homeContentArea.innerHTML = `
+          <div class="home-notif-empty" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px 16px; flex: 1;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: #EFF6FF; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+              <img src="./notification.svg" style="width: 26px; height: 26px; display: block;" alt="Notification" />
+            </div>
+            <div style="font-size: 15px; font-weight: 700; color: #1F2937; margin-bottom: 4px;">No new notifications</div>
+            <div style="font-size: 12.5px; color: #6B7280; max-width: 250px; line-height: 1.4;">You're all caught up! Updates about your bus, route, and reports will appear here.</div>
+          </div>
+        `;
+      } else {
+        try {
+          // Show up to 3 recent notifications
+          const recentNotifs = userNotifications.slice(0, 3);
+          let homeHtml = '';
+          recentNotifs.forEach(n => {
+            const dateStr = formatRelativeDate(n.createdAt);
+            const isUnread = !n.read;
+            const isSos = n.type === 'sos_alert' || n.priority === 'URGENT';
+
+            homeHtml += `
+              <div class="home-notif-item ${isUnread ? 'unread' : ''}" data-notif-id="${n.id || ''}">
+                <div class="home-notif-icon-wrap ${isSos ? 'sos' : ''}">
+                  <div class="home-notif-svg-icon" style="width: 20px; height: 20px; background-color: ${isSos ? '#DC2626' : '#2563EB'}; -webkit-mask: url('./notification.svg') no-repeat center / contain; mask: url('./notification.svg') no-repeat center / contain;"></div>
+                  ${isUnread ? '<span class="notif-unread-dot"></span>' : ''}
+                </div>
+                <div class="home-notif-body">
+                  <div class="home-notif-top">
+                    <span class="home-notif-title">${escapeHtml(n.title || 'Notification')}</span>
+                    <span class="home-notif-time">${dateStr}</span>
+                  </div>
+                  <p class="home-notif-desc" style="text-align: left !important; text-justify: none !important; letter-spacing: normal !important; word-spacing: normal !important;">${escapeHtml(n.body || '')}</p>
+                </div>
+                <div class="home-notif-arrow">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </div>
+              </div>
+            `;
+          });
+
+          if (userNotifications.length > 3) {
+            homeHtml += `
+              <div style="font-size: 13px; color: #6B7280; text-align: center; margin-top: 4px;">
+                +${userNotifications.length - 3} more notifications
+              </div>
+            `;
+          }
+
+          homeContentArea.innerHTML = homeHtml;
+
+          // Attach click handlers to each notification item on home card
+          homeContentArea.querySelectorAll('.home-notif-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const notifId = item.getAttribute('data-notif-id');
+              const notif = userNotifications.find(n => n.id === notifId);
+              if (notif) {
+                openNotificationDetails(notif);
+              }
+            });
+          });
+        } catch (err) {
+          console.error('[Report] Error rendering home notifications:', err);
+        }
+      }
     }
   }
 
   // 2. Notifications Page List
   const notifPage = document.getElementById('notifications-page');
   if (!notifPage) return;
+
+  const markAllBtn = document.getElementById('notif-page-mark-all');
+  if (markAllBtn) {
+    markAllBtn.style.display = unreadCount > 0 ? 'block' : 'none';
+  }
 
   const notifScrollBody = notifPage.querySelector('.notifications-scroll-list') || notifPage.children[1];
   if (!notifScrollBody) return;
@@ -1852,10 +2105,9 @@ function updateNotificationsUI() {
     notifScrollBody.style.padding = '20px';
     notifScrollBody.innerHTML = `
       <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center;">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px;">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-        </svg>
+        <div style="width: 64px; height: 64px; border-radius: 50%; background: #EFF6FF; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+          <img src="./notification.svg" style="width: 36px; height: 36px; display: block;" alt="Notification" />
+        </div>
         <div style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 8px;">No new notifications</div>
         <div style="font-size: 14px; color: #6B7280;">You're all caught up! Check back later for updates.</div>
       </div>
@@ -1871,18 +2123,22 @@ function updateNotificationsUI() {
 
   let listHtml = '<div style="display: flex; flex-direction: column; gap: 12px; width: 100%; text-align: left;">';
   userNotifications.forEach(n => {
-    const dateStr = formatDate(n.createdAt);
+    const dateStr = formatRelativeDate(n.createdAt);
+    const isUnread = !n.read;
+    const isSos = n.type === 'sos_alert' || n.priority === 'URGENT';
+
     listHtml += `
-      <div class="user-notif-item" data-report-id="${n.reportId || ''}" style="background:#FFFFFF; border-radius:14px; padding:14px 16px; border:1px solid #F3F4F6; box-shadow:0 2px 6px rgba(0,0,0,0.03); display:flex; gap:14px; align-items:flex-start; cursor:pointer; text-align:left; width:100%; box-sizing:border-box;">
-        <div style="width:38px; height:38px; border-radius:10px; background:#EFF6FF; color:#2563EB; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <div class="user-notif-item ${isUnread ? 'unread' : ''}" data-notif-id="${n.id}" data-report-id="${n.reportId || ''}" style="background:#FFFFFF; border-radius:14px; padding:14px 16px; border:1px solid ${isUnread ? '#BFDBFE' : '#F3F4F6'}; border-left:${isUnread ? '4px solid #2563EB' : '1px solid #F3F4F6'}; box-shadow:0 2px 6px rgba(0,0,0,0.03); display:flex; gap:14px; align-items:flex-start; cursor:pointer; text-align:left; width:100%; box-sizing:border-box;">
+        <div style="width:38px; height:38px; border-radius:10px; background:${isSos ? '#FEE2E2' : '#EFF6FF'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; position:relative;">
+          <div style="width: 20px; height: 20px; background-color: ${isSos ? '#DC2626' : '#2563EB'}; -webkit-mask: url('./notification.svg') no-repeat center / contain; mask: url('./notification.svg') no-repeat center / contain;"></div>
+          ${isUnread ? '<span style="position:absolute; top:-2px; right:-2px; width:9px; height:9px; border-radius:50%; background:#2563EB; border:2px solid #FFFFFF;"></span>' : ''}
         </div>
         <div style="flex:1; text-align:left; min-width:0;">
           <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px;">
-            <span style="font-size:14.5px; font-weight:700; color:#111827; text-align:left; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(n.title)}</span>
+            <span style="font-size:14.5px; font-weight:${isUnread ? '700' : '600'}; color:#111827; text-align:left; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(n.title || 'Notification')}</span>
             <span style="font-size:11.5px; color:#9CA3AF; flex-shrink:0; font-weight:500; text-align:right;">${dateStr}</span>
           </div>
-          <p style="font-size:13px; color:#4B5563; margin:0; line-height:1.45; text-align:left; word-break:break-word;">${escapeHtml(n.body)}</p>
+          <p style="font-size:13px; color:#4B5563; margin:0; line-height:1.45; text-align:left; word-break:break-word;">${escapeHtml(n.body || '')}</p>
         </div>
       </div>
     `;
@@ -1891,22 +2147,226 @@ function updateNotificationsUI() {
 
   notifScrollBody.innerHTML = listHtml;
 
-  // Attach click to open report details
+  // Attach click to open notification details
   notifScrollBody.querySelectorAll('.user-notif-item').forEach(item => {
-    item.addEventListener('click', async () => {
-      const repId = item.getAttribute('data-report-id');
-      if (repId && db) {
-        try {
-          const docSnap = await getDoc(doc(db, 'reports', repId));
-          if (docSnap.exists()) {
-            openReportDetails({ id: docSnap.id, ...docSnap.data() });
-          }
-        } catch (e) {
-          console.warn('Could not load report for notification:', e);
-        }
+    item.addEventListener('click', () => {
+      const notifId = item.getAttribute('data-notif-id');
+      const notif = userNotifications.find(n => n.id === notifId);
+      if (notif) {
+        openNotificationDetails(notif);
       }
     });
   });
+}
+
+export function openNotificationsPage() {
+  const notifPage = document.getElementById('notifications-page');
+  if (notifPage) {
+    setTimeout(() => {
+      notifPage.classList.remove('hidden');
+    }, 50);
+  }
+}
+
+export function closeNotificationsPage() {
+  const notifPage = document.getElementById('notifications-page');
+  if (notifPage) {
+    setTimeout(() => {
+      notifPage.classList.add('hidden');
+    }, 50);
+  }
+}
+
+// =============================================================================
+// NOTIFICATION DETAILS MODAL CONTROLLER
+// =============================================================================
+export function openNotificationDetails(notif) {
+  if (!notif) return;
+
+  const modal = document.getElementById('notif-detail-modal');
+  if (!modal) return;
+
+  // Mark as read immediately
+  if (notif.id) {
+    markNotificationAsRead(notif.id);
+  }
+
+  const iconBox = document.getElementById('notif-detail-icon-box');
+  const icon = document.getElementById('notif-detail-icon');
+  const titleEl = document.getElementById('notif-detail-title');
+  const typeBadge = document.getElementById('notif-detail-type-badge');
+  const timeEl = document.getElementById('notif-detail-time');
+  const bodyEl = document.getElementById('notif-detail-body');
+  const reportBox = document.getElementById('notif-detail-report-box');
+  const reportNumEl = document.getElementById('notif-detail-report-num');
+  const statusTag = document.getElementById('notif-detail-status-tag');
+  const exactDateEl = document.getElementById('notif-detail-exact-date');
+  const openReportBtn = document.getElementById('notif-detail-open-report-btn');
+
+  const isSos = notif.type === 'sos_alert' || notif.priority === 'URGENT';
+
+  if (iconBox && icon) {
+    iconBox.style.background = isSos ? '#FEE2E2' : '#EFF6FF';
+    icon.style.backgroundColor = isSos ? '#DC2626' : '#2563EB';
+  }
+
+  if (titleEl) titleEl.textContent = notif.title || 'Notification';
+  if (bodyEl) bodyEl.textContent = notif.body || 'No message details provided.';
+  if (timeEl) timeEl.textContent = formatRelativeDate(notif.createdAt);
+
+  if (typeBadge) {
+    if (isSos) {
+      typeBadge.textContent = 'URGENT';
+      typeBadge.style.background = '#FEE2E2';
+      typeBadge.style.color = '#DC2626';
+    } else if (notif.type === 'report_status') {
+      typeBadge.textContent = 'REPORT UPDATE';
+      typeBadge.style.background = '#EFF6FF';
+      typeBadge.style.color = '#2563EB';
+    } else {
+      typeBadge.textContent = 'UPDATE';
+      typeBadge.style.background = '#F3F4F6';
+      typeBadge.style.color = '#4B5563';
+    }
+  }
+
+  if (exactDateEl) {
+    exactDateEl.textContent = formatExactDate(notif.createdAt);
+  }
+
+  // Handle attached report
+  const repId = notif.reportId || notif.reportNumber;
+  if (reportBox && openReportBtn) {
+    if (repId) {
+      reportBox.style.display = 'flex';
+      if (reportNumEl) reportNumEl.textContent = repId;
+
+      // Find report in local cache or set default status
+      const cached = myReportsCache.find(r => r.id === repId || r.reportNumber === repId);
+      if (statusTag) {
+        const st = (cached && cached.status) || 'Submitted';
+        statusTag.textContent = st;
+        statusTag.className = `report-status-badge ${getStatusClass(st)}`;
+      }
+
+      openReportBtn.onclick = async (e) => {
+        e.stopPropagation();
+        closeNotificationDetails();
+        if (cached) {
+          openReportDetails(cached);
+          return;
+        }
+        if (db) {
+          try {
+            const snap = await getDoc(doc(db, 'reports', repId));
+            if (snap.exists()) {
+              openReportDetails({ id: snap.id, ...snap.data() });
+              return;
+            }
+          } catch (err) {
+            console.warn('[Report] Could not fetch report details for notification:', err);
+          }
+        }
+        if (window.openMyReportsPage) window.openMyReportsPage();
+      };
+    } else {
+      reportBox.style.display = 'none';
+    }
+  }
+
+  setTimeout(() => {
+    modal.classList.add('active');
+  }, 50);
+}
+
+export function closeNotificationDetails() {
+  const modal = document.getElementById('notif-detail-modal');
+  if (modal) {
+    setTimeout(() => {
+      modal.classList.remove('active');
+    }, 50);
+  }
+}
+
+export function initNotificationDetailModal() {
+  const modal = document.getElementById('notif-detail-modal');
+  if (!modal) return;
+
+  const closeBtn = document.getElementById('close-notif-detail-modal');
+  const doneBtn = document.getElementById('notif-detail-done-btn');
+
+  if (closeBtn) closeBtn.onclick = () => closeNotificationDetails();
+  if (doneBtn) doneBtn.onclick = () => closeNotificationDetails();
+
+  modal.onclick = (e) => {
+    if (e.target === modal) closeNotificationDetails();
+  };
+}
+
+function formatExactDate(val) {
+  if (!val) return 'Recently';
+  try {
+    let dateObj = null;
+    if (val && typeof val.toDate === 'function') dateObj = val.toDate();
+    else if (val && typeof val.toMillis === 'function') dateObj = new Date(val.toMillis());
+    else if (val && typeof val.seconds === 'number') dateObj = new Date(val.seconds * 1000);
+    else if (val instanceof Date) dateObj = val;
+    else if (typeof val === 'string' || typeof val === 'number') dateObj = new Date(val);
+
+    if (!dateObj || isNaN(dateObj.getTime())) return 'Recently';
+
+    return dateObj.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  } catch (e) {
+    return 'Recently';
+  }
+}
+
+function formatRelativeDate(val) {
+  if (!val) return 'Just now';
+  try {
+    let dateObj = null;
+    if (val && typeof val.toDate === 'function') {
+      dateObj = val.toDate();
+    } else if (val && typeof val.toMillis === 'function') {
+      dateObj = new Date(val.toMillis());
+    } else if (val && typeof val.seconds === 'number') {
+      dateObj = new Date(val.seconds * 1000);
+    } else if (val instanceof Date) {
+      dateObj = val;
+    } else if (typeof val === 'string' || typeof val === 'number') {
+      dateObj = new Date(val);
+    }
+
+    if (!dateObj || isNaN(dateObj.getTime())) return 'Recently';
+
+    const diffMs = Date.now() - dateObj.getTime();
+    if (diffMs < 60000) return 'Just now';
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHours = Math.floor(diffMin / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHours < 24) {
+      return dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+
+    return dateObj.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short'
+    });
+  } catch (err) {
+    return 'Recently';
+  }
 }
 
 // =============================================================================
@@ -1933,20 +2393,8 @@ function getPriorityClass(prio) {
 }
 
 function formatDate(val) {
-  if (!val) return 'Just now';
-  let dateObj = null;
-  if (val.toDate) dateObj = val.toDate();
-  else if (typeof val === 'string' || typeof val === 'number') dateObj = new Date(val);
-  else if (val instanceof Date) dateObj = val;
-
-  if (!dateObj || isNaN(dateObj.getTime())) return 'Recently';
-
-  return dateObj.toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  if (!val) return formatRelativeDate(val);
+  return formatRelativeDate(val);
 }
 
 function escapeHtml(str) {
