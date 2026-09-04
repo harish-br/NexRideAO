@@ -2140,14 +2140,14 @@ export function updateNotificationsUI() {
     const isSos = n.type === 'sos_alert' || n.priority === 'URGENT';
 
     listHtml += `
-      <div class="user-notif-item ${isUnread ? 'unread' : ''}" data-notif-id="${n.id}" data-report-id="${n.reportId || ''}" style="background:#FFFFFF; border-radius:14px; padding:14px 16px; border:1px solid #F3F4F6; box-shadow:0 2px 6px rgba(0,0,0,0.03); display:flex; gap:14px; align-items:flex-start; cursor:pointer; text-align:left; width:100%; box-sizing:border-box;">
+      <div class="user-notif-item" data-notif-id="${n.id}" data-report-id="${n.reportId || ''}" style="background:#FFFFFF; border-radius:14px; padding:14px 16px; border:1px solid #F3F4F6; box-shadow:0 2px 6px rgba(0,0,0,0.03); display:flex; gap:14px; align-items:flex-start; cursor:pointer; text-align:left; width:100%; box-sizing:border-box;">
         <div style="width:38px; height:38px; border-radius:10px; background:${isSos ? '#FEE2E2' : '#EFF6FF'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; position:relative;">
           <div style="width: 20px; height: 20px; background-color: ${isSos ? '#DC2626' : '#2563EB'}; -webkit-mask: url('./notification.svg') no-repeat center / contain; mask: url('./notification.svg') no-repeat center / contain;"></div>
           ${isUnread ? '<span style="position:absolute; top:-2px; right:-2px; width:9px; height:9px; border-radius:50%; background:#2563EB; border:2px solid #FFFFFF;"></span>' : ''}
         </div>
         <div style="flex:1; text-align:left; min-width:0;">
           <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px; margin-bottom:4px;">
-            <span style="font-size:14.5px; font-weight:${isUnread ? '700' : '600'}; color:#111827; text-align:left; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(n.title || 'Notification')}</span>
+            <span style="font-size:14.5px; font-weight:600; color:#111827; text-align:left; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(n.title || 'Notification')}</span>
             <span style="font-size:11.5px; color:#9CA3AF; flex-shrink:0; font-weight:500; text-align:right;">${dateStr}</span>
           </div>
           <p style="font-size:13px; color:#4B5563; margin:0; line-height:1.45; text-align:left; word-break:break-word;">${escapeHtml(n.body || '')}</p>
