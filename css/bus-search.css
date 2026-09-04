@@ -148,3 +148,40 @@
 .bs-highlight {
   color: #3B82F6;
 }
+
+/* Empty state styling */
+#bs-empty-state,
+#bs-empty-state * {
+  text-align: center !important;
+  text-align-last: center !important;
+}
+
+#bs-empty-state {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  padding: 32px 20px !important;
+}
+
+#bs-empty-state h3 {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #111827 !important;
+  margin: 0 0 8px 0 !important;
+  text-align: center !important;
+}
+
+#bs-empty-state p {
+  font-size: 14px !important;
+  color: #6B7280 !important;
+  margin: 0 auto !important;
+  max-width: 290px !important;
+  line-height: 1.5 !important;
+  text-align: center !important;
+  text-align-last: center !important;
+  word-spacing: normal !important;
+  letter-spacing: normal !important;
+}
+

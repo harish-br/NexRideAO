@@ -338,9 +338,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (routeResults.length === 0 && stopResults.length === 0) {
         emptyState.innerHTML = `
-          <div style="padding: 16px; margin-top: 24px; text-align: center;">
-            <h3 style="color: #111827; font-weight: 600; margin-bottom: 8px; font-size: 16px;">No results found</h3>
-            <p style="color: #6B7280; font-size: 14px;">Try searching for a different route number or bus stop name.</p>
+          <div style="padding: 16px; margin-top: 24px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <h3 style="color: #111827; font-weight: 600; margin-bottom: 8px; font-size: 16px; text-align: center !important; text-align-last: center !important;">No results found</h3>
+            <p style="color: #6B7280; font-size: 14px; text-align: center !important; text-align-last: center !important; margin: 0 auto; max-width: 290px; line-height: 1.5; word-spacing: normal !important; letter-spacing: normal !important;">Try searching for a different route number or bus stop name.</p>
           </div>
         `;
         emptyState.classList.remove('hidden');
@@ -354,9 +354,9 @@ document.addEventListener('DOMContentLoaded', () => {
       skeletonLoader.classList.add('hidden');
       skeletonLoader.style.display = 'none';
       emptyState.innerHTML = `
-        <div style="background: #FEE2E2; padding: 16px; border-radius: 12px; margin-top: 24px; text-align: center;">
-          <h3 style="color: #991B1B; font-weight: 700; margin-bottom: 4px; font-size: 15px;">Search Failed</h3>
-          <p style="color: #B91C1C; font-size: 13px;">${error.message}</p>
+        <div style="background: #FEE2E2; padding: 16px; border-radius: 12px; margin-top: 24px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <h3 style="color: #991B1B; font-weight: 700; margin-bottom: 4px; font-size: 15px; text-align: center !important; text-align-last: center !important;">Search Failed</h3>
+          <p style="color: #B91C1C; font-size: 13px; text-align: center !important; text-align-last: center !important; margin: 0 auto; line-height: 1.5; word-spacing: normal !important;">${error.message}</p>
         </div>
       `;
       emptyState.classList.remove('hidden');
