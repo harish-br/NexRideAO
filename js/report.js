@@ -17,7 +17,7 @@
 
 import { firestore as db, auth, storage } from './firebase-config.js';
 import {
-  collection, doc, setDoc, addDoc, getDoc, getDocs, updateDoc,
+  collection, doc, setDoc, addDoc, getDoc, getDocs, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import {
@@ -117,6 +117,7 @@ let attachedFiles = []; // array of { file, dataUrl, name }
 let capturedLocation = null; // { lat, lng, text, timestamp }
 let activeFilter = 'All';
 let myReportsCache = [];
+let myReportsLoaded = false;
 let allBusesList = [];
 let userProfile = null;
 let isFormDirty = false;
@@ -124,6 +125,16 @@ let isSubmitting = false;
 let userNotifications = [];
 let notificationsLoaded = false;
 let activeReportDetailId = null;
+
+// Attempt to restore cached reports immediately
+try {
+  const cachedReports = localStorage.getItem('nexride_my_reports_cache');
+  if (cachedReports) {
+    myReportsCache = JSON.parse(cachedReports);
+  }
+} catch (e) {
+  console.warn('[Report] Failed to load cached reports:', e);
+}
 
 // Attempt to restore cached notifications immediately
 try {
@@ -278,11 +289,101 @@ async function loadUserProfile(uid) {
   }
 }
 
+async function cleanOrphanedReportNotifications(uid) {
+  if (!db || !uid || userNotifications.length === 0) return;
+
+  const validNotifications = [];
+  let changed = false;
+
+  for (const notif of userNotifications) {
+    // 1. Extract report identifier from all possible locations
+    let repId = notif.reportId || notif.reportNumber || notif.ticketId;
+    if (!repId && (notif.title || notif.body)) {
+      const match = (String(notif.title || '') + ' ' + String(notif.body || '')).match(/NXR-[A-Za-z0-9-]+/i);
+      if (match) repId = match[0];
+    }
+
+    const isReportNotif = !!repId ||
+      notif.type === 'report_status' ||
+      String(notif.title || '').toLowerCase().includes('report') ||
+      String(notif.body || '').toLowerCase().includes('report');
+
+    if (!isReportNotif) {
+      validNotifications.push(notif);
+      continue;
+    }
+
+    // 2. Check if the report exists in backend
+    let exists = false;
+
+    // Check in local cache
+    if (repId && myReportsCache.length > 0) {
+      exists = myReportsCache.some(r =>
+        r.id === repId ||
+        r.reportId === repId ||
+        r.reportNumber === repId
+      );
+    }
+
+    // If not found in cache, verify directly against Firestore
+    if (!exists && repId) {
+      try {
+        const docSnap = await getDoc(doc(db, 'reports', repId));
+        if (docSnap.exists()) {
+          exists = true;
+          // Keep cache up to date
+          if (!myReportsCache.some(r => r.id === repId)) {
+            myReportsCache.push({ id: docSnap.id, ...docSnap.data() });
+          }
+        }
+      } catch (err) {
+        console.warn('[Report] Firestore getDoc check error for report', repId, err);
+        // If reports have loaded from backend and not found, treat as deleted
+        if (!myReportsLoaded) {
+          exists = true; // Avoid premature purging if snapshot hasn't resolved
+        }
+      }
+    }
+
+    // If it's a generic report notification without ID, check if user has any reports
+    if (!exists && !repId && isReportNotif) {
+      if (myReportsLoaded && myReportsCache.length === 0) {
+        exists = false; // User has 0 reports in backend, so this notification is orphaned
+      } else {
+        exists = true;
+      }
+    }
+
+    if (exists) {
+      validNotifications.push(notif);
+    } else {
+      // REPORT WAS DELETED IN BACKEND! Purge orphaned notification from Firestore, cache and UI
+      console.log(`[Report] Auto-purging orphaned notification ${notif.id} for deleted report: ${repId || 'unknown'}`);
+      changed = true;
+      if (notif.id) {
+        try {
+          await deleteDoc(doc(db, 'users', uid, 'notifications', notif.id));
+        } catch (delErr) {
+          console.warn('[Report] Error deleting notification doc from Firestore:', delErr);
+        }
+      }
+    }
+  }
+
+  if (changed) {
+    userNotifications = validNotifications;
+    try {
+      localStorage.setItem('nexride_user_notifs_cache', JSON.stringify(userNotifications));
+    } catch (e) {}
+    updateNotificationsUI();
+  }
+}
+
 function subscribeToMyReports(uid) {
   if (!db) return;
   try {
     const q = query(collection(db, 'reports'), where('userId', '==', uid));
-    onSnapshot(q, (snapshot) => {
+    onSnapshot(q, async (snapshot) => {
       myReportsCache = [];
       snapshot.forEach(docSnap => {
         myReportsCache.push({
@@ -290,13 +391,24 @@ function subscribeToMyReports(uid) {
           ...docSnap.data()
         });
       });
+      myReportsLoaded = true;
+
       // Sort newest first
       myReportsCache.sort((a, b) => {
         const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
         const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
         return timeB - timeA;
       });
+
+      // Synchronize cache in localStorage
+      try {
+        localStorage.setItem('nexride_my_reports_cache', JSON.stringify(myReportsCache));
+      } catch (e) {}
+
       renderMyReportsList();
+
+      // Automatically purge any notifications that were tied to deleted reports
+      await cleanOrphanedReportNotifications(uid);
 
       // Real-Time Sync: If student is currently viewing a report in details page, update it live
       if (activeReportDetailId) {
@@ -308,13 +420,18 @@ function subscribeToMyReports(uid) {
         const detailsPage = document.getElementById('report-details-page');
         if (updated && detailsPage && !detailsPage.classList.contains('hidden')) {
           openReportDetails(updated);
+        } else if (!updated && detailsPage && !detailsPage.classList.contains('hidden')) {
+          // Report was deleted while open! Close the details page
+          closePage('report-details-page');
         }
       }
     }, (error) => {
       console.warn('[Report] Reports subscription error:', error);
+      myReportsLoaded = true;
     });
   } catch (e) {
     console.warn('[Report] Firestore snapshot setup error:', e);
+    myReportsLoaded = true;
   }
 }
 
@@ -322,16 +439,17 @@ function subscribeToNotifications(uid) {
   if (!db) return;
   try {
     const q = collection(db, 'users', uid, 'notifications');
-    onSnapshot(q, (snapshot) => {
-      userNotifications = [];
+    onSnapshot(q, async (snapshot) => {
+      const rawNotifs = [];
       snapshot.forEach(docSnap => {
-        userNotifications.push({
+        rawNotifs.push({
           id: docSnap.id,
           ...docSnap.data()
         });
       });
+
       // Sort in-memory newest first safely
-      userNotifications.sort((a, b) => {
+      rawNotifs.sort((a, b) => {
         const getTime = (val) => {
           if (!val) return 0;
           if (typeof val.toMillis === 'function') return val.toMillis();
@@ -343,12 +461,18 @@ function subscribeToNotifications(uid) {
         };
         return getTime(b.createdAt) - getTime(a.createdAt);
       });
+
+      userNotifications = rawNotifs;
       notificationsLoaded = true;
+
       try {
         localStorage.setItem('nexride_user_notifs_cache', JSON.stringify(userNotifications));
-      } catch (e) { }
-      console.log('[Report] Realtime notifications updated:', userNotifications.length, 'total');
+      } catch (e) {}
+
       updateNotificationsUI();
+
+      // Clean any notifications whose reports were deleted in backend
+      await cleanOrphanedReportNotifications(uid);
     }, (error) => {
       console.warn('[Report] Notifications subscription error:', error);
       notificationsLoaded = true;
@@ -497,6 +621,10 @@ export function openMyReportsPage() {
     page.style.transform = 'translateY(0)';
     page.style.visibility = 'visible';
     page.style.pointerEvents = 'auto';
+
+    if (auth?.currentUser?.uid) {
+      cleanOrphanedReportNotifications(auth.currentUser.uid);
+    }
   }
 }
 
@@ -2174,6 +2302,9 @@ export function updateNotificationsUI() {
 export function openNotificationsPage() {
   const notifPage = document.getElementById('notifications-page');
   if (notifPage) {
+    if (auth?.currentUser?.uid) {
+      cleanOrphanedReportNotifications(auth.currentUser.uid);
+    }
     setTimeout(() => {
       notifPage.classList.remove('hidden');
     }, 50);
@@ -2278,6 +2409,10 @@ export function openNotificationDetails(notif) {
           } catch (err) {
             console.warn('[Report] Could not fetch report details for notification:', err);
           }
+        }
+        alert('This report is no longer available or was deleted.');
+        if (auth?.currentUser?.uid) {
+          cleanOrphanedReportNotifications(auth.currentUser.uid);
         }
         if (window.openMyReportsPage) window.openMyReportsPage();
       };

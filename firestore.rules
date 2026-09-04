@@ -104,7 +104,11 @@ service cloud.firestore {
     // ==========================================
     match /reports/{reportId} {
       // Students can read their own reports; Admins can read all reports
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (
+        resource == null || 
+        resource.data.userId == request.auth.uid || 
+        isAdmin()
+      );
       
       // Students can create reports with initial status 'Submitted'
       allow create: if isAuthenticated() && (
