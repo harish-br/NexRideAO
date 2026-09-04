@@ -41,8 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
     searchResultsArea.style.display = 'none';
 
     resultsList.innerHTML = '';
+    emptyState.innerHTML = '';
     emptyState.classList.add('hidden');
-    emptyState.style.display = 'none';
+    emptyState.style.setProperty('display', 'none', 'important');
     skeletonLoader.classList.add('hidden');
     skeletonLoader.style.display = 'none';
   }
@@ -277,6 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Search Logic ---
   let debounceTimeout;
+  let currentSearchId = 0;
 
   searchInput.addEventListener('input', (e) => {
     const val = e.target.value.trim();
@@ -290,6 +292,9 @@ document.addEventListener('DOMContentLoaded', () => {
       smartSuggestionsArea.style.display = 'block';
       searchResultsArea.classList.add('hidden');
       searchResultsArea.style.display = 'none';
+      emptyState.innerHTML = '';
+      emptyState.classList.add('hidden');
+      emptyState.style.setProperty('display', 'none', 'important');
       clearTimeout(debounceTimeout);
       return;
     }
@@ -300,8 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
     searchResultsArea.classList.remove('hidden');
     searchResultsArea.style.display = 'block';
     resultsList.innerHTML = '';
+    emptyState.innerHTML = '';
     emptyState.classList.add('hidden');
-    emptyState.style.display = 'none';
+    emptyState.style.setProperty('display', 'none', 'important');
     skeletonLoader.classList.remove('hidden');
     skeletonLoader.style.display = 'flex';
 
@@ -319,10 +325,14 @@ document.addEventListener('DOMContentLoaded', () => {
     smartSuggestionsArea.style.display = 'block';
     searchResultsArea.classList.add('hidden');
     searchResultsArea.style.display = 'none';
+    emptyState.innerHTML = '';
+    emptyState.classList.add('hidden');
+    emptyState.style.setProperty('display', 'none', 'important');
     searchInput.focus();
   });
 
   async function performSearch(query, isLiveUpdate = false) {
+    const searchId = ++currentSearchId;
     const q = query.toLowerCase();
 
     // Remember open route accordions so live database sync doesn't close them unexpectedly
@@ -341,12 +351,14 @@ document.addEventListener('DOMContentLoaded', () => {
       resultsList.innerHTML = '';
       skeletonLoader.classList.remove('hidden');
       skeletonLoader.style.display = 'flex';
+      emptyState.innerHTML = '';
       emptyState.classList.add('hidden');
-      emptyState.style.display = 'none';
+      emptyState.style.setProperty('display', 'none', 'important');
     }
 
     try {
       await ensureBusesLoaded();
+      if (searchId !== currentSearchId) return; // Stale search discarded
       if (!cachedBusesData) throw new Error("Could not load buses");
 
       const routeResults = [];
@@ -397,6 +409,8 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
       });
+
+      if (searchId !== currentSearchId) return; // Stale search discarded
 
       skeletonLoader.classList.add('hidden');
       skeletonLoader.style.display = 'none';
@@ -451,12 +465,14 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
         `;
         emptyState.classList.remove('hidden');
-        emptyState.style.display = 'block';
+        emptyState.style.setProperty('display', 'flex', 'important');
       } else {
+        emptyState.innerHTML = '';
         emptyState.classList.add('hidden');
-        emptyState.style.display = 'none';
+        emptyState.style.setProperty('display', 'none', 'important');
       }
     } catch (error) {
+      if (searchId !== currentSearchId) return;
       console.error("Search Error:", error);
       skeletonLoader.classList.add('hidden');
       skeletonLoader.style.display = 'none';
@@ -467,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       `;
       emptyState.classList.remove('hidden');
-      emptyState.style.display = 'block';
+      emptyState.style.setProperty('display', 'flex', 'important');
     }
   }
 
