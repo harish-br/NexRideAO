@@ -86,7 +86,7 @@ service cloud.firestore {
     }
     match /routes/{document=**} {
       allow read: if true;
-      allow write: if isAuthenticated();
+      allow write: if isAdmin();
     }
     match /drivers/{document=**} {
       allow read: if isAuthenticated();

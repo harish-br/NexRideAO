@@ -26,6 +26,10 @@ let auditLogsCache = [];
 
 let currentInspectingBus = null;
 let currentInspectingTicket = null;
+let currentInspectingRouteId = null;
+let currentEditingStops = [];
+let hasLoadedFirestoreRoutes = false;
+let routesUnsubscribe = null;
 let reportsUnsubscribe = null;
 
 // =============================================================================
@@ -147,6 +151,9 @@ function switchView(viewId) {
   if (viewId === 'issues-view') {
     renderIssuesTable();
   }
+  if (viewId === 'routes-view') {
+    renderRoutesTable();
+  }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -222,6 +229,10 @@ if (profileAuditLink) {
 if (profileLogoutBtn) {
   profileLogoutBtn.addEventListener('click', async () => {
     try {
+      if (routesUnsubscribe) {
+        try { routesUnsubscribe(); } catch (e) { }
+        routesUnsubscribe = null;
+      }
       if (reportsUnsubscribe) {
         try { reportsUnsubscribe(); } catch (e) { }
         reportsUnsubscribe = null;
@@ -240,6 +251,7 @@ if (profileLogoutBtn) {
 function initRealtimeEngine() {
   setupConnectionMonitor();
   listenToBuses();
+  listenToRoutes();
   listenToReports();
   listenToApprovals();
   listenToAuditLogs();
@@ -296,6 +308,43 @@ function listenToBuses() {
     renderDocumentsTable();
   }, (err) => {
     console.error("Firestore Buses listener error:", err);
+  });
+}
+
+// 1b. Listen to Routes & Stops Collection (Firestore single source of truth)
+function listenToRoutes() {
+  if (routesUnsubscribe) {
+    try { routesUnsubscribe(); } catch (e) { }
+    routesUnsubscribe = null;
+  }
+
+  const routesRef = collection(firestore, 'routes');
+  routesUnsubscribe = onSnapshot(routesRef, (snapshot) => {
+    hasLoadedFirestoreRoutes = true;
+    const loadedRoutes = [];
+    snapshot.forEach(docSnap => {
+      loadedRoutes.push({ id: docSnap.id, ...docSnap.data() });
+    });
+
+    // Sort alphabetically by route name
+    loadedRoutes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    routesCache = loadedRoutes;
+
+    renderRoutesTable();
+    renderDashboardStats();
+
+    // If inspector modal is open for a route, refresh its details live
+    if (currentInspectingRouteId) {
+      const activeInspectModal = document.getElementById('route-inspector-modal');
+      if (activeInspectModal && !activeInspectModal.classList.contains('hidden')) {
+        const updated = routesCache.find(r => r.id === currentInspectingRouteId);
+        if (updated) {
+          openRouteInspector(updated.id);
+        }
+      }
+    }
+  }, (err) => {
+    console.error("Firestore Routes listener error:", err);
   });
 }
 
@@ -480,7 +529,9 @@ function deriveDerivedState() {
   });
 
   driversCache = Array.from(driverMap.values());
-  routesCache = Array.from(routeMap.values());
+  if (!hasLoadedFirestoreRoutes) {
+    routesCache = Array.from(routeMap.values());
+  }
   documentsCache = docList;
   studentsCache = studentList;
 
@@ -516,7 +567,7 @@ function renderDashboardStats() {
   const criticalIssues = reportsCache.filter(r => r.priority === 'Urgent' || r.category === 'safety' || r.priority === 'High').length;
 
   setElText('stat-total-places', '250');
-  setElText('stat-total-routes', routesCache.length > 0 ? routesCache.length : '378');
+  setElText('stat-total-routes', routesCache.length > 0 ? routesCache.length : (hasLoadedFirestoreRoutes ? '0' : '378'));
   setElText('stat-scheduled-trips', '2407');
   setElText('stat-active-services', activeBuses > 0 ? (activeBuses * 50) : '2407');
   setElText('stat-inactive-services', inactiveBuses > 0 ? inactiveBuses : '0');
@@ -841,34 +892,500 @@ function renderStudentsTable() {
 }
 
 // =============================================================================
-// RENDER: ROUTES & TIMINGS
+// RENDER: ROUTES & TIMINGS (FIRESTORE SOURCE OF TRUTH)
 // =============================================================================
-function renderRoutesTable() {
+function renderRoutesTable(routesToRender = null) {
   const tbody = document.getElementById('routes-table-body');
   if (!tbody) return;
-  tbody.innerHTML = '';
 
-  if (routesCache.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 32px; color: var(--text-secondary);">No routes found.</td></tr>`;
+  const searchInput = document.getElementById('routes-search-input');
+  const searchVal = (searchInput ? searchInput.value : '').trim().toLowerCase();
+
+  let list = routesToRender || routesCache;
+
+  if (searchVal) {
+    list = list.filter(r => {
+      const matchName = r.name && r.name.toLowerCase().includes(searchVal);
+      const matchStart = r.startPoint && r.startPoint.toLowerCase().includes(searchVal);
+      const matchDest = r.destination && r.destination.toLowerCase().includes(searchVal);
+      const matchBus = r.assignedBus && String(r.assignedBus).toLowerCase().includes(searchVal);
+      const matchDriver = r.assignedDriver && r.assignedDriver.toLowerCase().includes(searchVal);
+      const matchStops = Array.isArray(r.stops) && r.stops.some(s => s.name && s.name.toLowerCase().includes(searchVal));
+      const matchAssignedBuses = Array.isArray(r.assignedBuses) && r.assignedBuses.some(b => String(b).toLowerCase().includes(searchVal));
+      return matchName || matchStart || matchDest || matchBus || matchDriver || matchStops || matchAssignedBuses;
+    });
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 32px; color: var(--text-secondary);">${searchVal ? `No routes matching "${escapeHtml(searchVal)}".` : 'No routes found. Click "+ Create Route" above to configure your first transit corridor.'}</td></tr>`;
     return;
   }
 
-  routesCache.forEach(route => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong>${escapeHtml(route.name)}</strong></td>
-      <td>${escapeHtml(route.startPoint)}</td>
-      <td>${escapeHtml(route.destination)}</td>
-      <td>${route.stopsCount} Stops</td>
-      <td>${route.distance} (${route.duration})</td>
-      <td>${route.assignedBuses.map(b => `<span class="status-badge badge-blue">Bus ${b}</span>`).join(' ')}</td>
-      <td><span class="status-badge badge-green">${route.status}</span></td>
-      <td style="text-align: right;">
-        <button class="btn-action-icon btn-action-primary" onclick="alert('Route: ${route.name}\\nTotal Stops: ${route.stopsCount}\\nBuses: ${route.assignedBuses.join(', ')}')">Stops</button>
-      </td>
+  tbody.innerHTML = list.map(route => {
+    const totalStops = route.totalStops !== undefined 
+      ? route.totalStops 
+      : (Array.isArray(route.stops) ? route.stops.length : (route.stopsCount || 0));
+
+    let busBadges = '';
+    if (route.assignedBus) {
+      busBadges = `<span class="status-badge badge-blue">Bus ${escapeHtml(route.assignedBus)}</span>`;
+    } else if (Array.isArray(route.assignedBuses) && route.assignedBuses.length > 0) {
+      busBadges = route.assignedBuses.map(b => `<span class="status-badge badge-blue">Bus ${escapeHtml(b)}</span>`).join(' ');
+    } else {
+      busBadges = `<span style="color: var(--text-muted); font-size: 12px;">Unassigned</span>`;
+    }
+
+    const distDuration = (route.distance && route.duration)
+      ? `${escapeHtml(route.distance)} (${escapeHtml(route.duration)})`
+      : (route.distance || route.duration || '--');
+
+    const statusBadgeClass = getStatusBadgeClass(route.status);
+    const isInactive = (route.status || '').toLowerCase() === 'inactive';
+
+    return `
+      <tr>
+        <td><strong>${escapeHtml(route.name || 'Unnamed Route')}</strong></td>
+        <td>${escapeHtml(route.startPoint || '--')}</td>
+        <td>${escapeHtml(route.destination || '--')}</td>
+        <td><span class="status-badge badge-gray" style="font-weight: 600;">${totalStops} Stops</span></td>
+        <td>${distDuration}</td>
+        <td>${busBadges}</td>
+        <td><span class="status-badge ${statusBadgeClass}">${escapeHtml(route.status || 'Active')}</span></td>
+        <td style="text-align: right;">
+          <div class="action-btn-group" style="justify-content: flex-end;">
+            <button class="btn-action-icon btn-action-primary" onclick="window.adminInspectRoute('${route.id}')" title="Inspect Route &amp; Stops">Inspect</button>
+            <button class="btn-action-icon" onclick="window.adminEditRoute('${route.id}')" title="Edit Route">Edit</button>
+            <button class="btn-action-icon" onclick="window.adminToggleRouteStatus('${route.id}')" title="Toggle Route Status">${isInactive ? 'Activate' : 'Deactivate'}</button>
+            <button class="btn-action-icon" onclick="window.adminDeleteRoute('${route.id}')" title="Delete Route" style="background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA;">Delete</button>
+          </div>
+        </td>
+      </tr>
     `;
-    tbody.appendChild(tr);
+  }).join('');
+}
+
+// =============================================================================
+// ROUTE & STOPS MANAGEMENT INTERACTIVE BUILDER
+// =============================================================================
+function syncStopsFromDOM() {
+  const container = document.getElementById('route-stops-container');
+  if (!container) return;
+
+  const cards = container.querySelectorAll('.stop-row-card');
+  cards.forEach((card, idx) => {
+    if (!currentEditingStops[idx]) {
+      currentEditingStops[idx] = {};
+    }
+    const nameInp = card.querySelector('.stop-field-name');
+    const mornInp = card.querySelector('.stop-field-morning');
+    const eveInp = card.querySelector('.stop-field-evening');
+    const latInp = card.querySelector('.stop-field-lat');
+    const lngInp = card.querySelector('.stop-field-lng');
+    const statSel = card.querySelector('.stop-field-status');
+
+    currentEditingStops[idx].stopOrder = idx + 1;
+    currentEditingStops[idx].name = nameInp ? nameInp.value.trim() : (currentEditingStops[idx].name || '');
+    currentEditingStops[idx].morningArrival = mornInp ? mornInp.value : (currentEditingStops[idx].morningArrival || '');
+    currentEditingStops[idx].eveningArrival = eveInp ? eveInp.value : (currentEditingStops[idx].eveningArrival || '');
+    
+    const latVal = latInp ? latInp.value.trim() : '';
+    currentEditingStops[idx].latitude = latVal !== '' ? parseFloat(latVal) : null;
+
+    const lngVal = lngInp ? lngInp.value.trim() : '';
+    currentEditingStops[idx].longitude = lngVal !== '' ? parseFloat(lngVal) : null;
+
+    currentEditingStops[idx].status = statSel ? statSel.value : 'Active';
   });
+}
+
+function renderEditorStops() {
+  const container = document.getElementById('route-stops-container');
+  const countBadge = document.getElementById('route-stops-count-badge');
+  if (!container) return;
+
+  if (countBadge) {
+    countBadge.textContent = `${currentEditingStops.length} stop${currentEditingStops.length === 1 ? '' : 's'} defined`;
+  }
+
+  if (currentEditingStops.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 24px; color: var(--text-secondary); background: #F9FAFB; border: 1px dashed var(--border-color); border-radius: var(--radius-md); font-size: 13.5px;">
+        No stops added yet. Click <strong>"+ Add Stop"</strong> above to define the stop sequence.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = currentEditingStops.map((stop, idx) => `
+    <div class="stop-row-card" data-stop-index="${idx}" style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="status-badge badge-blue" style="font-weight: 700; font-size: 11.5px;">Stop #${idx + 1}</span>
+          <span class="stop-title-label" style="font-size: 13px; font-weight: 600; color: var(--text-primary);">${escapeHtml(stop.name || 'New Stop')}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button type="button" class="btn-action-icon" onclick="window.adminMoveStopUp(${idx})" title="Move Stop Up" ${idx === 0 ? 'disabled style="opacity: 0.4; cursor: not-allowed;"' : ''}>▲ Up</button>
+          <button type="button" class="btn-action-icon" onclick="window.adminMoveStopDown(${idx})" title="Move Stop Down" ${idx === currentEditingStops.length - 1 ? 'disabled style="opacity: 0.4; cursor: not-allowed;"' : ''}>▼ Down</button>
+          <button type="button" class="btn-action-icon" onclick="window.adminRemoveStop(${idx})" title="Delete Stop" style="background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA;">✕ Remove</button>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1.2fr 1fr; gap: 10px; align-items: end;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Stop Name *</label>
+          <input type="text" class="stop-field-name" data-index="${idx}" value="${escapeHtml(stop.name || '')}" placeholder="e.g. Perundurai" required style="padding: 7px 10px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Morning Arr.</label>
+          <input type="time" class="stop-field-morning" data-index="${idx}" value="${escapeHtml(stop.morningArrival || '')}" style="padding: 6px 8px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Evening Arr.</label>
+          <input type="time" class="stop-field-evening" data-index="${idx}" value="${escapeHtml(stop.eveningArrival || '')}" style="padding: 6px 8px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Latitude</label>
+          <input type="number" step="any" class="stop-field-lat" data-index="${idx}" value="${stop.latitude !== undefined && stop.latitude !== null ? stop.latitude : ''}" placeholder="e.g. 11.3410" style="padding: 7px 10px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Longitude</label>
+          <input type="number" step="any" class="stop-field-lng" data-index="${idx}" value="${stop.longitude !== undefined && stop.longitude !== null ? stop.longitude : ''}" placeholder="e.g. 77.7172" style="padding: 7px 10px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Status</label>
+          <select class="filter-select stop-field-status" data-index="${idx}" style="padding: 6px 8px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+            <option value="Active" ${stop.status !== 'Inactive' ? 'selected' : ''}>Active</option>
+            <option value="Inactive" ${stop.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  container.querySelectorAll('.stop-field-name').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const i = parseInt(e.target.dataset.index, 10);
+      if (currentEditingStops[i]) {
+        currentEditingStops[i].name = e.target.value;
+        const cardHeaderName = e.target.closest('.stop-row-card')?.querySelector('.stop-title-label');
+        if (cardHeaderName) cardHeaderName.textContent = e.target.value.trim() || 'New Stop';
+      }
+    });
+  });
+}
+
+function addStopToEditor() {
+  syncStopsFromDOM();
+  currentEditingStops.push({
+    stopOrder: currentEditingStops.length + 1,
+    name: '',
+    morningArrival: '',
+    eveningArrival: '',
+    latitude: null,
+    longitude: null,
+    status: 'Active'
+  });
+  renderEditorStops();
+  setTimeout(() => {
+    const inputs = document.querySelectorAll('.stop-field-name');
+    if (inputs.length > 0) {
+      inputs[inputs.length - 1].focus();
+    }
+  }, 40);
+}
+
+function populateRouteEditorSelects(selectedBus = '', selectedDriver = '') {
+  const busSelect = document.getElementById('route-bus-select');
+  const driverSelect = document.getElementById('route-driver-select');
+
+  if (busSelect) {
+    busSelect.innerHTML = '<option value="">No Bus Assigned</option>';
+    busesCache.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.busNumber || '';
+      opt.textContent = `Bus ${b.busNumber || 'N/A'}${b.regNumber ? ` (${b.regNumber})` : ''} - [${b.status || 'Active'}]`;
+      if (String(b.busNumber) === String(selectedBus)) opt.selected = true;
+      busSelect.appendChild(opt);
+    });
+  }
+
+  if (driverSelect) {
+    driverSelect.innerHTML = '<option value="">No Driver Assigned</option>';
+    const seenDrivers = new Set();
+    driversCache.forEach(d => {
+      if (d.name && !seenDrivers.has(d.name)) {
+        seenDrivers.add(d.name);
+        const opt = document.createElement('option');
+        opt.value = d.name;
+        opt.textContent = `${d.name} (${d.phone || 'Driver'})`;
+        if (d.name === selectedDriver) opt.selected = true;
+        driverSelect.appendChild(opt);
+      }
+    });
+    busesCache.forEach(b => {
+      if (b.driverName && !seenDrivers.has(b.driverName)) {
+        seenDrivers.add(b.driverName);
+        const opt = document.createElement('option');
+        opt.value = b.driverName;
+        opt.textContent = `${b.driverName} (${b.driverContact || 'Bus ' + b.busNumber})`;
+        if (b.driverName === selectedDriver) opt.selected = true;
+        driverSelect.appendChild(opt);
+      }
+    });
+  }
+}
+
+function openCreateRouteModal() {
+  document.getElementById('route-edit-id').value = '';
+  document.getElementById('route-editor-title').textContent = 'Create Route';
+  document.getElementById('route-name-input').value = '';
+  document.getElementById('route-start-input').value = '';
+  document.getElementById('route-dest-input').value = '';
+  document.getElementById('route-status-select').value = 'Active';
+  document.getElementById('route-desc-input').value = '';
+  
+  populateRouteEditorSelects('', '');
+  currentEditingStops = [];
+  renderEditorStops();
+
+  document.getElementById('route-editor-modal')?.classList.remove('hidden');
+}
+
+function openEditRouteModal(routeId) {
+  const route = routesCache.find(r => r.id === routeId);
+  if (!route) {
+    alert('Route not found.');
+    return;
+  }
+
+  document.getElementById('route-edit-id').value = route.id;
+  document.getElementById('route-editor-title').textContent = `Edit Route: ${route.name}`;
+  document.getElementById('route-name-input').value = route.name || '';
+  document.getElementById('route-start-input').value = route.startPoint || '';
+  document.getElementById('route-dest-input').value = route.destination || '';
+  document.getElementById('route-status-select').value = route.status || 'Active';
+  document.getElementById('route-desc-input').value = route.description || '';
+
+  populateRouteEditorSelects(route.assignedBus || '', route.assignedDriver || '');
+
+  currentEditingStops = Array.isArray(route.stops) ? route.stops.map((s, idx) => ({
+    stopOrder: s.stopOrder !== undefined ? s.stopOrder : idx + 1,
+    name: s.name || '',
+    morningArrival: s.morningArrival || '',
+    eveningArrival: s.eveningArrival || '',
+    latitude: s.latitude !== undefined && s.latitude !== null ? s.latitude : null,
+    longitude: s.longitude !== undefined && s.longitude !== null ? s.longitude : null,
+    status: s.status || 'Active'
+  })) : [];
+
+  currentEditingStops.forEach((s, idx) => { s.stopOrder = idx + 1; });
+  renderEditorStops();
+
+  document.getElementById('route-inspector-modal')?.classList.add('hidden');
+  document.getElementById('route-editor-modal')?.classList.remove('hidden');
+}
+
+async function saveRoute(e) {
+  e.preventDefault();
+  syncStopsFromDOM();
+
+  const editId = document.getElementById('route-edit-id')?.value;
+  const name = document.getElementById('route-name-input')?.value.trim();
+  const startPoint = document.getElementById('route-start-input')?.value.trim();
+  const destination = document.getElementById('route-dest-input')?.value.trim();
+  const status = document.getElementById('route-status-select')?.value || 'Active';
+  const assignedBus = document.getElementById('route-bus-select')?.value || '';
+  const assignedDriver = document.getElementById('route-driver-select')?.value || '';
+  const description = document.getElementById('route-desc-input')?.value.trim() || '';
+
+  if (!name) {
+    alert('Please enter a Route Name.');
+    document.getElementById('route-name-input')?.focus();
+    return;
+  }
+  if (!startPoint) {
+    alert('Please enter a Start Point.');
+    document.getElementById('route-start-input')?.focus();
+    return;
+  }
+  if (!destination) {
+    alert('Please enter a Destination.');
+    document.getElementById('route-dest-input')?.focus();
+    return;
+  }
+
+  // Duplicate route name check
+  const duplicate = routesCache.find(r => 
+    r.id !== editId && 
+    r.name && 
+    r.name.trim().toLowerCase() === name.toLowerCase()
+  );
+  if (duplicate) {
+    alert(`A route with the name "${name}" already exists. Please use a unique route name.`);
+    document.getElementById('route-name-input')?.focus();
+    return;
+  }
+
+  // Validate stops
+  for (let i = 0; i < currentEditingStops.length; i++) {
+    const s = currentEditingStops[i];
+    const order = i + 1;
+    s.stopOrder = order;
+
+    if (!s.name || !s.name.trim()) {
+      alert(`Stop #${order}: Please enter a valid Stop Name.`);
+      return;
+    }
+
+    if (s.latitude !== null && s.latitude !== undefined && s.latitude !== '') {
+      const lat = Number(s.latitude);
+      if (isNaN(lat) || lat < -90 || lat > 90) {
+        alert(`Stop #${order} ("${s.name}"): Latitude must be a valid number between -90 and 90.`);
+        return;
+      }
+      s.latitude = lat;
+    } else {
+      s.latitude = null;
+    }
+
+    if (s.longitude !== null && s.longitude !== undefined && s.longitude !== '') {
+      const lng = Number(s.longitude);
+      if (isNaN(lng) || lng < -180 || lng > 180) {
+        alert(`Stop #${order} ("${s.name}"): Longitude must be a valid number between -180 and 180.`);
+        return;
+      }
+      s.longitude = lng;
+    } else {
+      s.longitude = null;
+    }
+  }
+
+  const saveBtn = document.getElementById('save-route-btn');
+  try {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving Route...';
+    }
+
+    const payload = {
+      name,
+      startPoint,
+      destination,
+      status,
+      totalStops: currentEditingStops.length,
+      stops: currentEditingStops,
+      assignedBus: assignedBus || '',
+      assignedDriver: assignedDriver || '',
+      description: description,
+      updatedAt: serverTimestamp()
+    };
+
+    if (editId) {
+      await updateDoc(doc(firestore, 'routes', editId), payload);
+      await logAuditEvent('ROUTE_UPDATED', 'routes', editId, { name, totalStops: payload.totalStops });
+      alert(`Route "${name}" updated successfully.`);
+    } else {
+      payload.createdAt = serverTimestamp();
+      const newDoc = await addDoc(collection(firestore, 'routes'), payload);
+      await logAuditEvent('ROUTE_CREATED', 'routes', newDoc.id, { name, totalStops: payload.totalStops });
+      alert(`Route "${name}" created successfully.`);
+    }
+
+    if (assignedBus) {
+      const matchedBus = busesCache.find(b => String(b.busNumber) === String(assignedBus));
+      if (matchedBus) {
+        try {
+          await updateDoc(doc(firestore, 'buses', matchedBus.id), {
+            routeName: name,
+            updatedAt: serverTimestamp()
+          });
+        } catch (busErr) {
+          console.warn("Could not sync route to bus record:", busErr);
+        }
+      }
+    }
+
+    document.getElementById('route-editor-modal')?.classList.add('hidden');
+  } catch (err) {
+    console.error("Save route error:", err);
+    alert("Failed to save route: " + err.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Route';
+    }
+  }
+}
+
+function openRouteInspector(routeId) {
+  const route = routesCache.find(r => r.id === routeId);
+  if (!route) {
+    alert('Route not found.');
+    return;
+  }
+
+  currentInspectingRouteId = route.id;
+  setElText('inspect-route-title', route.name || 'Route Details');
+  
+  const statusBadge = document.getElementById('inspect-route-status-badge');
+  if (statusBadge) {
+    statusBadge.className = `status-badge ${getStatusBadgeClass(route.status)}`;
+    statusBadge.textContent = route.status || 'Active';
+  }
+
+  setElText('inspect-route-start', route.startPoint || '--');
+  setElText('inspect-route-dest', route.destination || '--');
+  
+  const totalStops = route.totalStops !== undefined ? route.totalStops : (Array.isArray(route.stops) ? route.stops.length : 0);
+  setElText('inspect-route-total-stops', `${totalStops} Stop${totalStops === 1 ? '' : 's'}`);
+
+  let fleetText = 'No fleet assigned';
+  if (route.assignedBus && route.assignedDriver) {
+    fleetText = `Bus ${route.assignedBus} • Driver: ${route.assignedDriver}`;
+  } else if (route.assignedBus) {
+    fleetText = `Bus ${route.assignedBus}`;
+  } else if (route.assignedDriver) {
+    fleetText = `Driver: ${route.assignedDriver}`;
+  } else if (Array.isArray(route.assignedBuses) && route.assignedBuses.length > 0) {
+    fleetText = `Buses: ${route.assignedBuses.join(', ')}`;
+  }
+  setElText('inspect-route-fleet', fleetText);
+
+  const descWrap = document.getElementById('inspect-route-desc-wrap');
+  if (descWrap) {
+    if (route.description) {
+      descWrap.style.display = 'block';
+      setElText('inspect-route-desc', route.description);
+    } else {
+      descWrap.style.display = 'none';
+    }
+  }
+
+  const stopsBody = document.getElementById('inspect-route-stops-body');
+  if (stopsBody) {
+    const stops = Array.isArray(route.stops) ? route.stops : [];
+    if (stops.length === 0) {
+      stopsBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 24px;">No stops defined for this route.</td></tr>`;
+    } else {
+      const sortedStops = [...stops].sort((a, b) => (a.stopOrder || 0) - (b.stopOrder || 0));
+      stopsBody.innerHTML = sortedStops.map(s => `
+        <tr>
+          <td><span class="status-badge badge-blue">#${s.stopOrder || 1}</span></td>
+          <td><strong>${escapeHtml(s.name)}</strong></td>
+          <td>${s.morningArrival ? escapeHtml(s.morningArrival) : '<span style="color: var(--text-muted);">--</span>'}</td>
+          <td>${s.eveningArrival ? escapeHtml(s.eveningArrival) : '<span style="color: var(--text-muted);">--</span>'}</td>
+          <td>
+            ${s.latitude !== null && s.latitude !== undefined && s.longitude !== null && s.longitude !== undefined 
+              ? `<span style="font-family: monospace; font-size: 12px;">${Number(s.latitude).toFixed(4)}, ${Number(s.longitude).toFixed(4)}</span>` 
+              : '<span style="color: var(--text-muted); font-size: 12px;">Not Set</span>'}
+          </td>
+          <td><span class="status-badge ${getStatusBadgeClass(s.status)}">${escapeHtml(s.status || 'Active')}</span></td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  document.getElementById('route-inspector-modal')?.classList.remove('hidden');
 }
 
 function renderTimingsTable() {
@@ -1389,6 +1906,100 @@ function setupModalListeners() {
       }
     });
   }
+
+  // 5. Route & Stops Editor Modal
+  const addRouteBtn = document.getElementById('add-route-btn');
+  const routeEditorModal = document.getElementById('route-editor-modal');
+  const closeRouteEditorBtn = document.getElementById('close-route-editor-btn');
+  const cancelRouteEditorBtn = document.getElementById('cancel-route-editor-btn');
+  const addStopRowBtn = document.getElementById('add-stop-row-btn');
+  const routeEditorForm = document.getElementById('route-editor-form');
+
+  if (addRouteBtn) {
+    addRouteBtn.addEventListener('click', () => {
+      openCreateRouteModal();
+    });
+  }
+
+  if (closeRouteEditorBtn) {
+    closeRouteEditorBtn.addEventListener('click', () => {
+      routeEditorModal?.classList.add('hidden');
+    });
+  }
+
+  if (cancelRouteEditorBtn) {
+    cancelRouteEditorBtn.addEventListener('click', () => {
+      routeEditorModal?.classList.add('hidden');
+    });
+  }
+
+  // Close Route Editor when clicking outside on backdrop
+  if (routeEditorModal) {
+    routeEditorModal.addEventListener('click', (e) => {
+      if (e.target === routeEditorModal) {
+        routeEditorModal.classList.add('hidden');
+      }
+    });
+  }
+
+  if (addStopRowBtn) {
+    addStopRowBtn.addEventListener('click', () => {
+      addStopToEditor();
+    });
+  }
+
+  if (routeEditorForm) {
+    routeEditorForm.addEventListener('submit', (e) => {
+      saveRoute(e);
+    });
+  }
+
+  // 6. Route Inspector Modal
+  const closeRouteInspectorBtn = document.getElementById('close-route-inspector-btn');
+  const closeRouteInspectorFooterBtn = document.getElementById('close-route-inspector-footer-btn');
+  const editRouteFromInspectorBtn = document.getElementById('edit-route-from-inspector-btn');
+  const routeInspectorModal = document.getElementById('route-inspector-modal');
+
+  if (closeRouteInspectorBtn) {
+    closeRouteInspectorBtn.addEventListener('click', () => {
+      routeInspectorModal?.classList.add('hidden');
+    });
+  }
+
+  if (closeRouteInspectorFooterBtn) {
+    closeRouteInspectorFooterBtn.addEventListener('click', () => {
+      routeInspectorModal?.classList.add('hidden');
+    });
+  }
+
+  // Close Route Inspector when clicking outside on backdrop
+  if (routeInspectorModal) {
+    routeInspectorModal.addEventListener('click', (e) => {
+      if (e.target === routeInspectorModal) {
+        routeInspectorModal.classList.add('hidden');
+      }
+    });
+  }
+
+  if (editRouteFromInspectorBtn) {
+    editRouteFromInspectorBtn.addEventListener('click', () => {
+      if (currentInspectingRouteId) {
+        openEditRouteModal(currentInspectingRouteId);
+      }
+    });
+  }
+
+  // Global Escape key listener to dismiss open modals
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      routeEditorModal?.classList.add('hidden');
+      routeInspectorModal?.classList.add('hidden');
+      document.getElementById('ticket-modal')?.classList.add('hidden');
+      document.getElementById('bus-inspector-modal')?.classList.add('hidden');
+      document.getElementById('bus-editor-modal')?.classList.add('hidden');
+      document.getElementById('driver-assignment-modal')?.classList.add('hidden');
+    }
+  });
 }
 
 function showAssignError(msg) {
@@ -1535,6 +2146,77 @@ window.adminApproveRequest = async (apprId, isApproved) => {
   }
 };
 
+window.adminInspectRoute = (routeId) => {
+  openRouteInspector(routeId);
+};
+
+window.adminEditRoute = (routeId) => {
+  openEditRouteModal(routeId);
+};
+
+window.adminToggleRouteStatus = async (routeId) => {
+  const route = routesCache.find(r => r.id === routeId);
+  if (!route) return;
+
+  const newStatus = route.status === 'Active' ? 'Inactive' : 'Active';
+  try {
+    await updateDoc(doc(firestore, 'routes', route.id), {
+      status: newStatus,
+      updatedAt: serverTimestamp()
+    });
+    await logAuditEvent('ROUTE_STATUS_CHANGED', 'routes', route.id, { oldStatus: route.status, newStatus });
+  } catch (err) {
+    alert("Failed to toggle route status: " + err.message);
+  }
+};
+
+window.adminDeleteRoute = async (routeId) => {
+  const route = routesCache.find(r => r.id === routeId);
+  if (!route) return;
+
+  const confirmed = confirm(`Are you sure you want to delete route "${route.name}"?\n\nThis will remove the route and its stops permanently.`);
+  if (!confirmed) return;
+
+  try {
+    await deleteDoc(doc(firestore, 'routes', route.id));
+    await logAuditEvent('ROUTE_DELETED', 'routes', route.id, { name: route.name });
+    alert(`Route "${route.name}" deleted successfully.`);
+  } catch (err) {
+    alert("Failed to delete route: " + err.message);
+  }
+};
+
+window.adminMoveStopUp = (index) => {
+  syncStopsFromDOM();
+  if (index > 0 && index < currentEditingStops.length) {
+    const temp = currentEditingStops[index];
+    currentEditingStops[index] = currentEditingStops[index - 1];
+    currentEditingStops[index - 1] = temp;
+    currentEditingStops.forEach((s, idx) => { s.stopOrder = idx + 1; });
+    renderEditorStops();
+  }
+};
+
+window.adminMoveStopDown = (index) => {
+  syncStopsFromDOM();
+  if (index >= 0 && index < currentEditingStops.length - 1) {
+    const temp = currentEditingStops[index];
+    currentEditingStops[index] = currentEditingStops[index + 1];
+    currentEditingStops[index + 1] = temp;
+    currentEditingStops.forEach((s, idx) => { s.stopOrder = idx + 1; });
+    renderEditorStops();
+  }
+};
+
+window.adminRemoveStop = (index) => {
+  syncStopsFromDOM();
+  if (index >= 0 && index < currentEditingStops.length) {
+    currentEditingStops.splice(index, 1);
+    currentEditingStops.forEach((s, idx) => { s.stopOrder = idx + 1; });
+    renderEditorStops();
+  }
+};
+
 function openBusInspector(bus) {
   currentInspectingBus = bus;
   setElText('inspect-bus-title', `Bus ${bus.busNumber || 'N/A'}`);
@@ -1622,8 +2304,22 @@ function setupGlobalSearch() {
     const matchedDrivers = driversCache.filter(d => d.name.toLowerCase().includes(q) || d.phone.includes(q));
     const matchedStudents = studentsCache.filter(s => s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q));
     const matchedTickets = reportsCache.filter(r => (r.reportNumber && r.reportNumber.toLowerCase().includes(q)) || (r.subject && r.subject.toLowerCase().includes(q)));
+    const matchedRoutes = routesCache.filter(r => 
+      (r.name && r.name.toLowerCase().includes(q)) || 
+      (r.startPoint && r.startPoint.toLowerCase().includes(q)) || 
+      (r.destination && r.destination.toLowerCase().includes(q)) ||
+      (Array.isArray(r.stops) && r.stops.some(s => s.name && s.name.toLowerCase().includes(q)))
+    );
 
     let html = '';
+
+    if (matchedRoutes.length > 0) {
+      html += `<div class="search-category-group"><div class="search-category-title">Routes</div>`;
+      matchedRoutes.slice(0, 3).forEach(r => {
+        html += `<div class="search-item" onclick="window.adminInspectRoute('${r.id}')"><span><strong>${escapeHtml(r.name)}</strong> (${escapeHtml(r.startPoint || '')} &rarr; ${escapeHtml(r.destination || '')})</span><span class="status-badge badge-blue">Inspect</span></div>`;
+      });
+      html += `</div>`;
+    }
 
     if (matchedBuses.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Buses</div>`;
@@ -1710,6 +2406,8 @@ function setupFilterListeners() {
     document.getElementById(id)?.addEventListener('input', renderDocumentsTable);
     document.getElementById(id)?.addEventListener('change', renderDocumentsTable);
   });
+
+  document.getElementById('routes-search-input')?.addEventListener('input', () => renderRoutesTable());
 }
 
 function setElText(id, val) {
