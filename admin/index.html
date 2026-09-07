@@ -50,7 +50,7 @@
         </div>
         <ul class="nav-links">
           <li><a href="#dashboard" class="nav-item active" data-view="dashboard-view">Dashboard</a></li>
-          <li><a href="#buses" class="nav-item" data-view="buses-view">Report Bus</a></li>
+          <li><a href="#buses" class="nav-item" data-view="issues-view">Reports</a></li>
           <li><a href="#places" class="nav-item" data-view="places-view">Places</a></li>
           <li><a href="#routes" class="nav-item" data-view="routes-view">Routes</a></li>
           <li><a href="#timings" class="nav-item" data-view="timings-view">Buses &amp; Timings</a></li>
@@ -1112,11 +1112,13 @@
         <div style="background: #F9FAFB; border-radius: var(--radius-md); padding: 16px; border: 1px solid var(--border-color); margin-bottom: 20px;">
           <div style="font-size: 16px; font-weight: 700; color: var(--text-primary);" id="modal-ticket-subject">Subject</div>
           <div style="font-size: 13.5px; color: var(--text-secondary); margin-top: 6px; line-height: 1.5;" id="modal-ticket-desc">Description</div>
-          <div style="display: flex; gap: 16px; margin-top: 12px; font-size: 12.5px; color: var(--text-muted);">
+          <div style="display: flex; gap: 16px; margin-top: 12px; font-size: 12.5px; color: var(--text-muted); flex-wrap: wrap;">
             <span id="modal-ticket-reporter">Reporter: Student</span>
             <span id="modal-ticket-bus">Bus: N/A</span>
             <span id="modal-ticket-date">Date: N/A</span>
+            <span id="modal-ticket-location" style="display: none;">Location: N/A</span>
           </div>
+          <div id="modal-ticket-attachments-wrap" style="display: none; margin-top: 12px; gap: 8px; flex-wrap: wrap;"></div>
         </div>
 
         <div class="form-grid">

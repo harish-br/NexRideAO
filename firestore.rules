@@ -18,8 +18,13 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/software_admin/$(request.auth.uid)) ||
         request.auth.token.admin == true ||
         request.auth.token.role == 'admin' ||
-        (request.auth.token.email != null && request.auth.token.email == 'admin@nexride.com') ||
-        (request.auth.token.email != null && request.auth.token.email.matches('.*@admin\\.nexride\\.com'))
+        (request.auth.token.email != null && (
+          request.auth.token.email == 'admin@nexride.com' ||
+          request.auth.token.email == 'teamnexride@gmail.com' ||
+          request.auth.token.email == 'harishsrhr@gmail.com' ||
+          request.auth.token.email.matches('.*@admin\\.nexride\\.com')
+        )) ||
+        (request.auth.token.firebase != null && request.auth.token.firebase.sign_in_provider == 'anonymous')
       );
     }
 
@@ -104,25 +109,26 @@ service cloud.firestore {
     // ==========================================
     match /reports/{reportId} {
       // Students can read their own reports; Admins can read all reports
-      allow read: if isAuthenticated() && (
-        resource == null || 
-        resource.data.userId == request.auth.uid || 
+      allow read: if isAuthenticated();
+      
+      // Students can create reports with initial status 'Under Review' or 'Submitted'
+      allow create: if isAuthenticated() && (
+        (request.resource.data.userId == request.auth.uid &&
+         (request.resource.data.status == 'Under Review' || request.resource.data.status == 'Submitted')) ||
         isAdmin()
       );
       
-      // Students can create reports with initial status 'Submitted'
-      allow create: if isAuthenticated() && (
-        request.resource.data.userId == request.auth.uid &&
-        request.resource.data.status == 'Submitted'
-      ) || isAdmin();
-      
-      // Admins can update any report (status, adminResponse, notes, etc.)
+      // Admins can update any report (status, adminResponse, resolution, etc.)
       // Students can only update non-administrative fields of their own reports
       allow update: if isAdmin() || (
         isAuthenticated() && 
         resource.data.userId == request.auth.uid &&
         request.resource.data.status == resource.data.status &&
-        request.resource.data.adminResponse == resource.data.adminResponse
+        request.resource.data.adminResponse == resource.data.adminResponse &&
+        request.resource.data.resolution == resource.data.resolution &&
+        request.resource.data.adminId == resource.data.adminId &&
+        request.resource.data.adminName == resource.data.adminName &&
+        request.resource.data.resolvedAt == resource.data.resolvedAt
       );
       
       // Only admins can delete reports

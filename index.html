@@ -1575,7 +1575,7 @@
   <script type="module" src="./js/profile.js?v=5"></script>
   <script type="module" src="./js/safety.js?v=5"></script>
   <script type="module" src="./js/help-support.js?v=5"></script>
-  <script type="module" src="./js/report.js?v=20"></script>
+  <script type="module" src="./js/report.js?v=20260907-2015"></script>
 
 
   <!-- =============================================
@@ -2416,15 +2416,81 @@
             Notification</h3>
         </div>
 
-        <!-- Full Message Container -->
-        <div
-          style="background: #FFFFFF; border: 1px solid #F1F5F9; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border-radius: 16px; padding: 18px 20px; text-align: left;">
+        <!-- Full Message Container (for general notifications) -->
+        <div id="notif-detail-general-card"
+          style="display: none; background: #FFFFFF; border: 1px solid #F1F5F9; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border-radius: 16px; padding: 18px 20px; text-align: left;">
           <div
             style="font-size: 11px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px;">
             Message</div>
           <p id="notif-detail-body"
             style="font-size: 14.5px; color: #334155; margin: 0; line-height: 1.6; white-space: pre-wrap; word-break: break-word; text-align: left !important; text-justify: none !important; letter-spacing: normal !important; word-spacing: normal !important;">
           </p>
+        </div>
+
+        <!-- Report Details Container (for report update notifications) -->
+        <div id="notif-detail-report-section" style="display: none; flex-direction: column; gap: 14px;">
+          <!-- REPORT ID -->
+          <div style="background: #FFFFFF; border: 1px solid #F1F5F9; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border-radius: 16px; padding: 16px 20px; text-align: left;">
+            <div style="font-size: 11px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px;">
+              Report ID
+            </div>
+            <div id="notif-detail-report-id" style="font-size: 15px; font-weight: 700; color: #0F172A;">
+              --
+            </div>
+          </div>
+
+          <!-- REPORT DETAILS -->
+          <div id="notif-detail-report-details-card" style="background: #FFFFFF; border: 1px solid #F1F5F9; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border-radius: 16px; padding: 16px 20px; text-align: left;">
+            <div style="font-size: 11px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px;">
+              Report Details
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px; font-size: 14px; color: #334155;">
+              <div id="notif-detail-subject-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                <span style="color: #64748B; font-weight: 600; min-width: 70px;">Subject:</span>
+                <span id="notif-detail-subject" style="font-weight: 600; color: #0F172A; text-align: right; flex: 1; word-break: break-word;">--</span>
+              </div>
+              <div id="notif-detail-category-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                <span style="color: #64748B; font-weight: 600; min-width: 70px;">Category:</span>
+                <span id="notif-detail-category" style="font-weight: 600; color: #0F172A; text-align: right; flex: 1; word-break: break-word;">--</span>
+              </div>
+              <div id="notif-detail-bus-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                <span style="color: #64748B; font-weight: 600; min-width: 70px;">Bus:</span>
+                <span id="notif-detail-bus" style="font-weight: 600; color: #0F172A; text-align: right; flex: 1; word-break: break-word;">--</span>
+              </div>
+              <div id="notif-detail-route-row" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                <span style="color: #64748B; font-weight: 600; min-width: 70px;">Route:</span>
+                <span id="notif-detail-route" style="font-weight: 600; color: #0F172A; text-align: right; flex: 1; word-break: break-word;">--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- DESCRIPTION (Original complaint submitted by user) -->
+          <div id="notif-detail-desc-card" style="background: #FFFFFF; border: 1px solid #F1F5F9; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border-radius: 16px; padding: 16px 20px; text-align: left;">
+            <div style="font-size: 11px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px;">
+              Description
+            </div>
+            <p id="notif-detail-description" style="font-size: 14px; color: #334155; margin: 0; line-height: 1.6; white-space: pre-wrap; word-break: break-word; text-align: left !important; text-justify: none !important; letter-spacing: normal !important; word-spacing: normal !important;">
+              --
+            </p>
+          </div>
+
+          <!-- ADMIN RESPONSE -->
+          <div id="notif-detail-response-card" style="background: #FFFFFF; border: 1px solid #F1F5F9; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border-radius: 16px; padding: 16px 20px; text-align: left;">
+            <div style="font-size: 11px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px;">
+              Admin Response
+            </div>
+            <p id="notif-detail-admin-response" style="font-size: 14.5px; color: #1E293B; margin: 0; line-height: 1.6; font-weight: 500; white-space: pre-wrap; word-break: break-word; text-align: left !important; text-justify: none !important; letter-spacing: normal !important; word-spacing: normal !important;">
+              --
+            </p>
+          </div>
+
+          <!-- STATUS -->
+          <div id="notif-detail-status-card" style="background: #FFFFFF; border: 1px solid #F1F5F9; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04); border-radius: 16px; padding: 16px 20px; text-align: left; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 11px; font-weight: 800; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.8px;">
+              Status
+            </div>
+            <span id="notif-detail-status-badge" class="report-status-badge" style="margin: 0;">--</span>
+          </div>
         </div>
 
 

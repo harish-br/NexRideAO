@@ -1,7 +1,14 @@
 {
-  "firestore": {
-    "rules": "firestore.rules"
-  },
+  "firestore": [
+    {
+      "database": "(default)",
+      "rules": "firestore.rules"
+    },
+    {
+      "database": "nexrideao",
+      "rules": "firestore.rules"
+    }
+  ],
   "hosting": {
     "site": "nexride-ao",
     "public": "dist",

@@ -125,6 +125,8 @@ let isSubmitting = false;
 let userNotifications = [];
 let notificationsLoaded = false;
 let activeReportDetailId = null;
+let myReportsUnsubscribe = null;
+let notificationsUnsubscribe = null;
 
 // Attempt to restore cached reports immediately
 try {
@@ -183,11 +185,21 @@ export function initReportModule() {
         subscribeToMyReports(user.uid);
         subscribeToNotifications(user.uid);
       } else {
+        if (myReportsUnsubscribe) {
+          try { myReportsUnsubscribe(); } catch (e) { }
+          myReportsUnsubscribe = null;
+        }
+        if (notificationsUnsubscribe) {
+          try { notificationsUnsubscribe(); } catch (e) { }
+          notificationsUnsubscribe = null;
+        }
         userProfile = null;
         myReportsCache = [];
         userNotifications = [];
         notificationsLoaded = true;
         try { localStorage.removeItem('nexride_user_notifs_cache'); } catch (e) { }
+        try { localStorage.removeItem('nexride_my_reports_cache'); } catch (e) { }
+        renderMyReportsList();
         updateNotificationsUI();
       }
     });
@@ -381,9 +393,13 @@ async function cleanOrphanedReportNotifications(uid) {
 
 function subscribeToMyReports(uid) {
   if (!db) return;
+  if (myReportsUnsubscribe) {
+    try { myReportsUnsubscribe(); } catch (e) { }
+    myReportsUnsubscribe = null;
+  }
   try {
     const q = query(collection(db, 'reports'), where('userId', '==', uid));
-    onSnapshot(q, async (snapshot) => {
+    myReportsUnsubscribe = onSnapshot(q, async (snapshot) => {
       myReportsCache = [];
       snapshot.forEach(docSnap => {
         myReportsCache.push({
@@ -393,11 +409,18 @@ function subscribeToMyReports(uid) {
       });
       myReportsLoaded = true;
 
-      // Sort newest first
+      // Sort newest first safely (handling pending server timestamps)
       myReportsCache.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt || 0);
-        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt || 0);
-        return timeB - timeA;
+        const getTime = (val) => {
+          if (!val) return 0;
+          if (typeof val.toMillis === 'function') return val.toMillis();
+          if (typeof val.toDate === 'function') return val.toDate().getTime();
+          if (typeof val.seconds === 'number') return val.seconds * 1000;
+          if (val instanceof Date) return val.getTime();
+          const t = new Date(val).getTime();
+          return isNaN(t) ? 0 : t;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
       });
 
       // Synchronize cache in localStorage
@@ -425,6 +448,19 @@ function subscribeToMyReports(uid) {
           closePage('report-details-page');
         }
       }
+
+      // Real-Time Sync: If student is currently viewing notification details for a report, update it live
+      if (activeNotificationReportId) {
+        const updatedNotifReport = myReportsCache.find(r =>
+          r.id === activeNotificationReportId ||
+          r.reportId === activeNotificationReportId ||
+          r.reportNumber === activeNotificationReportId
+        );
+        const notifModal = document.getElementById('notif-detail-modal');
+        if (updatedNotifReport && notifModal && notifModal.classList.contains('active')) {
+          renderNotifReportDetails(updatedNotifReport, activeNotificationContext);
+        }
+      }
     }, (error) => {
       console.warn('[Report] Reports subscription error:', error);
       myReportsLoaded = true;
@@ -437,9 +473,13 @@ function subscribeToMyReports(uid) {
 
 function subscribeToNotifications(uid) {
   if (!db) return;
+  if (notificationsUnsubscribe) {
+    try { notificationsUnsubscribe(); } catch (e) { }
+    notificationsUnsubscribe = null;
+  }
   try {
     const q = collection(db, 'users', uid, 'notifications');
-    onSnapshot(q, async (snapshot) => {
+    notificationsUnsubscribe = onSnapshot(q, async (snapshot) => {
       const rawNotifs = [];
       snapshot.forEach(docSnap => {
         rawNotifs.push({
@@ -1569,6 +1609,13 @@ export async function handleReportSubmission() {
 
   const submitBtn = document.getElementById('report-submit-btn');
 
+  // Check user authentication
+  const user = auth?.currentUser;
+  if (!user) {
+    alert('Please sign in to submit a report.');
+    return;
+  }
+
   // 1. STATE: VALIDATING
   const draft = getReportDraft();
   const validation = validateReport(draft);
@@ -1603,14 +1650,15 @@ export async function handleReportSubmission() {
 
   try {
     const reportId = generateReportId();
-    const user = auth?.currentUser;
-    const uid = user ? user.uid : (userProfile?.uid || 'student_guest');
-    const userName = draft.isAnonymous ? 'Anonymous Student' : (userProfile?.name || user?.displayName || 'NexRide Student');
-    const userPhone = draft.isAnonymous ? 'Hidden' : (userProfile?.phone || user?.phoneNumber || '');
-    const userEmail = draft.isAnonymous ? 'Hidden' : (userProfile?.email || user?.email || '');
+    const uid = user.uid;
+    const userName = draft.isAnonymous ? 'Anonymous Student' : (userProfile?.name || user.displayName || 'NexRide Student');
+    const userPhone = draft.isAnonymous ? 'Hidden' : (userProfile?.phone || user.phoneNumber || '');
+    const userEmail = draft.isAnonymous ? 'Hidden' : (userProfile?.email || user.email || '');
 
     const impactLevel = (selectedPriority === 'Urgent' ? 'HIGH' : (selectedPriority === 'High' ? 'MEDIUM' : 'LOW'));
     const finalSubject = draft.subject || `${selectedCategory.name}${draft.busNumber ? ` - Bus ${draft.busNumber}` : ''}${draft.routeName ? ` (${draft.routeName})` : ''}`;
+
+    const locString = capturedLocation ? (capturedLocation.text || `${capturedLocation.latitude}, ${capturedLocation.longitude}`) : (draft.stop || '');
 
     const reportPayload = {
       reportId: reportId,
@@ -1623,23 +1671,31 @@ export async function handleReportSubmission() {
       categoryName: selectedCategory.name,
       subject: finalSubject,
       description: draft.description,
+      busNumber: draft.busNumber || '',
+      registrationNumber: draft.registrationNumber || '',
       busId: draft.busNumber ? `bus_${draft.busNumber}` : '',
-      busNumber: draft.busNumber,
+      route: draft.routeName || '',
+      routeName: draft.routeName || '',
       routeId: draft.routeName ? `route_${draft.routeName.toLowerCase().replace(/\s+/g, '_')}` : '',
-      routeName: draft.routeName,
-      stop: draft.stop,
-      incidentDate: draft.incidentDate,
-      incidentTime: draft.incidentTime,
+      location: locString,
+      stop: draft.stop || '',
+      journeyDate: draft.incidentDate || '',
+      journeyTime: draft.incidentTime || '',
+      incidentDate: draft.incidentDate || '',
+      incidentTime: draft.incidentTime || '',
       expectedTime: draft.expectedTime || draft.scheduledTime || '',
       actualTime: draft.actualTime || '',
       frequency: '',
       impact: impactLevel,
-      priority: selectedPriority || 'NORMAL',
-      status: 'Submitted',
-      attachments: draft.attachments,
+      priority: selectedPriority || 'Normal',
+      status: 'Under Review',
+      attachments: draft.attachments || [],
+      adminResponse: '',
+      resolution: '',
+      adminId: '',
+      adminName: '',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      adminResponse: null,
       adminResponseAt: null,
       adminReply: null,
       assignedTo: null,
@@ -1648,7 +1704,6 @@ export async function handleReportSubmission() {
       closedAt: null,
       conversationId: reportId,
       isAnonymous: draft.isAnonymous,
-      location: capturedLocation,
       extraFields: {
         transactionId: draft.transactionId,
         itemCategory: draft.itemCategory,
@@ -1656,49 +1711,46 @@ export async function handleReportSubmission() {
       },
       statusHistory: [
         {
-          status: 'Submitted',
+          status: 'Under Review',
           timestamp: new Date().toISOString(),
           message: 'Report received and registered in system.'
         }
       ]
     };
 
-    if (db) {
-      try {
-        await setDoc(doc(db, 'reports', reportId), reportPayload);
-        console.log('[Report] Document written successfully to Firestore with ID:', reportId);
+    // AWAIT FIRESTORE WRITE DIRECTLY - DO NOT PROCEED TO SUCCESS IF WRITE FAILS
+    if (!db) {
+      throw new Error('Database is not initialized.');
+    }
 
-        // Create activity log subcollection
-        try {
-          await addDoc(collection(db, 'reports', reportId, 'activity'), {
-            action: 'REPORT_SUBMITTED',
-            status: 'Submitted',
-            timestamp: serverTimestamp(),
-            performedBy: uid
-          });
-        } catch (e) {
-          console.warn('[Report] Activity log warning:', e);
-        }
+    await setDoc(doc(db, 'reports', reportId), reportPayload);
+    console.log('[Report] Document written successfully to Firestore with ID:', reportId);
 
-        // Create in-app notification
-        if (uid && uid !== 'student_guest') {
-          try {
-            await addDoc(collection(db, 'users', uid, 'notifications'), {
-              title: 'Report Submitted',
-              body: `Your report ${reportId} (${finalSubject}) has been logged successfully.`,
-              reportId: reportId,
-              reportNumber: reportId,
-              type: 'report_status',
-              read: false,
-              createdAt: serverTimestamp()
-            });
-          } catch (e) {
-            console.warn('[Report] Notification log warning:', e);
-          }
-        }
-      } catch (firestoreErr) {
-        console.warn('[Report] Firestore cloud write warning (offline or permissions):', firestoreErr);
-      }
+    // Optional activity subcollection entry
+    try {
+      await addDoc(collection(db, 'reports', reportId, 'activity'), {
+        action: 'REPORT_SUBMITTED',
+        status: 'Under Review',
+        timestamp: serverTimestamp(),
+        performedBy: uid
+      });
+    } catch (e) {
+      console.warn('[Report] Activity log warning:', e);
+    }
+
+    // Optional user notification
+    try {
+      await addDoc(collection(db, 'users', uid, 'notifications'), {
+        title: 'Report Submitted',
+        body: `Your report ${reportId} (${finalSubject}) has been logged successfully.`,
+        reportId: reportId,
+        reportNumber: reportId,
+        type: 'report_status',
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.warn('[Report] Notification log warning:', e);
     }
 
     // Update local cache with serializable date strings
@@ -1715,20 +1767,21 @@ export async function handleReportSubmission() {
       console.warn('[Report] localStorage cache warning:', e);
     }
 
-    // 3. STATE: SUCCESS (Show existing success UI with real report ID)
-    isFormDirty = false;
-    isSubmitting = false;
+    // Reset and clear the form only AFTER successful Firebase submission
+    resetReportForm();
+
+    // 3. STATE: SUCCESS (Show existing success UI only AFTER confirmation)
     showSuccessScreen(reportId);
 
   } catch (err) {
-    // 4. STATE: ERROR (Allow retry and preserve all entered information)
-    console.error('[Report] Error submitting report:', err);
+    // 4. STATE: ERROR (Keep form inputs intact, re-enable button, alert error)
+    console.error('[Report] Error submitting report to Firestore:', err);
     isSubmitting = false;
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Submit Report';
     }
-    alert('Unable to submit the report. Please try again.');
+    alert('Unable to submit the report: ' + (err.message || 'Please check your connection and try again.'));
   }
 }
 
@@ -1947,7 +2000,7 @@ export function openReportDetails(report) {
 
   // Admin message / response (Section 15)
   if (adminMsgWrap && adminMsgText) {
-    const adminMsg = report.adminResponse || report.adminReply;
+    const adminMsg = report.adminResponse || report.resolution || report.adminReply;
     if (adminMsg) {
       adminMsgText.textContent = adminMsg;
       adminMsgWrap.style.display = 'flex';
@@ -2323,7 +2376,134 @@ export function closeNotificationsPage() {
 // =============================================================================
 // NOTIFICATION DETAILS MODAL CONTROLLER
 // =============================================================================
-export function openNotificationDetails(notif) {
+let activeNotificationListener = null;
+let activeNotificationReportId = null;
+let activeNotificationContext = null;
+
+function renderNotifReportDetails(report, notif) {
+  if (!report && !notif) return;
+
+  const repSec = document.getElementById('notif-detail-report-section');
+  const genCard = document.getElementById('notif-detail-general-card');
+  const titleEl = document.getElementById('notif-detail-title');
+  const repIdEl = document.getElementById('notif-detail-report-id');
+  const detailsCard = document.getElementById('notif-detail-report-details-card');
+  const subjRow = document.getElementById('notif-detail-subject-row');
+  const subjEl = document.getElementById('notif-detail-subject');
+  const catRow = document.getElementById('notif-detail-category-row');
+  const catEl = document.getElementById('notif-detail-category');
+  const busRow = document.getElementById('notif-detail-bus-row');
+  const busEl = document.getElementById('notif-detail-bus');
+  const routeRow = document.getElementById('notif-detail-route-row');
+  const routeEl = document.getElementById('notif-detail-route');
+  const descCard = document.getElementById('notif-detail-desc-card');
+  const descEl = document.getElementById('notif-detail-description');
+  const respCard = document.getElementById('notif-detail-response-card');
+  const respEl = document.getElementById('notif-detail-admin-response');
+  const statusBadge = document.getElementById('notif-detail-status-badge');
+
+  if (repSec) repSec.style.display = 'flex';
+  if (genCard) genCard.style.display = 'none';
+
+  // 1. Current status
+  const currentStatus = (report && report.status) || (notif && notif.status) || 'Under Review';
+  if (titleEl) {
+    titleEl.textContent = `Report Update: ${currentStatus}`;
+  }
+
+  // 2. Report ID
+  const reportId = (report && (report.reportNumber || report.reportId || report.id)) ||
+                   (notif && (notif.reportNumber || notif.reportId || notif.reportDocumentId)) ||
+                   '--';
+  if (repIdEl) {
+    repIdEl.textContent = reportId;
+  }
+
+  // 3. Subject, Category, Bus, Route
+  let hasDetails = false;
+  const rawSubject = (report && report.subject) || (notif && notif.subject);
+  if (subjRow && subjEl) {
+    if (rawSubject && typeof rawSubject === 'string' && rawSubject.trim() && rawSubject !== 'null' && rawSubject !== 'undefined') {
+      subjEl.textContent = rawSubject.trim();
+      subjRow.style.display = 'flex';
+      hasDetails = true;
+    } else {
+      subjRow.style.display = 'none';
+    }
+  }
+
+  const rawCategory = (report && (report.categoryName || report.category)) || (notif && (notif.categoryName || notif.category));
+  if (catRow && catEl) {
+    if (rawCategory && typeof rawCategory === 'string' && rawCategory.trim() && rawCategory !== 'null' && rawCategory !== 'undefined') {
+      catEl.textContent = rawCategory.trim();
+      catRow.style.display = 'flex';
+      hasDetails = true;
+    } else {
+      catRow.style.display = 'none';
+    }
+  }
+
+  const rawBusNumber = (report && (report.busNumber || report.busId)) || (notif && (notif.busNumber || notif.busId));
+  if (busRow && busEl) {
+    if (rawBusNumber && String(rawBusNumber).trim() && rawBusNumber !== 'null' && rawBusNumber !== 'undefined') {
+      const cleanBus = String(rawBusNumber).replace(/^bus_/i, '');
+      const busText = String(cleanBus).toLowerCase().startsWith('bus') ? cleanBus : `Bus ${cleanBus}`;
+      busEl.textContent = busText;
+      busRow.style.display = 'flex';
+      hasDetails = true;
+    } else {
+      busRow.style.display = 'none';
+    }
+  }
+
+  const rawRouteName = (report && (report.routeName || report.route)) || (notif && (notif.routeName || notif.route));
+  if (routeRow && routeEl) {
+    if (rawRouteName && typeof rawRouteName === 'string' && rawRouteName.trim() && rawRouteName !== 'null' && rawRouteName !== 'undefined') {
+      routeEl.textContent = rawRouteName.trim();
+      routeRow.style.display = 'flex';
+      hasDetails = true;
+    } else {
+      routeRow.style.display = 'none';
+    }
+  }
+
+  if (detailsCard) {
+    detailsCard.style.display = hasDetails ? 'block' : 'none';
+  }
+
+  // 4. Description (original complaint submitted by user)
+  const rawDescription = (report && report.description) || (notif && notif.description);
+  if (descCard && descEl) {
+    if (rawDescription && typeof rawDescription === 'string' && rawDescription.trim() && rawDescription !== 'null' && rawDescription !== 'undefined') {
+      descEl.textContent = rawDescription.trim();
+      descCard.style.display = 'block';
+    } else {
+      descCard.style.display = 'none';
+    }
+  }
+
+  // 5. Admin Response
+  let adminResponse = (report && (report.adminResponse || report.resolution || report.adminReply)) || (notif && notif.adminResponse) || '';
+  if (!adminResponse && notif && notif.body && typeof notif.body === 'string' && notif.body.toLowerCase().includes('admin response:')) {
+    adminResponse = notif.body.replace(/^Admin response:\s*["']?|["']?$/gi, '').trim();
+  }
+  if (respCard && respEl) {
+    if (adminResponse && typeof adminResponse === 'string' && adminResponse.trim() && adminResponse !== 'null' && adminResponse !== 'undefined') {
+      respEl.textContent = `"${adminResponse.trim().replace(/^["']|["']$/g, '')}"`;
+      respCard.style.display = 'block';
+    } else {
+      respCard.style.display = 'none';
+    }
+  }
+
+  // 6. Status Badge
+  if (statusBadge) {
+    statusBadge.textContent = currentStatus;
+    statusBadge.className = `report-status-badge ${getStatusClass(currentStatus)}`;
+  }
+}
+
+export async function openNotificationDetails(notif) {
   if (!notif) return;
 
   const modal = document.getElementById('notif-detail-modal');
@@ -2334,99 +2514,106 @@ export function openNotificationDetails(notif) {
     markNotificationAsRead(notif.id);
   }
 
-  const iconBox = document.getElementById('notif-detail-icon-box');
-  const icon = document.getElementById('notif-detail-icon');
-  const titleEl = document.getElementById('notif-detail-title');
-  const typeBadge = document.getElementById('notif-detail-type-badge');
+  // Unsubscribe any prior real-time report listener
+  if (activeNotificationListener) {
+    try { activeNotificationListener(); } catch (e) { }
+    activeNotificationListener = null;
+  }
+  activeNotificationReportId = null;
+  activeNotificationContext = notif;
+
+  // Header timestamp & exact received date
   const timeEl = document.getElementById('notif-detail-time');
-  const bodyEl = document.getElementById('notif-detail-body');
-  const reportBox = document.getElementById('notif-detail-report-box');
-  const reportNumEl = document.getElementById('notif-detail-report-num');
-  const statusTag = document.getElementById('notif-detail-status-tag');
   const exactDateEl = document.getElementById('notif-detail-exact-date');
-  const openReportBtn = document.getElementById('notif-detail-open-report-btn');
-
-  const isSos = notif.type === 'sos_alert' || notif.priority === 'URGENT';
-
-  if (iconBox && icon) {
-    iconBox.style.background = isSos ? '#FEE2E2' : '#EFF6FF';
-    icon.style.backgroundColor = isSos ? '#DC2626' : '#2563EB';
-  }
-
-  if (titleEl) titleEl.textContent = notif.title || 'Notification';
-  if (bodyEl) bodyEl.textContent = notif.body || 'No message details provided.';
   if (timeEl) timeEl.textContent = formatRelativeDate(notif.createdAt);
+  if (exactDateEl) exactDateEl.textContent = formatExactDate(notif.createdAt);
 
-  if (typeBadge) {
-    if (isSos) {
-      typeBadge.textContent = 'URGENT';
-      typeBadge.style.background = '#FEE2E2';
-      typeBadge.style.color = '#DC2626';
-    } else if (notif.type === 'report_status') {
-      typeBadge.textContent = 'REPORT UPDATE';
-      typeBadge.style.background = '#EFF6FF';
-      typeBadge.style.color = '#2563EB';
-    } else {
-      typeBadge.textContent = 'UPDATE';
-      typeBadge.style.background = '#F3F4F6';
-      typeBadge.style.color = '#4B5563';
+  // Target report reference
+  const repId = notif.reportDocumentId || notif.reportId || notif.reportNumber || (notif.body && notif.body.match(/NXR-2026-\d+/)?.[0]);
+  const isReportNotif = !!(
+    repId ||
+    notif.type === 'report_status' ||
+    (notif.title && notif.title.toLowerCase().includes('report')) ||
+    (notif.body && notif.body.toLowerCase().includes('report'))
+  );
+
+  if (isReportNotif) {
+    activeNotificationReportId = repId || notif.id;
+
+    // Check if report is already in local cache for instant zero-latency display
+    let reportDoc = null;
+    if (repId && myReportsCache && myReportsCache.length > 0) {
+      reportDoc = myReportsCache.find(r => r.id === repId || r.reportId === repId || r.reportNumber === repId);
     }
-  }
 
-  if (exactDateEl) {
-    exactDateEl.textContent = formatExactDate(notif.createdAt);
-  }
+    // Initial instant render with cached/notification data
+    renderNotifReportDetails(reportDoc || {}, notif);
 
-  // Handle attached report
-  const repId = notif.reportId || notif.reportNumber;
-  if (reportBox && openReportBtn) {
-    if (repId) {
-      reportBox.style.display = 'flex';
-      if (reportNumEl) reportNumEl.textContent = repId;
+    setTimeout(() => {
+      modal.classList.add('active');
+    }, 40);
 
-      // Find report in local cache or set default status
-      const cached = myReportsCache.find(r => r.id === repId || r.reportNumber === repId);
-      if (statusTag) {
-        const st = (cached && cached.status) || 'Submitted';
-        statusTag.textContent = st;
-        statusTag.className = `report-status-badge ${getStatusClass(st)}`;
-      }
-
-      openReportBtn.onclick = async (e) => {
-        e.stopPropagation();
-        closeNotificationDetails();
-        if (cached) {
-          openReportDetails(cached);
-          return;
-        }
-        if (db) {
-          try {
-            const snap = await getDoc(doc(db, 'reports', repId));
-            if (snap.exists()) {
-              openReportDetails({ id: snap.id, ...snap.data() });
-              return;
-            }
-          } catch (err) {
-            console.warn('[Report] Could not fetch report details for notification:', err);
+    // Fetch complete report document from Firestore
+    if (db && repId) {
+      try {
+        let snap = await getDoc(doc(db, 'reports', repId));
+        if (snap.exists()) {
+          reportDoc = { id: snap.id, ...snap.data() };
+          renderNotifReportDetails(reportDoc, notif);
+        } else {
+          // Query by reportNumber if document ID differed
+          const q = query(collection(db, 'reports'), where('reportNumber', '==', repId), limit(1));
+          const qSnap = await getDocs(q);
+          if (!qSnap.empty) {
+            reportDoc = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
+            renderNotifReportDetails(reportDoc, notif);
           }
         }
-        alert('This report is no longer available or was deleted.');
-        if (auth?.currentUser?.uid) {
-          cleanOrphanedReportNotifications(auth.currentUser.uid);
-        }
-        if (window.openMyReportsPage) window.openMyReportsPage();
-      };
-    } else {
-      reportBox.style.display = 'none';
-    }
-  }
+      } catch (err) {
+        console.warn('[Report] Could not fetch report details for notification:', err);
+      }
 
-  setTimeout(() => {
-    modal.classList.add('active');
-  }, 50);
+      // Attach single real-time Firestore listener on the report document
+      const docId = (reportDoc && reportDoc.id) || repId;
+      try {
+        activeNotificationListener = onSnapshot(doc(db, 'reports', docId), (liveSnap) => {
+          if (liveSnap.exists() && activeNotificationReportId) {
+            const liveReport = { id: liveSnap.id, ...liveSnap.data() };
+            renderNotifReportDetails(liveReport, notif);
+          }
+        }, (err) => {
+          console.warn('[Report] Real-time report listener error:', err);
+        });
+      } catch (err) {
+        console.warn('[Report] Could not attach listener on report:', err);
+      }
+    }
+  } else {
+    // Standard non-report notification
+    const repSec = document.getElementById('notif-detail-report-section');
+    const genCard = document.getElementById('notif-detail-general-card');
+    const titleEl = document.getElementById('notif-detail-title');
+    const bodyEl = document.getElementById('notif-detail-body');
+
+    if (repSec) repSec.style.display = 'none';
+    if (genCard) genCard.style.display = 'block';
+    if (titleEl) titleEl.textContent = notif.title || 'Notification';
+    if (bodyEl) bodyEl.textContent = notif.body || 'No message details provided.';
+
+    setTimeout(() => {
+      modal.classList.add('active');
+    }, 40);
+  }
 }
 
 export function closeNotificationDetails() {
+  if (activeNotificationListener) {
+    try { activeNotificationListener(); } catch (e) { }
+    activeNotificationListener = null;
+  }
+  activeNotificationReportId = null;
+  activeNotificationContext = null;
+
   const modal = document.getElementById('notif-detail-modal');
   if (modal) {
     setTimeout(() => {

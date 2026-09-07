@@ -26,6 +26,7 @@ let auditLogsCache = [];
 
 let currentInspectingBus = null;
 let currentInspectingTicket = null;
+let reportsUnsubscribe = null;
 
 // =============================================================================
 // DOM ELEMENTS
@@ -112,6 +113,10 @@ if (loginForm) {
 if (logoutBtn) {
   logoutBtn.addEventListener('click', async () => {
     try {
+      if (reportsUnsubscribe) {
+        try { reportsUnsubscribe(); } catch (e) { }
+        reportsUnsubscribe = null;
+      }
       await signOut(auth);
     } catch (err) {
       console.error("Logout Error:", err);
@@ -138,6 +143,10 @@ function switchView(viewId) {
       link.classList.remove('active');
     }
   });
+
+  if (viewId === 'issues-view') {
+    renderIssuesTable();
+  }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -213,6 +222,10 @@ if (profileAuditLink) {
 if (profileLogoutBtn) {
   profileLogoutBtn.addEventListener('click', async () => {
     try {
+      if (reportsUnsubscribe) {
+        try { reportsUnsubscribe(); } catch (e) { }
+        reportsUnsubscribe = null;
+      }
       await signOut(auth);
     } catch (err) {
       console.error("Sign out error:", err);
@@ -286,22 +299,53 @@ function listenToBuses() {
   });
 }
 
-// 2. Listen to Support Tickets & Complaints
+// 2. Listen to Support Tickets & Complaints (Real-time Firestore sync)
 function listenToReports() {
+  if (reportsUnsubscribe) {
+    try { reportsUnsubscribe(); } catch (e) { }
+    reportsUnsubscribe = null;
+  }
+
   const reportsRef = collection(firestore, 'reports');
-  const q = query(reportsRef, orderBy('createdAt', 'desc'), limit(100));
-  
-  onSnapshot(q, (snapshot) => {
+
+  const processReportsSnapshot = (snapshot) => {
     reportsCache = [];
     snapshot.forEach(d => {
       reportsCache.push({ id: d.id, ...d.data() });
     });
-    
+
+    // Sort newest first safely (handling pending server timestamps)
+    reportsCache.sort((a, b) => {
+      const getTime = (val) => {
+        if (!val) return 0;
+        if (typeof val.toMillis === 'function') return val.toMillis();
+        if (typeof val.toDate === 'function') return val.toDate().getTime();
+        if (typeof val.seconds === 'number') return val.seconds * 1000;
+        if (val instanceof Date) return val.getTime();
+        const t = new Date(val).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+      return getTime(b.createdAt) - getTime(a.createdAt);
+    });
+
     renderDashboardStats();
     renderIssuesTable();
-  }, (err) => {
-    console.error("Firestore Reports listener error:", err);
-  });
+  };
+
+  try {
+    const q = query(reportsRef, limit(100));
+    reportsUnsubscribe = onSnapshot(q, (snapshot) => {
+      processReportsSnapshot(snapshot);
+    }, (err) => {
+      console.error("Firestore Reports listener error:", err);
+      renderDashboardStats();
+      renderIssuesTable();
+    });
+  } catch (err) {
+    console.error("Setup reports listener error:", err);
+    renderDashboardStats();
+    renderIssuesTable();
+  }
 }
 
 // 3. Listen to Pending Approvals
@@ -895,13 +939,16 @@ function renderIssuesTable() {
   let filtered = reportsCache.filter(r => {
     const matchSearch = !searchVal ||
       (r.reportNumber && r.reportNumber.toLowerCase().includes(searchVal)) ||
+      (r.reportId && r.reportId.toLowerCase().includes(searchVal)) ||
+      (r.id && r.id.toLowerCase().includes(searchVal)) ||
       (r.subject && r.subject.toLowerCase().includes(searchVal)) ||
       (r.userName && r.userName.toLowerCase().includes(searchVal)) ||
       (r.busNumber && String(r.busNumber).toLowerCase().includes(searchVal));
 
     const matchStatus = statusVal === 'All' || (r.status && r.status.toLowerCase() === statusVal.toLowerCase());
     const matchPrio = prioVal === 'All' || (r.priority && r.priority.toLowerCase() === prioVal.toLowerCase());
-    const matchCat = catVal === 'All' || (r.categoryId && r.categoryId.toLowerCase() === catVal.toLowerCase());
+    const itemCat = (r.categoryId || r.category || '').toLowerCase();
+    const matchCat = catVal === 'All' || (itemCat === catVal.toLowerCase());
 
     return matchSearch && matchStatus && matchPrio && matchCat;
   });
@@ -909,7 +956,7 @@ function renderIssuesTable() {
   setElText('stat-rep-total', reportsCache.length);
   setElText('stat-rep-submitted', reportsCache.filter(r => r.status === 'Submitted').length);
   setElText('stat-rep-progress', reportsCache.filter(r => r.status === 'In Progress' || r.status === 'Under Review').length);
-  setElText('stat-rep-critical', reportsCache.filter(r => r.priority === 'Urgent' || r.categoryId === 'safety').length);
+  setElText('stat-rep-critical', reportsCache.filter(r => r.priority === 'Urgent' || (r.categoryId || r.category) === 'safety').length);
 
   if (countLabel) countLabel.textContent = `Showing ${filtered.length} of ${reportsCache.length} reports`;
 
@@ -922,15 +969,17 @@ function renderIssuesTable() {
     const tr = document.createElement('tr');
     const statusClass = getStatusBadgeClass(rep.status);
     const prioClass = getPriorityBadgeClass(rep.priority);
+    const repNum = rep.reportNumber || rep.reportId || rep.id || 'NXR-REP';
+    const repRoute = rep.busNumber ? `Bus ${rep.busNumber}` : (rep.routeName || rep.route || 'General');
 
     tr.innerHTML = `
-      <td><span style="font-family: monospace; font-weight: 700; color: #2563EB;">${rep.reportNumber || 'NXR-REP'}</span></td>
+      <td>${escapeHtml(repNum)}</td>
       <td><strong>${escapeHtml(rep.userName || 'Student')}</strong></td>
       <td>
         <div style="font-weight: 700; color: var(--text-primary);">${escapeHtml(rep.subject || 'No Subject')}</div>
-        <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(rep.categoryName || 'General')}</div>
+        <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(rep.categoryName || rep.category || 'General')}</div>
       </td>
-      <td>${rep.busNumber ? `Bus ${rep.busNumber}` : (rep.routeName || 'General')}</td>
+      <td>${escapeHtml(repRoute)}</td>
       <td><span class="status-badge ${prioClass}">${rep.priority || 'Normal'}</span></td>
       <td><span class="status-badge ${statusClass}">${rep.status || 'Submitted'}</span></td>
       <td><span style="font-size: 12px; color: var(--text-muted);">${formatDate(rep.createdAt)}</span></td>
@@ -1252,64 +1301,87 @@ function setupModalListeners() {
         saveTicketBtn.disabled = true;
         saveTicketBtn.textContent = 'Updating...';
 
+        const adminUid = currentAdminUser?.uid || '';
+        const adminDisplayName = currentAdminUser?.displayName || (currentAdminUser?.email ? currentAdminUser.email.split('@')[0] : 'Admin');
+
         const updatePayload = {
           status: newStatus,
           priority: newPrio,
-          updatedAt: serverTimestamp()
+          adminResponse: replyText,
+          resolution: replyText,
+          adminReply: replyText,
+          adminId: adminUid,
+          adminName: adminDisplayName,
+          resolvedBy: currentAdminUser?.email || adminDisplayName,
+          updatedAt: serverTimestamp(),
+          resolvedAt: newStatus === 'Resolved' ? serverTimestamp() : null
         };
 
         if (replyText) {
-          updatePayload.adminResponse = replyText;
-          updatePayload.adminReply = replyText;
           updatePayload.adminResponseAt = serverTimestamp();
-          updatePayload.resolvedBy = currentAdminUser?.email || 'Admin';
         }
 
-        if (newStatus === 'Resolved') {
-          updatePayload.resolvedAt = serverTimestamp();
-        } else if (newStatus === 'Closed') {
+        if (newStatus === 'Closed') {
           updatePayload.closedAt = serverTimestamp();
         }
 
         const historyEntry = {
           status: newStatus,
-          oldStatus: currentInspectingTicket.status || 'Submitted',
+          oldStatus: currentInspectingTicket.status || 'Under Review',
           changedBy: currentAdminUser?.email || 'Admin',
           message: replyText || `Status updated to ${newStatus} by Admin`,
           timestamp: new Date().toISOString()
         };
         updatePayload.statusHistory = arrayUnion(historyEntry);
 
+        // Partial update preserving all existing user-submitted fields
         await updateDoc(doc(firestore, 'reports', currentInspectingTicket.id), updatePayload);
 
         // Add to subcollection activity
-        await addDoc(collection(firestore, 'reports', currentInspectingTicket.id, 'activity'), {
-          action: `STATUS_CHANGED_TO_${newStatus.toUpperCase()}`,
-          oldStatus: currentInspectingTicket.status || 'Submitted',
-          newStatus: newStatus,
-          note: replyText || `Status updated by Admin`,
-          timestamp: serverTimestamp(),
-          adminEmail: currentAdminUser?.email || 'Admin'
-        });
+        try {
+          await addDoc(collection(firestore, 'reports', currentInspectingTicket.id, 'activity'), {
+            action: `STATUS_CHANGED_TO_${newStatus.toUpperCase()}`,
+            oldStatus: currentInspectingTicket.status || 'Under Review',
+            newStatus: newStatus,
+            note: replyText || `Status updated by Admin`,
+            timestamp: serverTimestamp(),
+            adminEmail: currentAdminUser?.email || 'Admin',
+            adminId: adminUid
+          });
+        } catch (actErr) {
+          console.warn("Activity log warning:", actErr);
+        }
 
         // Create in-app notification for student
         if (currentInspectingTicket.userId && currentInspectingTicket.userId !== 'student_guest') {
-          await addDoc(collection(firestore, 'users', currentInspectingTicket.userId, 'notifications'), {
-            title: `Report Update: ${newStatus}`,
-            body: replyText ? `Admin response: "${replyText}"` : `Your report ${currentInspectingTicket.reportNumber || currentInspectingTicket.id} status was changed to ${newStatus}.`,
-            reportId: currentInspectingTicket.id,
-            reportNumber: currentInspectingTicket.reportNumber || currentInspectingTicket.id,
-            type: 'report_status',
-            read: false,
-            createdAt: serverTimestamp()
-          });
+          try {
+            await addDoc(collection(firestore, 'users', currentInspectingTicket.userId, 'notifications'), {
+              title: `Report Update: ${newStatus}`,
+              body: replyText ? `Admin response: "${replyText}"` : `Your report ${currentInspectingTicket.reportNumber || currentInspectingTicket.id} status was changed to ${newStatus}.`,
+              reportId: currentInspectingTicket.reportNumber || currentInspectingTicket.reportId || currentInspectingTicket.id,
+              reportDocumentId: currentInspectingTicket.id,
+              status: newStatus,
+              adminResponse: replyText || '',
+              subject: currentInspectingTicket.subject || '',
+              categoryName: currentInspectingTicket.categoryName || currentInspectingTicket.category || '',
+              busNumber: currentInspectingTicket.busNumber || '',
+              routeName: currentInspectingTicket.routeName || currentInspectingTicket.route || '',
+              description: currentInspectingTicket.description || '',
+              type: 'report_status',
+              read: false,
+              createdAt: serverTimestamp()
+            });
+          } catch (notifErr) {
+            console.warn("Notification error:", notifErr);
+          }
         }
 
         await logAuditEvent('TICKET_RESOLVED', 'reports', currentInspectingTicket.id, { newStatus, newPrio, replyText });
 
         ticketModal?.classList.add('hidden');
-        alert(`Ticket ${currentInspectingTicket.reportNumber || 'NXR-REP'} updated.`);
+        alert(`Ticket ${currentInspectingTicket.reportNumber || currentInspectingTicket.id || 'NXR-REP'} updated successfully.`);
       } catch (err) {
+        console.error("Failed to update ticket:", err);
         alert("Failed to update ticket: " + err.message);
       } finally {
         saveTicketBtn.disabled = false;
@@ -1380,20 +1452,59 @@ window.adminOpenTicket = (ticketId) => {
   if (!ticket) return;
   currentInspectingTicket = ticket;
 
-  setElText('modal-ticket-id', `Ticket ${ticket.reportNumber || 'NXR-REP'}`);
+  setElText('modal-ticket-id', `Ticket ${ticket.reportNumber || ticket.reportId || ticket.id || 'NXR-REP'}`);
   setElText('modal-ticket-subject', ticket.subject || 'No Subject');
   setElText('modal-ticket-desc', ticket.description || 'No Description provided.');
-  setElText('modal-ticket-reporter', `Reporter: ${ticket.userName || 'Student'}`);
-  setElText('modal-ticket-bus', `Bus: ${ticket.busNumber ? `Bus ${ticket.busNumber}` : (ticket.routeName || 'General')}`);
-  setElText('modal-ticket-date', `Date: ${formatDate(ticket.createdAt)}`);
+
+  const reporterInfo = ticket.userEmail
+    ? `Reporter: ${ticket.userName || 'Student'} (${ticket.userEmail})`
+    : `Reporter: ${ticket.userName || 'Student'}`;
+  setElText('modal-ticket-reporter', reporterInfo);
+
+  const busRouteText = ticket.busNumber
+    ? `Bus: Bus ${ticket.busNumber}${ticket.route || ticket.routeName ? ` • ${ticket.route || ticket.routeName}` : ''}`
+    : `Route: ${ticket.route || ticket.routeName || 'General'}`;
+  setElText('modal-ticket-bus', busRouteText);
+
+  const journeyInfo = [ticket.journeyDate || ticket.incidentDate, ticket.journeyTime || ticket.incidentTime].filter(Boolean).join(' ');
+  setElText('modal-ticket-date', journeyInfo ? `Journey: ${journeyInfo} • Reported: ${formatDate(ticket.createdAt)}` : `Reported: ${formatDate(ticket.createdAt)}`);
+
+  const locEl = document.getElementById('modal-ticket-location');
+  if (locEl) {
+    if (ticket.location) {
+      locEl.textContent = `Location: ${ticket.location}`;
+      locEl.style.display = 'inline';
+    } else {
+      locEl.style.display = 'none';
+    }
+  }
+
+  // Display attachments if present
+  const attachWrap = document.getElementById('modal-ticket-attachments-wrap');
+  if (attachWrap) {
+    attachWrap.innerHTML = '';
+    if (ticket.attachments && ticket.attachments.length > 0) {
+      ticket.attachments.forEach((src, idx) => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = `Attachment ${idx + 1}`;
+        img.style.cssText = 'width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid #E5E7EB; cursor: pointer;';
+        img.onclick = () => window.open(src, '_blank');
+        attachWrap.appendChild(img);
+      });
+      attachWrap.style.display = 'flex';
+    } else {
+      attachWrap.style.display = 'none';
+    }
+  }
 
   const statusSel = document.getElementById('modal-ticket-status-select');
   const prioSel = document.getElementById('modal-ticket-prio-select');
   const replyInput = document.getElementById('modal-ticket-reply');
 
-  if (statusSel) statusSel.value = ticket.status || 'Submitted';
+  if (statusSel) statusSel.value = ticket.status || 'Under Review';
   if (prioSel) prioSel.value = ticket.priority || 'Normal';
-  if (replyInput) replyInput.value = ticket.adminReply || '';
+  if (replyInput) replyInput.value = ticket.adminResponse || ticket.resolution || ticket.adminReply || '';
 
   const prioBadge = document.getElementById('modal-ticket-prio-badge');
   const statusBadge = document.getElementById('modal-ticket-status-badge');
@@ -1403,7 +1514,7 @@ window.adminOpenTicket = (ticketId) => {
   }
   if (statusBadge) {
     statusBadge.className = `status-badge ${getStatusBadgeClass(ticket.status)}`;
-    statusBadge.textContent = ticket.status || 'Submitted';
+    statusBadge.textContent = ticket.status || 'Under Review';
   }
 
   document.getElementById('ticket-modal')?.classList.remove('hidden');
@@ -1631,13 +1742,19 @@ function getPriorityBadgeClass(priority) {
 
 function formatDate(ts) {
   if (!ts) return 'Recently';
-  if (ts.toDate && typeof ts.toDate === 'function') {
-    return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  }
-  if (ts.seconds) {
-    return new Date(ts.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-  }
-  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  try {
+    if (ts.toDate && typeof ts.toDate === 'function') {
+      return ts.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    if (typeof ts.seconds === 'number') {
+      return new Date(ts.seconds * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+  } catch (e) {}
+  return 'Recently';
 }
 
 function escapeHtml(str) {
