@@ -131,13 +131,13 @@ function updateStopStyles(currentStopIndex, nextStopIndex, status, etaMinutes) {
         const dot = el.querySelector('.tracking-dot');
         const timeEl = el.querySelector('.stop-time');
         const headingEl = el.querySelector('.heading-towards');
+        const defaultTime = timeEl ? (timeEl.getAttribute('data-default-time') || '') : '';
 
         // Clean up legacy ETA subtitles if they exist
         const etaSubtitle = el.querySelector('.eta-subtitle');
         if (etaSubtitle) etaSubtitle.remove();
 
         if (timeEl) {
-            timeEl.textContent = '';
             timeEl.style.fontSize = '14px';
             timeEl.style.fontWeight = '600';
             timeEl.style.color = '#6B7280';
@@ -160,7 +160,7 @@ function updateStopStyles(currentStopIndex, nextStopIndex, status, etaMinutes) {
             if (status === 'offline') {
                 dot.style.backgroundColor = '#C9CED6'; // Gray
                 if (timeEl) {
-                    timeEl.textContent = '';
+                    timeEl.textContent = defaultTime;
                 }
             } else if (stopStatus === 'arrived') {
                 dot.style.backgroundColor = '#22C55E'; // Green
@@ -182,6 +182,10 @@ function updateStopStyles(currentStopIndex, nextStopIndex, status, etaMinutes) {
                     if (timeEl) {
                         timeEl.textContent = etaMinutes > 0 ? `ETA: ${etaMinutes} min` : 'Arriving';
                         timeEl.style.color = '#4B5563';
+                    }
+                } else {
+                    if (timeEl) {
+                        timeEl.textContent = defaultTime;
                     }
                 }
             }
@@ -237,6 +241,7 @@ function renderStops(stops) {
         let isBoardingStop = false;
         
         const stopNameToDisplay = stop.stopName || stop.name || 'Unknown Stop';
+        const scheduledTime = stop.arrivalTime || stop.morningArrival || stop.scheduledArrival || '';
         
         if (hasBoardingMatch) {
             isBoardingStop = stopNameToDisplay !== 'Unknown Stop' && stopNameToDisplay.trim().toLowerCase() === currentUserStage.trim().toLowerCase();
@@ -256,7 +261,7 @@ function renderStops(stops) {
                   <div class="heading-towards hidden">Heading towards</div>
                   <span class="stop-name ${isBoardingStop ? 'highlight' : ''}">${stopNameToDisplay}</span>
                 </div>
-                <span class="stop-time"></span>
+                <span class="stop-time" data-default-time="${scheduledTime}">${scheduledTime}</span>
               </div>
             </div>
           </div>
@@ -294,19 +299,36 @@ function startBusTracking(busDocId) {
             const lastUpdated = data.lastUpdated?.toMillis?.();
             
             let isOperatingHours = false;
-            if (data.stops && data.stops.length > 0) {
-                const currentTime = new Date();
-                const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+            const currentTime = new Date();
+            const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+
+            // 1. Check schedule windows if defined
+            if (data.schedules) {
+                const checkWindow = (dep, arr) => {
+                    if (!dep || !arr) return false;
+                    const [dh, dm] = dep.split(':').map(Number);
+                    const [ah, am] = arr.split(':').map(Number);
+                    const startM = dh * 60 + dm;
+                    const endM = ah * 60 + am;
+                    return currentMinutes >= startM && currentMinutes <= endM;
+                };
+                if (checkWindow(data.schedules.morningDeparture, data.schedules.morningArrival) ||
+                    checkWindow(data.schedules.eveningDeparture, data.schedules.eveningArrival)) {
+                    isOperatingHours = true;
+                }
+            }
+
+            // 2. Fallback to stops sequence arrival times
+            if (!isOperatingHours && data.stops && data.stops.length > 0) {
                 const firstStop = data.stops[0];
                 const lastStop = data.stops[data.stops.length - 1];
-                
-                if (firstStop.scheduledArrival && lastStop.scheduledArrival) {
-                    const firstTimeParts = firstStop.scheduledArrival.split(':').map(Number);
-                    const firstMinutes = firstTimeParts[0] * 60 + firstTimeParts[1];
-                    
-                    const lastTimeParts = lastStop.scheduledArrival.split(':').map(Number);
-                    const lastMinutes = lastTimeParts[0] * 60 + lastTimeParts[1];
-                    
+                const firstTime = firstStop.arrivalTime || firstStop.scheduledArrival || firstStop.morningArrival;
+                const lastTime = lastStop.arrivalTime || lastStop.scheduledArrival || lastStop.morningArrival;
+                if (firstTime && lastTime) {
+                    const [fh, fm] = firstTime.split(':').map(Number);
+                    const [lh, lm] = lastTime.split(':').map(Number);
+                    const firstMinutes = fh * 60 + fm;
+                    const lastMinutes = lh * 60 + lm;
                     if (currentMinutes >= firstMinutes && currentMinutes <= lastMinutes) {
                         isOperatingHours = true;
                     }

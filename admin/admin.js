@@ -14,6 +14,7 @@ import {
 // =============================================================================
 let currentAdminUser = null;
 let busesCache = [];
+let usersCache = [];
 let reportsCache = [];
 let approvalsCache = [];
 let driversCache = [];
@@ -28,9 +29,11 @@ let currentInspectingBus = null;
 let currentInspectingTicket = null;
 let currentInspectingRouteId = null;
 let currentEditingStops = [];
+let currentEditingBusDocs = [];
 let hasLoadedFirestoreRoutes = false;
 let routesUnsubscribe = null;
 let reportsUnsubscribe = null;
+let usersUnsubscribe = null;
 
 // =============================================================================
 // DOM ELEMENTS
@@ -154,6 +157,13 @@ function switchView(viewId) {
   if (viewId === 'routes-view') {
     renderRoutesTable();
   }
+  if (viewId === 'buses-view') {
+    renderBusesTable();
+    renderTimingsTable();
+  }
+  if (viewId === 'timings-view') {
+    renderTimingsTable();
+  }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -251,6 +261,7 @@ if (profileLogoutBtn) {
 function initRealtimeEngine() {
   setupConnectionMonitor();
   listenToBuses();
+  listenToUsers();
   listenToRoutes();
   listenToReports();
   listenToApprovals();
@@ -258,6 +269,55 @@ function initRealtimeEngine() {
   setupGlobalSearch();
   setupModalListeners();
   setupFilterListeners();
+}
+
+// 1a. Listen to Real Users Collection (Source of Truth for Bus Allocations)
+function listenToUsers() {
+  if (usersUnsubscribe) {
+    try { usersUnsubscribe(); } catch (e) { }
+    usersUnsubscribe = null;
+  }
+
+  const usersRef = collection(firestore, 'users');
+  usersUnsubscribe = onSnapshot(usersRef, (snapshot) => {
+    usersCache = [];
+    snapshot.forEach(d => {
+      const data = d.data();
+      const busNum = String(data.bus || data.busNumber || data['bus no'] || data.bus_no || '').trim();
+      const studentId = data.regno || data.id || data.studentId || d.id;
+      const studentName = data.name || 'Student';
+      const pickup = data.stage || data.pickupStop || '--';
+      const dept = data.department || (data.regno ? (data.regno.includes('AI') ? 'AI&DS' : (data.regno.includes('CS') ? 'CSE' : 'Engineering')) : 'Engineering');
+      const phone = data.phone || data['parent_gaurdian contact'] || data.contact || '--';
+      
+      usersCache.push({
+        id: studentId,
+        docId: d.id,
+        name: studentName,
+        email: data.email || '',
+        department: dept,
+        year: data.year || '2nd Year',
+        assignedBus: busNum,
+        pickupStop: pickup,
+        dropStop: 'Nandha Engineering College',
+        phone: phone,
+        status: data.fees_status?.toLowerCase() === 'paid' ? 'Active' : (data.fees_status || 'Active'),
+        raw: data
+      });
+    });
+
+    // Re-derive state and refresh dependent views
+    deriveDerivedState();
+    renderStudentsTable();
+    renderBusesTable();
+    renderDashboardStats();
+    if (currentInspectingBus) {
+      const updatedBus = busesCache.find(b => b.id === currentInspectingBus.id) || currentInspectingBus;
+      openBusInspector(updatedBus);
+    }
+  }, (err) => {
+    console.warn("Firestore Users listener warning:", err);
+  });
 }
 
 function setupConnectionMonitor() {
@@ -332,6 +392,16 @@ function listenToRoutes() {
 
     renderRoutesTable();
     renderDashboardStats();
+    renderBusesTable();
+
+    // If bus inspector modal is currently open, refresh it live with updated route data
+    if (currentInspectingBus) {
+      const activeBusModal = document.getElementById('bus-inspector-modal');
+      if (activeBusModal && !activeBusModal.classList.contains('hidden')) {
+        const updatedBus = busesCache.find(b => b.id === currentInspectingBus.id) || currentInspectingBus;
+        openBusInspector(updatedBus);
+      }
+    }
 
     // If inspector modal is open for a route, refresh its details live
     if (currentInspectingRouteId) {
@@ -437,50 +507,49 @@ function listenToAuditLogs() {
 // DERIVED STATE GENERATOR
 // =============================================================================
 function deriveDerivedState() {
-  // Extract drivers from busesCache
+  // Extract drivers from busesCache (only real registered drivers)
   const driverMap = new Map();
   const routeMap = new Map();
   const docList = [];
-  const studentList = [];
 
   busesCache.forEach(bus => {
-    // Driver
-    if (bus.driverName) {
+    // Driver - only if a real driver name is provided
+    if (bus.driverName && bus.driverName.trim() !== '') {
       driverMap.set(bus.driverName, {
         id: `DRV-${bus.busNumber || '01'}`,
         name: bus.driverName,
-        phone: bus.driverContact || bus.phone || '+91 98421 00000',
+        phone: bus.driverContact || bus.phone || '--',
         assignedBus: bus.busNumber || 'N/A',
         assignedRoute: bus.routeName || bus.route || 'Campus Route',
         status: bus.status === 'Maintenance' ? 'Inactive' : (bus.status || 'Active'),
         licenseStatus: bus.driverLicense ? 'Valid' : 'Pending Verification',
-        licenseNumber: bus.driverLicense || `DL-${bus.busNumber || '10'}`,
-        licenseExpiry: '2027-12-31'
-      });
-
-      // Driver License Document
-      docList.push({
-        id: `DOC-DRV-${bus.busNumber}`,
-        entity: `Driver: ${bus.driverName}`,
-        type: 'Driving License',
-        number: bus.driverLicense || `DL-TN-${bus.busNumber || '01'}-2024`,
-        issueDate: '2022-01-10',
-        expiryDate: '2027-12-31',
-        status: 'Valid'
+        licenseNumber: bus.driverLicense || '--',
+        licenseExpiry: '--'
       });
     }
 
-    // Route
-    const rName = bus.routeName || bus.route || `Route for Bus ${bus.busNumber}`;
+    // Route - derive from real bus route & stops if routes collection is not loaded
+    const rName = bus.routeName || bus.route;
     if (rName && !routeMap.has(rName)) {
+      const stopsArr = Array.isArray(bus.stops) ? bus.stops : [];
       routeMap.set(rName, {
         id: `RT-${bus.busNumber || '01'}`,
         name: rName,
-        startPoint: bus.startPoint || 'Hostel / City Center',
-        destination: bus.destination || 'College Campus',
-        stopsCount: Array.isArray(bus.stops) ? bus.stops.length : (bus.stages ? bus.stages.length : 12),
-        distance: bus.distance || '24 km',
-        duration: bus.duration || '45 mins',
+        startPoint: stopsArr.length > 0 ? (stopsArr[0].stopName || stopsArr[0].name) : (bus.startPoint || '--'),
+        destination: stopsArr.length > 0 ? (stopsArr[stopsArr.length - 1].stopName || stopsArr[stopsArr.length - 1].name) : (bus.destination || '--'),
+        totalStops: stopsArr.length,
+        stopsCount: stopsArr.length,
+        stops: stopsArr.map((s, idx) => ({
+          stopOrder: s.order || idx + 1,
+          name: s.stopName || s.name,
+          morningArrival: s.arrivalTime || '',
+          eveningArrival: s.departureTime || '',
+          latitude: s.latitude,
+          longitude: s.longitude,
+          status: 'Active'
+        })),
+        distance: bus.distance || '--',
+        duration: bus.duration || '--',
         assignedBuses: [bus.busNumber],
         status: 'Active'
       });
@@ -488,44 +557,23 @@ function deriveDerivedState() {
       routeMap.get(rName).assignedBuses.push(bus.busNumber);
     }
 
-    // Bus Compliance Documents
-    docList.push({
-      id: `DOC-BUS-INS-${bus.busNumber}`,
-      entity: `Bus ${bus.busNumber} (${bus.regNumber || 'TN 33'})`,
-      type: 'Insurance Policy',
-      number: `INS-2026-${bus.busNumber}`,
-      issueDate: '2025-05-10',
-      expiryDate: '2026-11-20',
-      status: 'Valid'
-    });
-
-    docList.push({
-      id: `DOC-BUS-FIT-${bus.busNumber}`,
-      entity: `Bus ${bus.busNumber}`,
-      type: 'Fitness Certificate',
-      number: `FC-TN-${bus.busNumber}`,
-      issueDate: '2025-02-15',
-      expiryDate: '2026-09-15',
-      status: 'Expiring Soon'
-    });
-
-    // Sample Normalized Student List per bus
-    const capacity = parseInt(bus.capacity || bus.seatCapacity || 50, 10);
-    const mockStudentNames = ['Aravind K', 'Divya M', 'Karthik S', 'Priya R', 'Sneha V', 'Vignesh P', 'Harish B', 'Suresh T', 'Ananya G', 'Manoj K'];
-    mockStudentNames.slice(0, Math.min(6, capacity)).forEach((name, idx) => {
-      studentList.push({
-        id: `STU-2026-${bus.busNumber}-${idx + 101}`,
-        name: name,
-        department: ['CSE', 'ECE', 'MECH', 'IT', 'AI&DS'][idx % 5],
-        year: `${(idx % 4) + 1}st Year`,
-        assignedBus: bus.busNumber || '1',
-        assignedRoute: rName,
-        pickupStop: bus.startPoint || 'Stage 1',
-        dropStop: 'Main Campus',
-        phone: `+91 94432 ${10000 + idx}`,
-        status: 'Active'
+    // Bus Compliance Documents - only if actual document records exist on bus
+    if (Array.isArray(bus.documents)) {
+      bus.documents.forEach(d => {
+        const expStatus = getDocumentExpiryStatus(d.expiryDate);
+        docList.push({
+          entity: `Bus ${bus.busNumber || 'N/A'}`,
+          type: d.documentType || d.type || 'Vehicle Document',
+          number: d.documentNumber || d.number || '--',
+          issueDate: d.issueDate || '--',
+          expiryDate: d.expiryDate || '--',
+          status: expStatus.status,
+          badgeClass: expStatus.badgeClass,
+          fileUrl: d.fileUrl || '',
+          fileName: d.fileName || ''
+        });
       });
-    });
+    }
   });
 
   driversCache = Array.from(driverMap.values());
@@ -533,23 +581,49 @@ function deriveDerivedState() {
     routesCache = Array.from(routeMap.values());
   }
   documentsCache = docList;
-  studentsCache = studentList;
+  
+  // Real assigned students strictly derived from usersCache
+  studentsCache = usersCache.filter(u => u.assignedBus && String(u.assignedBus).trim() !== '');
 
-  // Active Trips Calculation
-  tripsCache = busesCache.filter(b => b.status === 'Active' || b.status === 'On Trip').map((b, idx) => {
-    return {
-      tripId: `TRP-2026-0830-${b.busNumber}`,
-      busNumber: b.busNumber || '24',
-      driverName: b.driverName || 'Assigned Driver',
-      route: b.routeName || b.route || 'Campus Route',
-      startedAt: '07:30 AM',
-      currentStop: 'City Junction',
-      nextStop: 'College Gate 1',
-      eta: `${10 + (idx * 2)} mins`,
-      delayMins: idx % 3 === 0 ? 6 : 0,
-      status: idx % 3 === 0 ? 'Delayed' : 'In Progress'
-    };
+  // Scheduled & Active Trips Calculation from real bus schedules
+  const tripList = [];
+  busesCache.forEach(bus => {
+    const stopsArr = Array.isArray(bus.stops) ? bus.stops : [];
+    const origin = stopsArr.length > 0 ? (stopsArr[0].stopName || stopsArr[0].name) : (bus.route || 'Origin');
+    const destination = stopsArr.length > 0 ? (stopsArr[stopsArr.length - 1].stopName || stopsArr[stopsArr.length - 1].name) : 'Campus';
+
+    if (bus.schedules) {
+      if (bus.schedules.morningDeparture || bus.schedules.morningArrival) {
+        tripList.push({
+          tripId: `SCH-${bus.busNumber}-AM`,
+          busNumber: bus.busNumber,
+          driverName: bus.driverName || 'Not Assigned',
+          route: `${origin} &rarr; ${destination}`,
+          startedAt: bus.schedules.morningDeparture ? `${bus.schedules.morningDeparture} AM` : '--',
+          currentStop: origin,
+          nextStop: destination,
+          eta: bus.schedules.morningArrival ? `${bus.schedules.morningArrival} AM` : '--',
+          delayMins: bus.delayMinutes || 0,
+          status: bus.status === 'Active' ? 'Scheduled' : (bus.status || 'Active')
+        });
+      }
+      if (bus.schedules.eveningDeparture || bus.schedules.eveningArrival) {
+        tripList.push({
+          tripId: `SCH-${bus.busNumber}-PM`,
+          busNumber: bus.busNumber,
+          driverName: bus.driverName || 'Not Assigned',
+          route: `${destination} &rarr; ${origin}`,
+          startedAt: bus.schedules.eveningDeparture ? `${bus.schedules.eveningDeparture} PM` : '--',
+          currentStop: destination,
+          nextStop: origin,
+          eta: bus.schedules.eveningArrival ? `${bus.schedules.eveningArrival} PM` : '--',
+          delayMins: 0,
+          status: 'Scheduled'
+        });
+      }
+    }
   });
+  tripsCache = tripList;
 }
 
 // =============================================================================
@@ -566,13 +640,33 @@ function renderDashboardStats() {
   const openIssues = reportsCache.filter(r => r.status !== 'Resolved' && r.status !== 'Closed').length;
   const criticalIssues = reportsCache.filter(r => r.priority === 'Urgent' || r.category === 'safety' || r.priority === 'High').length;
 
-  setElText('stat-total-places', '250');
-  setElText('stat-total-routes', routesCache.length > 0 ? routesCache.length : (hasLoadedFirestoreRoutes ? '0' : '378'));
-  setElText('stat-scheduled-trips', '2407');
-  setElText('stat-active-services', activeBuses > 0 ? (activeBuses * 50) : '2407');
-  setElText('stat-inactive-services', inactiveBuses > 0 ? inactiveBuses : '0');
-  setElText('stat-total-buses', totalBuses > 0 ? totalBuses : '48');
-  setElText('stat-active-drivers', activeDrivers > 0 ? activeDrivers : '32');
+  // Calculate total unique stops/places across real buses and routes
+  const placesSet = new Set();
+  busesCache.forEach(b => {
+    if (Array.isArray(b.stops)) {
+      b.stops.forEach(s => {
+        const sName = s.stopName || s.name;
+        if (sName) placesSet.add(sName.trim().toLowerCase());
+      });
+    }
+  });
+  routesCache.forEach(r => {
+    if (Array.isArray(r.stops)) {
+      r.stops.forEach(s => {
+        const sName = s.name || s.stopName;
+        if (sName) placesSet.add(sName.trim().toLowerCase());
+      });
+    }
+  });
+  const totalPlaces = placesSet.size;
+
+  setElText('stat-total-places', totalPlaces);
+  setElText('stat-total-routes', routesCache.length);
+  setElText('stat-scheduled-trips', tripsCache.length);
+  setElText('stat-active-services', activeBuses);
+  setElText('stat-inactive-services', inactiveBuses);
+  setElText('stat-total-buses', totalBuses);
+  setElText('stat-active-drivers', activeDrivers);
   setElText('stat-open-issues', openIssues);
 
   // Live Transport Status Box
@@ -746,10 +840,12 @@ function renderBusesTable() {
   tbody.innerHTML = '';
 
   let filtered = busesCache.filter(b => {
+    const reg = b.registrationNumber || b.regNumber || '';
+    const rName = b.routeName || b.route || '';
     const matchSearch = !searchVal || 
       (b.busNumber && String(b.busNumber).toLowerCase().includes(searchVal)) ||
-      (b.regNumber && b.regNumber.toLowerCase().includes(searchVal)) ||
-      (b.routeName && b.routeName.toLowerCase().includes(searchVal)) ||
+      (reg && reg.toLowerCase().includes(searchVal)) ||
+      (rName && rName.toLowerCase().includes(searchVal)) ||
       (b.driverName && b.driverName.toLowerCase().includes(searchVal));
 
     const matchStatus = statusVal === 'all' || (b.status && b.status.toLowerCase() === statusVal.toLowerCase());
@@ -766,15 +862,53 @@ function renderBusesTable() {
   filtered.forEach(bus => {
     const tr = document.createElement('tr');
     const statusClass = getStatusBadgeClass(bus.status);
-    const capacity = bus.capacity || bus.seatCapacity || 50;
-    const occupancy = bus.status === 'Active' || bus.status === 'On Trip' ? '82%' : '0%';
+    const seatCap = parseInt(bus.seatCapacity || bus.capacity || 52, 10);
+    const standCap = parseInt(bus.standingCapacity || 0, 10);
+    const totalCap = parseInt(bus.totalCapacity || (seatCap + standCap), 10);
+    const assignedCount = usersCache.filter(u => String(u.assignedBus).trim() === String(bus.busNumber).trim()).length;
+    const occupancyPct = totalCap > 0 ? Math.round((assignedCount / totalCap) * 100) : 0;
+    const regText = bus.registrationNumber || bus.regNumber || 'Not Registered';
+
+    // Find assigned route details from routesCache
+    const assignedRoute = routesCache.find(r => 
+      (bus.routeName && r.name && r.name.toLowerCase() === bus.routeName.toLowerCase()) ||
+      (bus.route && r.name && r.name.toLowerCase() === bus.route.toLowerCase()) ||
+      (bus.assignedRouteId && r.id === bus.assignedRouteId) ||
+      (r.assignedBus && String(r.assignedBus) === String(bus.busNumber)) ||
+      (Array.isArray(r.assignedBuses) && r.assignedBuses.map(String).includes(String(bus.busNumber)))
+    );
+
+    let routeHtml = '';
+    if (assignedRoute) {
+      const stopCount = assignedRoute.totalStops !== undefined 
+        ? assignedRoute.totalStops 
+        : (Array.isArray(assignedRoute.stops) ? assignedRoute.stops.length : 0);
+      const isSpecific = bus.coverageType === 'specific_stops';
+      const specificCount = Array.isArray(bus.stopAssignments) && bus.stopAssignments.length > 0
+        ? bus.stopAssignments.length
+        : (Array.isArray(bus.stops) ? bus.stops.length : stopCount);
+
+      routeHtml = `
+        <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <strong style="color: var(--text-primary); font-size: 13.5px;">${escapeHtml(assignedRoute.name)}</strong>
+          ${isSpecific 
+            ? `<span class="status-badge badge-purple" style="font-size: 11px; padding: 2px 6px; font-weight: 600;">Specific Stops (${specificCount}/${stopCount})</span>`
+            : `<span class="status-badge badge-blue" style="font-size: 11px; padding: 2px 6px; font-weight: 600;">Full Route (${stopCount} Stops)</span>`
+          }
+        </div>
+      `;
+    } else if (bus.routeName || bus.route) {
+      routeHtml = `<strong style="color: var(--text-primary); font-size: 13.5px;">${escapeHtml(bus.routeName || bus.route)}</strong>`;
+    } else {
+      routeHtml = `<span style="color: var(--text-muted); font-size: 13px;">Unassigned</span>`;
+    }
 
     tr.innerHTML = `
-      <td><strong style="font-size: 14.5px; color: var(--text-primary);">Bus ${bus.busNumber || 'N/A'}</strong></td>
-      <td><span style="font-family: monospace; font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(bus.regNumber || 'TN 33 AB 0000')}</span></td>
-      <td>${escapeHtml(bus.routeName || bus.route || 'Unassigned')}</td>
+      <td><strong style="font-size: 14.5px; color: var(--text-primary);">Bus ${escapeHtml(bus.busNumber || 'N/A')}</strong></td>
+      <td><span style="font-family: monospace; font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(regText)}</span></td>
+      <td>${routeHtml}</td>
       <td>${escapeHtml(bus.driverName || 'Not Assigned')}</td>
-      <td>${capacity} Seats <span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">(${occupancy})</span></td>
+      <td>${seatCap} Seats ${standCap > 0 ? `+ ${standCap} Std ` : ''}<span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">(${assignedCount} Passenger${assignedCount === 1 ? '' : 's'} • ${occupancyPct}%)</span></td>
       <td><span class="status-badge ${statusClass}">${escapeHtml(bus.status || 'Active')}</span></td>
       <td style="text-align: right;">
         <div class="action-btn-group" style="justify-content: flex-end;">
@@ -847,14 +981,17 @@ function renderStudentsTable() {
   if (!tbody) return;
   tbody.innerHTML = '';
 
-  // Populate bus filter dropdown options
-  if (busFilter && busFilter.options.length <= 1) {
+  // Populate bus filter dropdown options dynamically from busesCache
+  if (busFilter) {
+    const prevVal = busFilter.value;
+    busFilter.innerHTML = '<option value="all">All Buses</option>';
     busesCache.forEach(b => {
       const opt = document.createElement('option');
       opt.value = b.busNumber || '';
-      opt.textContent = `Bus ${b.busNumber || ''} (${b.routeName || 'Route'})`;
+      opt.textContent = `Bus ${b.busNumber || ''} (${b.routeName || b.route || 'Route'})`;
       busFilter.appendChild(opt);
     });
+    if (prevVal) busFilter.value = prevVal;
   }
 
   let filtered = studentsCache.filter(s => {
@@ -1135,6 +1272,289 @@ function populateRouteEditorSelects(selectedBus = '', selectedDriver = '') {
   }
 }
 
+// =============================================================================
+// BUS CONTROL CENTER: FLEET COMPLIANCE & TIMETABLE HELPERS
+// =============================================================================
+function getDocumentExpiryStatus(expiryDateStr) {
+  if (!expiryDateStr) {
+    return { status: 'Unknown', badgeClass: 'badge-gray', label: 'No Expiry Set' };
+  }
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const exp = new Date(expiryDateStr);
+  exp.setHours(0, 0, 0, 0);
+
+  if (isNaN(exp.getTime())) {
+    return { status: 'Unknown', badgeClass: 'badge-gray', label: 'Invalid Date' };
+  }
+
+  const diffMs = exp.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return { status: 'Expired', badgeClass: 'badge-red', label: `Expired (${Math.abs(diffDays)}d ago)` };
+  } else if (diffDays <= 30) {
+    return { status: 'Expiring Soon', badgeClass: 'badge-orange', label: `Expiring Soon (${diffDays}d left)` };
+  } else {
+    return { status: 'Valid', badgeClass: 'badge-green', label: `Valid (${diffDays}d left)` };
+  }
+}
+
+function renderBusEditorDocsList() {
+  const container = document.getElementById('form-bus-docs-container');
+  const countEl = document.getElementById('form-bus-docs-count');
+  if (countEl) countEl.textContent = String(currentEditingBusDocs.length);
+  if (!container) return;
+
+  if (currentEditingBusDocs.length === 0) {
+    container.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 14px; background: #FFFFFF; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">No documents attached to this bus yet.</div>';
+    return;
+  }
+
+  container.innerHTML = currentEditingBusDocs.map((d, idx) => {
+    const expInfo = getDocumentExpiryStatus(d.expiryDate);
+    return `
+      <div style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <strong style="font-size: 13.5px; color: var(--text-primary);">${escapeHtml(d.documentType || 'Document')}</strong>
+            <span class="status-badge ${expInfo.badgeClass}" style="font-size: 11px;">${expInfo.label}</span>
+          </div>
+          <div style="font-size: 12px; color: var(--text-secondary); margin-top: 3px;">
+            <span style="font-family: monospace; font-weight: 600; color: #374151;">${escapeHtml(d.documentNumber || 'No Doc Number')}</span>
+            ${d.issueDate ? ` • Issued: ${d.issueDate}` : ''}
+            ${d.expiryDate ? ` • Expiry: ${d.expiryDate}` : ''}
+            ${d.fileName ? ` • 📎 ${escapeHtml(d.fileName)}` : ''}
+          </div>
+        </div>
+        <button type="button" class="btn-action-icon" onclick="window.adminRemoveBusDoc(${idx})" style="background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA;" title="Remove Document">✕ Remove</button>
+      </div>
+    `;
+  }).join('');
+}
+
+window.adminRemoveBusDoc = (index) => {
+  if (index >= 0 && index < currentEditingBusDocs.length) {
+    currentEditingBusDocs.splice(index, 1);
+    renderBusEditorDocsList();
+  }
+};
+
+function renderBusStopsChecklist(selectedRouteName, preselectedStopOrders = null) {
+  const container = document.getElementById('form-bus-stops-checklist');
+  if (!container) return;
+
+  if (!selectedRouteName) {
+    container.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 12px;">Select a route above to view available stops.</div>';
+    return;
+  }
+
+  const matchedRoute = routesCache.find(r => r.name && r.name.toLowerCase() === selectedRouteName.toLowerCase());
+  if (!matchedRoute || !Array.isArray(matchedRoute.stops) || matchedRoute.stops.length === 0) {
+    container.innerHTML = '<div style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 12px;">The selected route does not have any active stops configured yet.</div>';
+    return;
+  }
+
+  const sortedStops = [...matchedRoute.stops].sort((a, b) => (a.stopOrder || a.order || 0) - (b.stopOrder || b.order || 0));
+
+  container.innerHTML = sortedStops.map((stop, idx) => {
+    const sOrder = stop.stopOrder || stop.order || idx + 1;
+    const sName = stop.name || stop.stopName || `Stop ${sOrder}`;
+    const sId = stop.id || `stop_${sOrder}`;
+    const isChecked = preselectedStopOrders ? preselectedStopOrders.includes(sOrder) : true;
+    const arrTime = stop.morningArrival ? `${stop.morningArrival} AM` : '';
+
+    return `
+      <label class="stop-check-row">
+        <input type="checkbox" class="bus-stop-checkbox" data-stop-order="${sOrder}" data-stop-id="${escapeHtml(sId)}" data-stop-name="${escapeHtml(sName)}" ${isChecked ? 'checked' : ''} />
+        <span class="status-badge badge-blue" style="font-size: 11px; padding: 2px 6px;">#${sOrder}</span>
+        <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">${escapeHtml(sName)}</span>
+        ${arrTime ? `<span style="font-size: 12px; color: var(--text-muted); margin-left: auto;">${arrTime}</span>` : ''}
+      </label>
+    `;
+  }).join('');
+}
+
+function parseTimeToMinutes(t) {
+  if (!t) return null;
+  const parts = t.split(':');
+  if (parts.length < 2) return null;
+  return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+}
+
+function isTimeOverlapping(start1, end1, start2, end2) {
+  const s1 = parseTimeToMinutes(start1);
+  const e1 = parseTimeToMinutes(end1) || (s1 !== null ? s1 + 60 : null);
+  const s2 = parseTimeToMinutes(start2);
+  const e2 = parseTimeToMinutes(end2) || (s2 !== null ? s2 + 60 : null);
+  if (s1 === null || s2 === null || e1 === null || e2 === null) return false;
+  return s1 < e2 && s2 < e1;
+}
+
+function checkBusEditorConflicts() {
+  const busEditId = document.getElementById('bus-edit-id')?.value || '';
+  const selectedDriver = document.getElementById('form-bus-driver')?.value || '';
+  const driverBox = document.getElementById('bus-driver-conflict-box');
+  const schedBox = document.getElementById('bus-schedule-conflict-box');
+
+  // 1. Driver Conflict
+  if (driverBox) {
+    if (selectedDriver) {
+      const conflictingBus = busesCache.find(b => 
+        b.id !== busEditId && 
+        b.driverName && 
+        b.driverName.trim().toLowerCase() === selectedDriver.trim().toLowerCase() &&
+        b.status !== 'Inactive' && 
+        b.status !== 'Unavailable'
+      );
+      if (conflictingBus) {
+        driverBox.innerHTML = `⚠️ <strong>Driver Assignment Notice:</strong> ${escapeHtml(selectedDriver)} is currently assigned to <strong>Bus ${escapeHtml(conflictingBus.busNumber)}</strong> (${escapeHtml(conflictingBus.routeName || conflictingBus.route || 'Active Route')}). Overlapping trip assignments will cause operational conflicts.`;
+        driverBox.classList.remove('hidden');
+      } else {
+        driverBox.classList.add('hidden');
+      }
+    } else {
+      driverBox.classList.add('hidden');
+    }
+  }
+
+  // 2. Schedule Conflict
+  if (schedBox) {
+    const mornStart = document.getElementById('form-bus-morning-departure')?.value || '';
+    const mornEnd = document.getElementById('form-bus-morning-arrival')?.value || '';
+    const eveStart = document.getElementById('form-bus-evening-departure')?.value || '';
+    const eveEnd = document.getElementById('form-bus-evening-arrival')?.value || '';
+
+    let warnings = [];
+    if (mornStart && mornEnd && mornEnd <= mornStart) {
+      warnings.push("Morning arrival time must be after departure time.");
+    }
+    if (eveStart && eveEnd && eveEnd <= eveStart) {
+      warnings.push("Evening arrival time must be after departure time.");
+    }
+
+    if (selectedDriver) {
+      const driverOtherBuses = busesCache.filter(b => 
+        b.id !== busEditId && 
+        b.driverName && 
+        b.driverName.trim().toLowerCase() === selectedDriver.trim().toLowerCase() &&
+        b.status !== 'Inactive' && 
+        b.status !== 'Unavailable'
+      );
+      driverOtherBuses.forEach(ob => {
+        if (ob.schedules) {
+          if (mornStart && ob.schedules.morningDeparture && isTimeOverlapping(mornStart, mornEnd, ob.schedules.morningDeparture, ob.schedules.morningArrival)) {
+            warnings.push(`Driver ${selectedDriver} has an overlapping morning trip on Bus ${ob.busNumber} (${ob.schedules.morningDeparture} - ${ob.schedules.morningArrival || '--'}).`);
+          }
+          if (eveStart && ob.schedules.eveningDeparture && isTimeOverlapping(eveStart, eveEnd, ob.schedules.eveningDeparture, ob.schedules.eveningArrival)) {
+            warnings.push(`Driver ${selectedDriver} has an overlapping evening trip on Bus ${ob.busNumber} (${ob.schedules.eveningDeparture} - ${ob.schedules.eveningArrival || '--'}).`);
+          }
+        }
+      });
+    }
+
+    if (warnings.length > 0) {
+      schedBox.innerHTML = `⚠️ <strong>Schedule Conflict Alert:</strong><br>${warnings.map(w => `• ${escapeHtml(w)}`).join('<br>')}`;
+      schedBox.classList.remove('hidden');
+    } else {
+      schedBox.classList.add('hidden');
+    }
+  }
+}
+
+function checkScheduleConflict(bus, allBuses) {
+  if (!bus) return { hasConflict: false, reason: '' };
+  const sched = bus.schedules || {};
+
+  // Check 1: Morning arrival before departure
+  if (sched.morningDeparture && sched.morningArrival && sched.morningArrival <= sched.morningDeparture) {
+    return { hasConflict: true, reason: 'Morning arrival time cannot be earlier than departure time' };
+  }
+  // Check 2: Evening arrival before departure
+  if (sched.eveningDeparture && sched.eveningArrival && sched.eveningArrival <= sched.eveningDeparture) {
+    return { hasConflict: true, reason: 'Evening arrival time cannot be earlier than departure time' };
+  }
+
+  // Check 3: Driver conflict with other active buses
+  if (bus.driverName && bus.driverName.trim() !== '') {
+    const dName = bus.driverName.trim().toLowerCase();
+    const otherBusesWithDriver = allBuses.filter(b => 
+      b.id !== bus.id && 
+      b.driverName && 
+      b.driverName.trim().toLowerCase() === dName &&
+      b.status !== 'Inactive' && 
+      b.status !== 'Unavailable'
+    );
+
+    for (const ob of otherBusesWithDriver) {
+      const obSched = ob.schedules || {};
+      if (sched.morningDeparture && obSched.morningDeparture) {
+        if (isTimeOverlapping(sched.morningDeparture, sched.morningArrival, obSched.morningDeparture, obSched.morningArrival)) {
+          return {
+            hasConflict: true,
+            reason: `Driver ${bus.driverName} scheduled simultaneously on Bus ${ob.busNumber} (${obSched.morningDeparture} - ${obSched.morningArrival || '--'})`
+          };
+        }
+      }
+      if (sched.eveningDeparture && obSched.eveningDeparture) {
+        if (isTimeOverlapping(sched.eveningDeparture, sched.eveningArrival, obSched.eveningDeparture, obSched.eveningArrival)) {
+          return {
+            hasConflict: true,
+            reason: `Driver ${bus.driverName} scheduled simultaneously on Bus ${ob.busNumber} (${obSched.eveningDeparture} - ${obSched.eveningArrival || '--'})`
+          };
+        }
+      }
+    }
+  }
+
+  return { hasConflict: false, reason: '' };
+}
+
+// Helpers to populate Bus Editor modal selects dynamically from cache
+function populateBusEditorRoutes(selectedRouteName = '') {
+  const routeSelect = document.getElementById('form-bus-route');
+  if (!routeSelect) return;
+  routeSelect.innerHTML = '<option value="">No Route Assigned</option>';
+  routesCache.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r.name || '';
+    const stopCount = r.totalStops !== undefined ? r.totalStops : (Array.isArray(r.stops) ? r.stops.length : 0);
+    const busBadge = r.assignedBus ? ` [Assigned: Bus ${r.assignedBus}]` : '';
+    opt.textContent = `${r.name || 'Unnamed Route'}${stopCount ? ` (${stopCount} Stops: ${r.startPoint || ''} → ${r.destination || ''})` : ''}${busBadge}`;
+    if (r.name && selectedRouteName && r.name.toLowerCase() === selectedRouteName.toLowerCase()) {
+      opt.selected = true;
+    }
+    routeSelect.appendChild(opt);
+  });
+}
+
+function populateBusEditorDrivers(selectedDriverName = '') {
+  const driverSelect = document.getElementById('form-bus-driver');
+  if (!driverSelect) return;
+  driverSelect.innerHTML = '<option value="">No Driver Assigned</option>';
+  const seenDrivers = new Set();
+  driversCache.forEach(d => {
+    if (d.name && !seenDrivers.has(d.name)) {
+      seenDrivers.add(d.name);
+      const opt = document.createElement('option');
+      opt.value = d.name;
+      opt.textContent = `${d.name} (${d.phone || 'Driver'})`;
+      if (d.name === selectedDriverName) opt.selected = true;
+      driverSelect.appendChild(opt);
+    }
+  });
+  busesCache.forEach(b => {
+    if (b.driverName && !seenDrivers.has(b.driverName)) {
+      seenDrivers.add(b.driverName);
+      const opt = document.createElement('option');
+      opt.value = b.driverName;
+      opt.textContent = `${b.driverName} (${b.driverContact || 'Bus ' + b.busNumber})`;
+      if (b.driverName === selectedDriverName) opt.selected = true;
+      driverSelect.appendChild(opt);
+    }
+  });
+}
+
 function openCreateRouteModal() {
   document.getElementById('route-edit-id').value = '';
   document.getElementById('route-editor-title').textContent = 'Create Route';
@@ -1169,10 +1589,10 @@ function openEditRouteModal(routeId) {
   populateRouteEditorSelects(route.assignedBus || '', route.assignedDriver || '');
 
   currentEditingStops = Array.isArray(route.stops) ? route.stops.map((s, idx) => ({
-    stopOrder: s.stopOrder !== undefined ? s.stopOrder : idx + 1,
-    name: s.name || '',
-    morningArrival: s.morningArrival || '',
-    eveningArrival: s.eveningArrival || '',
+    stopOrder: s.stopOrder !== undefined ? s.stopOrder : (s.order !== undefined ? s.order : idx + 1),
+    name: s.name || s.stopName || '',
+    morningArrival: s.morningArrival || s.arrivalTime || '',
+    eveningArrival: s.eveningArrival || s.departureTime || '',
     latitude: s.latitude !== undefined && s.latitude !== null ? s.latitude : null,
     longitude: s.longitude !== undefined && s.longitude !== null ? s.longitude : null,
     status: s.status || 'Active'
@@ -1267,18 +1687,24 @@ async function saveRoute(e) {
       saveBtn.textContent = 'Saving Route...';
     }
 
+    const oldRoute = editId ? routesCache.find(r => r.id === editId) : null;
+
     const payload = {
       name,
       startPoint,
       destination,
       status,
       totalStops: currentEditingStops.length,
+      stopsCount: currentEditingStops.length,
       stops: currentEditingStops,
       assignedBus: assignedBus || '',
+      assignedBuses: assignedBus ? [assignedBus] : [],
       assignedDriver: assignedDriver || '',
       description: description,
       updatedAt: serverTimestamp()
     };
+
+    let targetRouteId = editId;
 
     if (editId) {
       await updateDoc(doc(firestore, 'routes', editId), payload);
@@ -1287,20 +1713,82 @@ async function saveRoute(e) {
     } else {
       payload.createdAt = serverTimestamp();
       const newDoc = await addDoc(collection(firestore, 'routes'), payload);
+      targetRouteId = newDoc.id;
       await logAuditEvent('ROUTE_CREATED', 'routes', newDoc.id, { name, totalStops: payload.totalStops });
       alert(`Route "${name}" created successfully.`);
     }
 
+    // Bidirectional sync: If a bus is assigned to this route, update the bus record in Firestore
     if (assignedBus) {
       const matchedBus = busesCache.find(b => String(b.busNumber) === String(assignedBus));
       if (matchedBus) {
         try {
-          await updateDoc(doc(firestore, 'buses', matchedBus.id), {
+          const busStops = currentEditingStops.map(s => ({
+            order: s.stopOrder,
+            stopName: s.name,
+            arrivalTime: s.morningArrival || '',
+            departureTime: s.eveningArrival || '',
+            latitude: s.latitude,
+            longitude: s.longitude
+          }));
+
+          const busUpdate = {
+            route: name,
             routeName: name,
+            stops: busStops,
             updatedAt: serverTimestamp()
-          });
+          };
+
+          if (currentEditingStops.length > 0) {
+            const firstStop = currentEditingStops[0];
+            const lastStop = currentEditingStops[currentEditingStops.length - 1];
+            busUpdate.schedules = {
+              ...(matchedBus.schedules || {}),
+              morningDeparture: firstStop.morningArrival || matchedBus.schedules?.morningDeparture || '06:30',
+              morningArrival: lastStop.morningArrival || matchedBus.schedules?.morningArrival || '08:45',
+              eveningDeparture: matchedBus.schedules?.eveningDeparture || '16:50',
+              eveningArrival: matchedBus.schedules?.eveningArrival || '18:30'
+            };
+          }
+
+          if (assignedDriver) {
+            busUpdate.driverName = assignedDriver;
+          }
+
+          await updateDoc(doc(firestore, 'buses', matchedBus.id), busUpdate);
         } catch (busErr) {
           console.warn("Could not sync route to bus record:", busErr);
+        }
+      }
+
+      // If any other route had this assigned bus, unassign it so routes remain 1:1
+      const conflictingRoutes = routesCache.filter(r => r.id !== targetRouteId && String(r.assignedBus) === String(assignedBus));
+      for (const cr of conflictingRoutes) {
+        try {
+          await updateDoc(doc(firestore, 'routes', cr.id), {
+            assignedBus: '',
+            assignedBuses: [],
+            updatedAt: serverTimestamp()
+          });
+        } catch (cErr) {
+          console.warn("Could not clear assignment on conflicting route:", cErr);
+        }
+      }
+    }
+
+    // If previously assigned to a different bus, clear the previous bus's route
+    if (oldRoute && oldRoute.assignedBus && String(oldRoute.assignedBus) !== String(assignedBus)) {
+      const prevBus = busesCache.find(b => String(b.busNumber) === String(oldRoute.assignedBus));
+      if (prevBus) {
+        try {
+          await updateDoc(doc(firestore, 'buses', prevBus.id), {
+            route: '',
+            routeName: '',
+            stops: [],
+            updatedAt: serverTimestamp()
+          });
+        } catch (prevErr) {
+          console.warn("Could not unassign previous bus:", prevErr);
         }
       }
     }
@@ -1388,26 +1876,148 @@ function openRouteInspector(routeId) {
   document.getElementById('route-inspector-modal')?.classList.remove('hidden');
 }
 
+function formatDisplayTime(tStr) {
+  if (!tStr || tStr === '--') return '--';
+  const clean = String(tStr).trim();
+  if (/AM|PM/i.test(clean)) return clean;
+  const match = clean.match(/^(\d{1,2}):(\d{2})$/);
+  if (match) {
+    let h = parseInt(match[1], 10);
+    const m = match[2];
+    const period = h >= 12 ? 'PM' : 'AM';
+    h = h % 12;
+    if (h === 0) h = 12;
+    const hStr = h < 10 ? `0${h}` : `${h}`;
+    return `${hStr}:${m} ${period}`;
+  }
+  return clean;
+}
+
 function renderTimingsTable() {
-  const tbody = document.getElementById('timings-table-body');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  const bodies = [
+    document.getElementById('timings-table-body'),
+    document.getElementById('standalone-timings-table-body')
+  ].filter(Boolean);
+
+  if (bodies.length === 0) return;
+  bodies.forEach(b => { b.innerHTML = ''; });
+
+  if (busesCache.length === 0) {
+    bodies.forEach(b => {
+      b.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 32px; color: var(--text-secondary);">No bus timing schedules configured.</td></tr>`;
+    });
+    return;
+  }
 
   busesCache.forEach(bus => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong>Bus ${bus.busNumber || '1'}</strong></td>
-      <td>${escapeHtml(bus.routeName || bus.route || 'Campus Line')}</td>
-      <td><span class="status-badge badge-blue">Morning Trip</span></td>
-      <td><strong>07:30 AM</strong></td>
-      <td>08:25 AM</td>
-      <td>${escapeHtml(bus.driverName || 'Driver')}</td>
-      <td><span class="status-badge badge-green">No Conflict (Clear)</span></td>
-      <td style="text-align: right;">
-        <button class="btn-action-icon" onclick="alert('Schedule timings verified for Bus ${bus.busNumber}')">Verify</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
+    const routeName = bus.routeName || bus.route || 'Campus Line';
+    const driverName = bus.driverName || 'Not Assigned';
+    const stops = Array.isArray(bus.stops) ? bus.stops : [];
+    const originName = stops.length > 0 ? (stops[0].stopName || stops[0].name) : routeName;
+    const destName = stops.length > 0 ? (stops[stops.length - 1].stopName || stops[stops.length - 1].name) : 'Campus';
+
+    const schedules = bus.schedules || {};
+    const hasMorning = Boolean(schedules.morningDeparture || schedules.morningArrival);
+    const hasEvening = Boolean(schedules.eveningDeparture || schedules.eveningArrival);
+
+    const mornStart = formatDisplayTime(schedules.morningDeparture);
+    const mornArrival = formatDisplayTime(schedules.morningArrival);
+    const eveStart = formatDisplayTime(schedules.eveningDeparture);
+    const eveArrival = formatDisplayTime(schedules.eveningArrival);
+
+    const conflict = checkScheduleConflict(bus, busesCache);
+    const conflictBadge = conflict.hasConflict
+      ? `<span class="status-badge badge-red" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px;" title="${escapeHtml(conflict.reason)}">Conflict Detected</span>`
+      : `<span class="status-badge badge-green" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px;">Verified (Clear)</span>`;
+
+    // 1. Route corridor display
+    let routeHtml = '';
+    if (hasMorning && hasEvening) {
+      routeHtml = `
+        <div style="display: flex; flex-direction: column; gap: 8px; justify-content: center;">
+          <div style="font-size: 13.5px; color: var(--text-primary); font-weight: 500; line-height: 1.4;">
+            ${escapeHtml(originName)} &rarr; ${escapeHtml(destName)}
+          </div>
+          <div style="font-size: 13.5px; color: var(--text-primary); font-weight: 500; line-height: 1.4;">
+            ${escapeHtml(destName)} &rarr; ${escapeHtml(originName)}
+          </div>
+        </div>
+      `;
+    } else if (hasEvening && !hasMorning) {
+      routeHtml = `<div style="font-size: 13.5px; color: var(--text-primary); font-weight: 500;">${escapeHtml(destName)} &rarr; ${escapeHtml(originName)}</div>`;
+    } else if (hasMorning) {
+      routeHtml = `<div style="font-size: 13.5px; color: var(--text-primary); font-weight: 500;">${escapeHtml(originName)} &rarr; ${escapeHtml(destName)}</div>`;
+    } else {
+      routeHtml = `<div style="font-size: 13.5px; color: var(--text-primary); font-weight: 500;">${escapeHtml(routeName)}</div>`;
+    }
+
+    // 2. Trip Type Badges with perfectly aligned text and background colors
+    let tripTypeHtml = '';
+    if (hasMorning && hasEvening) {
+      tripTypeHtml = `
+        <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start; justify-content: center;">
+          <span class="status-badge badge-blue" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #DBEAFE; color: #1D4ED8;">Morning Service</span>
+          <span class="status-badge badge-orange" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #FEF3C7; color: #D97706;">Evening Service</span>
+        </div>
+      `;
+    } else if (hasMorning) {
+      tripTypeHtml = `<span class="status-badge badge-blue" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #DBEAFE; color: #1D4ED8;">Morning Service</span>`;
+    } else if (hasEvening) {
+      tripTypeHtml = `<span class="status-badge badge-orange" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #FEF3C7; color: #D97706;">Evening Service</span>`;
+    } else {
+      tripTypeHtml = `<span class="status-badge badge-blue" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #DBEAFE; color: #1D4ED8;">Scheduled Service</span>`;
+    }
+
+    // 3. Start Time Column
+    let startHtml = '';
+    if (hasMorning && hasEvening) {
+      startHtml = `
+        <div style="display: flex; flex-direction: column; gap: 8px; justify-content: center;">
+          <div style="font-size: 13.5px; font-weight: 700; color: var(--text-primary); line-height: 1.4;">${mornStart}</div>
+          <div style="font-size: 13.5px; font-weight: 700; color: var(--text-primary); line-height: 1.4;">${eveStart}</div>
+        </div>
+      `;
+    } else if (hasEvening && !hasMorning) {
+      startHtml = `<strong style="font-size: 13.5px; color: var(--text-primary);">${eveStart}</strong>`;
+    } else if (hasMorning) {
+      startHtml = `<strong style="font-size: 13.5px; color: var(--text-primary);">${mornStart}</strong>`;
+    } else {
+      startHtml = `<strong style="font-size: 13.5px; color: var(--text-muted);">--</strong>`;
+    }
+
+    // 4. Expected Arrival Column
+    let arrivalHtml = '';
+    if (hasMorning && hasEvening) {
+      arrivalHtml = `
+        <div style="display: flex; flex-direction: column; gap: 8px; justify-content: center;">
+          <div style="font-size: 13.5px; font-weight: 500; color: var(--text-secondary); line-height: 1.4;">${mornArrival}</div>
+          <div style="font-size: 13.5px; font-weight: 500; color: var(--text-secondary); line-height: 1.4;">${eveArrival}</div>
+        </div>
+      `;
+    } else if (hasEvening && !hasMorning) {
+      arrivalHtml = `<span style="font-size: 13.5px; font-weight: 500; color: var(--text-secondary);">${eveArrival}</span>`;
+    } else if (hasMorning) {
+      arrivalHtml = `<span style="font-size: 13.5px; font-weight: 500; color: var(--text-secondary);">${mornArrival}</span>`;
+    } else {
+      arrivalHtml = `<span style="font-size: 13.5px; color: var(--text-muted);">--</span>`;
+    }
+
+    bodies.forEach(tbody => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong style="font-size: 14.5px; color: var(--text-primary);">Bus ${escapeHtml(bus.busNumber || 'N/A')}</strong></td>
+        <td>${routeHtml}</td>
+        <td>${tripTypeHtml}</td>
+        <td>${startHtml}</td>
+        <td>${arrivalHtml}</td>
+        <td><span style="color: var(--text-primary); font-size: 13.5px; font-weight: 500;">${escapeHtml(driverName)}</span></td>
+        <td>${conflictBadge}</td>
+        <td style="text-align: right;">
+          <button class="btn-action-icon btn-action-primary" onclick="window.adminInspectBus('${bus.id}')">Inspect</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
   });
 }
 
@@ -1676,19 +2286,166 @@ function setupModalListeners() {
     });
   }
 
-  // 2. Add / Edit Bus Modal
+  // 2. Add / Edit Bus Modal (Bus Control Center)
   const addBusBtn = document.getElementById('add-bus-btn');
   const busEditorModal = document.getElementById('bus-editor-modal');
   const closeBusEditorBtn = document.getElementById('close-bus-editor-btn');
   const cancelBusEditorBtn = document.getElementById('cancel-bus-editor-btn');
   const busEditorForm = document.getElementById('bus-editor-form');
 
+  // Dynamic capacity calculation
+  const seatCapInput = document.getElementById('form-bus-capacity');
+  const standCapInput = document.getElementById('form-bus-standing-capacity');
+  const totalCapInput = document.getElementById('form-bus-total-capacity');
+
+  const updateTotalCap = () => {
+    const seat = parseInt(seatCapInput?.value, 10) || 0;
+    const stand = parseInt(standCapInput?.value, 10) || 0;
+    if (totalCapInput) totalCapInput.value = String(seat + stand);
+  };
+  seatCapInput?.addEventListener('input', updateTotalCap);
+  standCapInput?.addEventListener('input', updateTotalCap);
+
+  // Coverage radio toggles & dynamic stops checklist
+  const covFullRadio = document.getElementById('cov-full-route');
+  const covSpecRadio = document.getElementById('cov-specific-stops');
+  const specStopsBox = document.getElementById('form-bus-specific-stops-box');
+  const busRouteSelect = document.getElementById('form-bus-route');
+
+  const toggleCoverageBox = () => {
+    if (covSpecRadio?.checked) {
+      specStopsBox?.classList.remove('hidden');
+      renderBusStopsChecklist(busRouteSelect?.value || '');
+    } else {
+      specStopsBox?.classList.add('hidden');
+    }
+  };
+  covFullRadio?.addEventListener('change', toggleCoverageBox);
+  covSpecRadio?.addEventListener('change', toggleCoverageBox);
+
+  busRouteSelect?.addEventListener('change', () => {
+    const selectedRoute = busRouteSelect.value;
+    if (covSpecRadio?.checked) {
+      renderBusStopsChecklist(selectedRoute);
+    }
+    // Auto-populate timings if route has stops
+    if (selectedRoute) {
+      const matched = routesCache.find(r => r.name && r.name.toLowerCase() === selectedRoute.toLowerCase());
+      if (matched && Array.isArray(matched.stops) && matched.stops.length > 0) {
+        const sorted = [...matched.stops].sort((a, b) => (a.stopOrder || 0) - (b.stopOrder || 0));
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        if (first.morningArrival) {
+          const mornDep = document.getElementById('form-bus-morning-departure');
+          if (mornDep && (!mornDep.value || mornDep.value === '06:30')) mornDep.value = first.morningArrival;
+        }
+        if (last.morningArrival) {
+          const mornArr = document.getElementById('form-bus-morning-arrival');
+          if (mornArr && (!mornArr.value || mornArr.value === '08:45')) mornArr.value = last.morningArrival;
+        }
+      }
+    }
+    checkBusEditorConflicts();
+  });
+
+  document.getElementById('btn-select-all-stops')?.addEventListener('click', () => {
+    document.querySelectorAll('.bus-stop-checkbox').forEach(cb => cb.checked = true);
+  });
+  document.getElementById('btn-clear-all-stops')?.addEventListener('click', () => {
+    document.querySelectorAll('.bus-stop-checkbox').forEach(cb => cb.checked = false);
+  });
+
+  // Conflict triggers on driver and timetable changes
+  ['form-bus-driver', 'form-bus-morning-departure', 'form-bus-morning-arrival', 'form-bus-evening-departure', 'form-bus-evening-arrival'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', checkBusEditorConflicts);
+    document.getElementById(id)?.addEventListener('input', checkBusEditorConflicts);
+  });
+
+  // Compliance document attachment
+  const addDocBtn = document.getElementById('add-doc-to-bus-btn');
+  addDocBtn?.addEventListener('click', () => {
+    const docType = document.getElementById('form-doc-type')?.value || 'Other';
+    const docNumber = document.getElementById('form-doc-number')?.value.trim();
+    const issueDate = document.getElementById('form-doc-issue')?.value;
+    const expiryDate = document.getElementById('form-doc-expiry')?.value;
+    const fileInput = document.getElementById('form-doc-file');
+
+    if (!docNumber) {
+      alert("Please provide the Document / Policy Number.");
+      document.getElementById('form-doc-number')?.focus();
+      return;
+    }
+    if (!expiryDate) {
+      alert("Please provide the Document Expiry Date.");
+      document.getElementById('form-doc-expiry')?.focus();
+      return;
+    }
+    if (issueDate && expiryDate && expiryDate < issueDate) {
+      alert("Document Expiry Date cannot be earlier than the Issue Date.");
+      return;
+    }
+
+    const fileName = fileInput?.files?.[0]?.name || '';
+    const newDocItem = {
+      documentId: `doc_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      documentType: docType,
+      documentNumber: docNumber,
+      issueDate: issueDate || '',
+      expiryDate: expiryDate,
+      fileName: fileName,
+      fileUrl: '',
+      uploadedAt: new Date().toISOString()
+    };
+
+    currentEditingBusDocs.push(newDocItem);
+    renderBusEditorDocsList();
+
+    if (document.getElementById('form-doc-number')) document.getElementById('form-doc-number').value = '';
+    if (document.getElementById('form-doc-issue')) document.getElementById('form-doc-issue').value = '';
+    if (document.getElementById('form-doc-expiry')) document.getElementById('form-doc-expiry').value = '';
+    if (fileInput) fileInput.value = '';
+  });
+
   if (addBusBtn && busEditorModal) {
     addBusBtn.addEventListener('click', () => {
       document.getElementById('bus-edit-id').value = '';
+      const errAlert = document.getElementById('bus-form-error-alert');
+      if (errAlert) errAlert.classList.add('hidden');
+
       document.getElementById('form-bus-no').value = '';
       document.getElementById('form-bus-reg').value = '';
-      document.getElementById('form-bus-capacity').value = '50';
+      document.getElementById('form-bus-type').value = 'College Bus';
+      document.getElementById('form-bus-manufacturer').value = '';
+      document.getElementById('form-bus-model').value = '';
+      document.getElementById('form-bus-year').value = '';
+
+      document.getElementById('form-bus-capacity').value = '52';
+      document.getElementById('form-bus-standing-capacity').value = '0';
+      document.getElementById('form-bus-total-capacity').value = '52';
+      document.getElementById('form-bus-status').value = 'Active';
+
+      populateBusEditorRoutes('');
+      if (covFullRadio) covFullRadio.checked = true;
+      if (covSpecRadio) covSpecRadio.checked = false;
+      specStopsBox?.classList.add('hidden');
+      renderBusStopsChecklist('', null);
+
+      populateBusEditorDrivers('');
+      document.getElementById('bus-driver-conflict-box')?.classList.add('hidden');
+
+      document.getElementById('form-bus-morning-departure').value = '06:30';
+      document.getElementById('form-bus-morning-arrival').value = '08:45';
+      document.getElementById('form-bus-evening-departure').value = '16:50';
+      document.getElementById('form-bus-evening-arrival').value = '18:30';
+      document.getElementById('bus-schedule-conflict-box')?.classList.add('hidden');
+
+      document.getElementById('form-bus-last-service').value = '';
+      document.getElementById('form-bus-next-service').value = '';
+      document.getElementById('form-bus-maintenance-notes').value = '';
+
+      currentEditingBusDocs = [];
+      renderBusEditorDocsList();
+
       document.getElementById('bus-editor-title').textContent = 'Add New Bus';
       busEditorModal.classList.remove('hidden');
     });
@@ -1700,35 +2457,302 @@ function setupModalListeners() {
   if (busEditorForm) {
     busEditorForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const errAlert = document.getElementById('bus-form-error-alert');
+      if (errAlert) errAlert.classList.add('hidden');
+
       const busEditId = document.getElementById('bus-edit-id').value;
       const busNo = document.getElementById('form-bus-no').value.trim();
       const busReg = document.getElementById('form-bus-reg').value.trim();
-      const capacity = parseInt(document.getElementById('form-bus-capacity').value, 10) || 50;
+      const busType = document.getElementById('form-bus-type').value;
+      const manufacturer = document.getElementById('form-bus-manufacturer').value.trim();
+      const model = document.getElementById('form-bus-model').value.trim();
+      const manufacturingYear = document.getElementById('form-bus-year').value.trim();
+
+      const seatCap = parseInt(document.getElementById('form-bus-capacity').value, 10);
+      const standCap = parseInt(document.getElementById('form-bus-standing-capacity').value, 10) || 0;
+      const totalCap = seatCap + standCap;
       const status = document.getElementById('form-bus-status').value;
 
+      const selectedRouteName = document.getElementById('form-bus-route')?.value || '';
+      const isSpecificStops = document.getElementById('cov-specific-stops')?.checked;
+      const selectedDriver = document.getElementById('form-bus-driver')?.value || '';
+
+      const mornStart = document.getElementById('form-bus-morning-departure')?.value || '';
+      const mornEnd = document.getElementById('form-bus-morning-arrival')?.value || '';
+      const eveStart = document.getElementById('form-bus-evening-departure')?.value || '';
+      const eveEnd = document.getElementById('form-bus-evening-arrival')?.value || '';
+
+      const lastService = document.getElementById('form-bus-last-service')?.value || '';
+      const nextService = document.getElementById('form-bus-next-service')?.value || '';
+      const serviceNotes = document.getElementById('form-bus-maintenance-notes')?.value.trim() || '';
+
+      const showFormError = (msg) => {
+        if (errAlert) {
+          errAlert.innerHTML = `⚠️ <strong>Validation Error:</strong> ${escapeHtml(msg)}`;
+          errAlert.classList.remove('hidden');
+        } else {
+          alert(msg);
+        }
+      };
+
+      // 1. Validate Bus Number (Unique in fleet)
+      if (!busNo) {
+        showFormError('Please enter a valid Bus Number.');
+        document.getElementById('form-bus-no')?.focus();
+        return;
+      }
+      const duplicateBus = busesCache.find(b => 
+        b.id !== busEditId && 
+        String(b.busNumber).trim().toLowerCase() === busNo.toLowerCase()
+      );
+      if (duplicateBus) {
+        showFormError(`Bus Number "${busNo}" already exists in the fleet. Bus numbers must be unique.`);
+        document.getElementById('form-bus-no')?.focus();
+        return;
+      }
+
+      // 2. Validate Registration Number (Unique in fleet)
+      if (!busReg) {
+        showFormError('Please enter a valid Vehicle Registration Number.');
+        document.getElementById('form-bus-reg')?.focus();
+        return;
+      }
+      const duplicateReg = busesCache.find(b => 
+        b.id !== busEditId && 
+        (b.registrationNumber || b.regNumber || '').trim().toLowerCase() === busReg.toLowerCase()
+      );
+      if (duplicateReg) {
+        showFormError(`Registration Number "${busReg}" is already registered to Bus ${duplicateReg.busNumber}. Registration numbers must be unique.`);
+        document.getElementById('form-bus-reg')?.focus();
+        return;
+      }
+
+      // 3. Validate Capacities
+      if (isNaN(seatCap) || seatCap <= 0) {
+        showFormError('Seating Capacity must be at least 1.');
+        document.getElementById('form-bus-capacity')?.focus();
+        return;
+      }
+      if (isNaN(standCap) || standCap < 0) {
+        showFormError('Standing Capacity cannot be negative.');
+        document.getElementById('form-bus-standing-capacity')?.focus();
+        return;
+      }
+
+      // 4. Validate Timetables
+      if (mornStart && mornEnd && mornEnd <= mornStart) {
+        showFormError('Morning expected arrival time must be later than departure time.');
+        document.getElementById('form-bus-morning-arrival')?.focus();
+        return;
+      }
+      if (eveStart && eveEnd && eveEnd <= eveStart) {
+        showFormError('Evening expected arrival time must be later than departure time.');
+        document.getElementById('form-bus-evening-arrival')?.focus();
+        return;
+      }
+
+      // 5. Route & Stop Assignment Resolution
+      if (busEditId && !selectedRouteName) {
+        const existingBus = busesCache.find(b => b.id === busEditId);
+        if (existingBus && (existingBus.routeName || existingBus.route || existingBus.assignedRouteId)) {
+          const confirmUnassign = confirm(`Bus ${busNo} is currently assigned to route "${existingBus.routeName || existingBus.route}".\n\nRemoving the route assignment will clear served stops and route schedules for this vehicle.\n\nDo you wish to proceed?`);
+          if (!confirmUnassign) return;
+        }
+      }
+
+      const matchedRoute = routesCache.find(r => r.name && r.name.toLowerCase() === selectedRouteName.toLowerCase());
+      let coverageType = isSpecificStops ? 'specific_stops' : 'full_route';
+      let stopAssignments = [];
+      let servedStops = [];
+
+      if (matchedRoute) {
+        const routeStops = Array.isArray(matchedRoute.stops) ? matchedRoute.stops : [];
+        if (isSpecificStops) {
+          const checkedBoxes = document.querySelectorAll('.bus-stop-checkbox:checked');
+          if (checkedBoxes.length === 0) {
+            showFormError('Please select at least one stop for Specific Stops coverage, or choose "Full Route".');
+            return;
+          }
+          checkedBoxes.forEach(cb => {
+            stopAssignments.push({
+              stopId: cb.getAttribute('data-stop-id') || '',
+              stopOrder: parseInt(cb.getAttribute('data-stop-order'), 10),
+              stopName: cb.getAttribute('data-stop-name') || ''
+            });
+          });
+          stopAssignments.sort((a, b) => a.stopOrder - b.stopOrder);
+
+          // Build servedStops keeping arrival times & coordinates
+          servedStops = routeStops.filter(s => 
+            stopAssignments.some(sa => sa.stopOrder === (s.stopOrder || s.order))
+          ).map((s, idx) => ({
+            order: s.stopOrder || s.order || idx + 1,
+            stopName: s.name || s.stopName || '',
+            arrivalTime: s.morningArrival || s.arrivalTime || '',
+            departureTime: s.eveningArrival || s.departureTime || '',
+            latitude: s.latitude !== undefined ? s.latitude : null,
+            longitude: s.longitude !== undefined ? s.longitude : null
+          }));
+        } else {
+          coverageType = 'full_route';
+          stopAssignments = [];
+          servedStops = routeStops.map((s, idx) => ({
+            order: s.stopOrder || s.order || idx + 1,
+            stopName: s.name || s.stopName || '',
+            arrivalTime: s.morningArrival || s.arrivalTime || '',
+            departureTime: s.eveningArrival || s.departureTime || '',
+            latitude: s.latitude !== undefined ? s.latitude : null,
+            longitude: s.longitude !== undefined ? s.longitude : null
+          }));
+        }
+      }
+
+      // 6. Driver Resolution
+      const matchedDriver = driversCache.find(d => d.name === selectedDriver);
+      const assignedDriverId = matchedDriver ? (matchedDriver.id || `DRV-${selectedDriver.replace(/\s+/g, '_')}`) : (selectedDriver ? `DRV-${selectedDriver.replace(/\s+/g, '_')}` : null);
+
+      const saveBtn = document.getElementById('save-bus-btn');
       try {
+        if (saveBtn) {
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Saving Bus...';
+        }
+
         const payload = {
           busNumber: busNo,
+          registrationNumber: busReg,
           regNumber: busReg,
-          capacity: capacity,
-          seatCapacity: capacity,
+          busType: busType,
+          manufacturer: manufacturer,
+          model: model,
+          manufacturingYear: manufacturingYear,
+          seatCapacity: seatCap,
+          standingCapacity: standCap,
+          totalCapacity: totalCap,
+          capacity: String(seatCap),
           status: status,
+          assignedRouteId: matchedRoute ? (matchedRoute.id || `route_${matchedRoute.name}`) : null,
+          assignedRouteName: matchedRoute ? matchedRoute.name : null,
+          route: selectedRouteName,
+          routeName: selectedRouteName,
+          coverageType: coverageType,
+          stopAssignments: stopAssignments,
+          stops: servedStops,
+          assignedDriverId: assignedDriverId,
+          assignedDriverName: selectedDriver || null,
+          driverName: selectedDriver,
+          driverContact: matchedDriver?.phone || '',
+          driverLicense: matchedDriver?.licenseNumber || '',
+          schedules: {
+            morningDeparture: mornStart,
+            morningArrival: mornEnd,
+            eveningDeparture: eveStart,
+            eveningArrival: eveEnd
+          },
+          maintenance: {
+            lastServiceDate: lastService || null,
+            nextServiceDate: nextService || null,
+            notes: serviceNotes
+          },
+          documents: currentEditingBusDocs,
           updatedAt: serverTimestamp()
         };
 
+        let finalBusId = busEditId;
         if (busEditId) {
           await updateDoc(doc(firestore, 'buses', busEditId), payload);
-          await logAuditEvent('BUS_UPDATED', 'buses', busEditId, payload);
+          await logAuditEvent('BUS_UPDATED', 'buses', busEditId, { busNumber: busNo, changes: payload });
         } else {
           payload.createdAt = serverTimestamp();
           const newDoc = await addDoc(collection(firestore, 'buses'), payload);
-          await logAuditEvent('BUS_CREATED', 'buses', newDoc.id, payload);
+          finalBusId = newDoc.id;
+          await logAuditEvent('BUS_CREATED', 'buses', newDoc.id, { busNumber: busNo, route: selectedRouteName });
+        }
+
+        // Sync to schedules collection for compatibility (morning & evening)
+        if (matchedRoute) {
+          try {
+            const mornSchedId = `schedule_${busNo}_morning`;
+            await setDoc(doc(firestore, 'schedules', mornSchedId), {
+              scheduleId: mornSchedId,
+              busId: finalBusId,
+              busNumber: busNo,
+              routeId: matchedRoute.id || matchedRoute.name,
+              routeName: matchedRoute.name,
+              driverId: assignedDriverId,
+              driverName: selectedDriver,
+              tripType: 'morning',
+              startTime: mornStart,
+              expectedArrivalTime: mornEnd,
+              coverageType: coverageType,
+              stopAssignments: stopAssignments,
+              status: status === 'Maintenance' ? 'Inactive' : 'Active',
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            const eveSchedId = `schedule_${busNo}_evening`;
+            await setDoc(doc(firestore, 'schedules', eveSchedId), {
+              scheduleId: eveSchedId,
+              busId: finalBusId,
+              busNumber: busNo,
+              routeId: matchedRoute.id || matchedRoute.name,
+              routeName: matchedRoute.name,
+              driverId: assignedDriverId,
+              driverName: selectedDriver,
+              tripType: 'evening',
+              startTime: eveStart,
+              expectedArrivalTime: eveEnd,
+              coverageType: coverageType,
+              stopAssignments: stopAssignments,
+              status: status === 'Maintenance' ? 'Inactive' : 'Active',
+              updatedAt: serverTimestamp()
+            }, { merge: true });
+          } catch (sErr) {
+            console.warn("Could not sync schedule records:", sErr);
+          }
+        }
+
+        // Bidirectional sync: Update assigned route in Firestore 'routes' collection
+        if (matchedRoute) {
+          try {
+            const existingBuses = Array.isArray(matchedRoute.assignedBuses) ? matchedRoute.assignedBuses.map(String) : [];
+            if (!existingBuses.includes(String(busNo))) existingBuses.push(String(busNo));
+            await updateDoc(doc(firestore, 'routes', matchedRoute.id), {
+              assignedBus: busNo,
+              assignedBuses: existingBuses,
+              assignedDriver: selectedDriver,
+              updatedAt: serverTimestamp()
+            });
+          } catch (rErr) {
+            console.warn("Could not sync route document with assigned bus:", rErr);
+          }
+        }
+
+        // If previously assigned to another route, clear old route assignment
+        const otherAssignedRoutes = routesCache.filter(r => 
+          String(r.assignedBus) === String(busNo) && (!matchedRoute || r.id !== matchedRoute.id)
+        );
+        for (const oRoute of otherAssignedRoutes) {
+          try {
+            await updateDoc(doc(firestore, 'routes', oRoute.id), {
+              assignedBus: '',
+              assignedBuses: [],
+              updatedAt: serverTimestamp()
+            });
+          } catch (oErr) {
+            console.warn("Could not clear previous route assignment:", oErr);
+          }
         }
 
         busEditorModal?.classList.add('hidden');
         alert(`Bus ${busNo} saved successfully.`);
       } catch (err) {
-        alert("Failed to save bus: " + err.message);
+        showFormError("Failed to save bus: " + err.message);
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save Bus Record';
+        }
       }
     });
   }
@@ -2042,11 +3066,79 @@ window.adminInspectBus = (busId) => {
 window.adminEditBus = (busId) => {
   const bus = busesCache.find(b => b.id === busId);
   if (!bus) return;
+  const errAlert = document.getElementById('bus-form-error-alert');
+  if (errAlert) errAlert.classList.add('hidden');
+
+  // 1. Basic Vehicle Info
   document.getElementById('bus-edit-id').value = bus.id;
   document.getElementById('form-bus-no').value = bus.busNumber || '';
-  document.getElementById('form-bus-reg').value = bus.regNumber || '';
-  document.getElementById('form-bus-capacity').value = bus.capacity || 50;
+  document.getElementById('form-bus-reg').value = bus.registrationNumber || bus.regNumber || '';
+  document.getElementById('form-bus-type').value = bus.busType || 'College Bus';
+  document.getElementById('form-bus-manufacturer').value = bus.manufacturer || '';
+  document.getElementById('form-bus-model').value = bus.model || '';
+  document.getElementById('form-bus-year').value = bus.manufacturingYear || '';
+
+  // 2. Capacity & Status
+  const seat = bus.seatCapacity || bus.capacity || 52;
+  const stand = bus.standingCapacity !== undefined ? bus.standingCapacity : 0;
+  const total = bus.totalCapacity || (parseInt(seat, 10) + parseInt(stand, 10));
+  document.getElementById('form-bus-capacity').value = String(seat);
+  document.getElementById('form-bus-standing-capacity').value = String(stand);
+  document.getElementById('form-bus-total-capacity').value = String(total);
   document.getElementById('form-bus-status').value = bus.status || 'Active';
+
+  // 3. Transit Route & Stop Coverage
+  const assignedRoute = routesCache.find(r => 
+    (bus.assignedRouteId && r.id === bus.assignedRouteId) ||
+    (bus.routeName && r.name && r.name.toLowerCase() === bus.routeName.toLowerCase()) ||
+    (bus.route && r.name && r.name.toLowerCase() === bus.route.toLowerCase()) ||
+    (r.assignedBus && String(r.assignedBus) === String(bus.busNumber)) ||
+    (Array.isArray(r.assignedBuses) && r.assignedBuses.map(String).includes(String(bus.busNumber)))
+  );
+  const selectedRouteName = assignedRoute ? assignedRoute.name : (bus.routeName || bus.route || '');
+  populateBusEditorRoutes(selectedRouteName);
+
+  const isSpecific = bus.coverageType === 'specific_stops';
+  const covFull = document.getElementById('cov-full-route');
+  const covSpec = document.getElementById('cov-specific-stops');
+  const specBox = document.getElementById('form-bus-specific-stops-box');
+  if (covFull) covFull.checked = !isSpecific;
+  if (covSpec) covSpec.checked = isSpecific;
+
+  if (isSpecific) {
+    specBox?.classList.remove('hidden');
+    const preselectedOrders = Array.isArray(bus.stopAssignments) && bus.stopAssignments.length > 0
+      ? bus.stopAssignments.map(s => s.stopOrder)
+      : (Array.isArray(bus.stops) ? bus.stops.map(s => s.order || s.stopOrder) : null);
+    renderBusStopsChecklist(selectedRouteName, preselectedOrders);
+  } else {
+    specBox?.classList.add('hidden');
+    renderBusStopsChecklist(selectedRouteName, null);
+  }
+
+  // 4. Driver Assignment
+  populateBusEditorDrivers(bus.driverName || '');
+
+  // 5. Schedules
+  const sched = bus.schedules || {};
+  document.getElementById('form-bus-morning-departure').value = sched.morningDeparture || '06:30';
+  document.getElementById('form-bus-morning-arrival').value = sched.morningArrival || '08:45';
+  document.getElementById('form-bus-evening-departure').value = sched.eveningDeparture || '16:50';
+  document.getElementById('form-bus-evening-arrival').value = sched.eveningArrival || '18:30';
+
+  // 6. Maintenance
+  const maint = bus.maintenance || {};
+  document.getElementById('form-bus-last-service').value = maint.lastServiceDate || '';
+  document.getElementById('form-bus-next-service').value = maint.nextServiceDate || '';
+  document.getElementById('form-bus-maintenance-notes').value = maint.notes || '';
+
+  // 7. Documents
+  currentEditingBusDocs = Array.isArray(bus.documents) ? JSON.parse(JSON.stringify(bus.documents)) : [];
+  renderBusEditorDocsList();
+
+  // Run live conflict checks
+  checkBusEditorConflicts();
+
   document.getElementById('bus-editor-title').textContent = `Edit Bus ${bus.busNumber || ''}`;
   document.getElementById('bus-editor-modal')?.classList.remove('hidden');
 };
@@ -2178,6 +3270,23 @@ window.adminDeleteRoute = async (routeId) => {
   if (!confirmed) return;
 
   try {
+    // If route was assigned to a bus, clear the route from that bus
+    if (route.assignedBus) {
+      const matchedBus = busesCache.find(b => String(b.busNumber) === String(route.assignedBus));
+      if (matchedBus) {
+        try {
+          await updateDoc(doc(firestore, 'buses', matchedBus.id), {
+            route: '',
+            routeName: '',
+            stops: [],
+            updatedAt: serverTimestamp()
+          });
+        } catch (busErr) {
+          console.warn("Could not unassign route from bus upon deletion:", busErr);
+        }
+      }
+    }
+
     await deleteDoc(doc(firestore, 'routes', route.id));
     await logAuditEvent('ROUTE_DELETED', 'routes', route.id, { name: route.name });
     alert(`Route "${route.name}" deleted successfully.`);
@@ -2207,7 +3316,6 @@ window.adminMoveStopDown = (index) => {
     renderEditorStops();
   }
 };
-
 window.adminRemoveStop = (index) => {
   syncStopsFromDOM();
   if (index >= 0 && index < currentEditingStops.length) {
@@ -2227,59 +3335,198 @@ function openBusInspector(bus) {
     statusBadge.textContent = bus.status || 'Active';
   }
 
-  const isMoving = bus.status === 'Active' || bus.status === 'On Trip';
-  setElText('inspect-bus-speed', isMoving ? '38 km/h' : '0 km/h');
-  setElText('inspect-bus-occupancy', isMoving ? '84%' : '0%');
-  setElText('inspect-bus-trip', isMoving ? 'Morning Campus Route' : 'Idle at Depot');
+  const isMoving = bus.status === 'On Trip';
+  const speed = bus.speed ? `${bus.speed} km/h` : (isMoving ? '38 km/h' : '0 km/h');
+  
+  const seatCap = parseInt(bus.seatCapacity || bus.capacity || 52, 10);
+  const standCap = parseInt(bus.standingCapacity || 0, 10);
+  const totalCap = parseInt(bus.totalCapacity || (seatCap + standCap), 10);
+  const busStudents = usersCache.filter(u => String(u.assignedBus).trim() === String(bus.busNumber).trim());
+  const assignedCount = busStudents.length;
+  const occupancyPct = totalCap > 0 ? Math.round((assignedCount / totalCap) * 100) : 0;
 
-  setElVal('inspect-bus-reg', bus.regNumber || 'TN 33 AB 1234');
-  setElVal('inspect-bus-capacity', `${bus.capacity || 50} Passengers`);
-  setElVal('inspect-bus-route-name', bus.routeName || bus.route || 'Campus Line');
-  setElVal('inspect-bus-driver-name', bus.driverName || 'Unassigned');
-  setElVal('inspect-bus-driver-phone', bus.driverContact || bus.phone || '+91 98421 00000');
-  setElVal('inspect-bus-driver-license', bus.driverLicense || 'DL-TN-2024-VERIFIED');
+  setElText('inspect-bus-speed', speed);
+  setElText('inspect-bus-occupancy', `${assignedCount} / ${totalCap} (${occupancyPct}%)`);
+  
+  const schedMorn = bus.schedules?.morningDeparture ? `Morning: ${bus.schedules.morningDeparture}` : '';
+  const schedEve = bus.schedules?.eveningDeparture ? `Evening: ${bus.schedules.eveningDeparture}` : '';
+  const schedText = [schedMorn, schedEve].filter(Boolean).join(' • ') || (bus.status === 'Active' ? 'Active Service' : 'Idle at Depot');
+  setElText('inspect-bus-trip', schedText);
+
+  // Tab 1: Overview
+  setElVal('inspect-bus-reg', bus.registrationNumber || bus.regNumber || 'Not Registered');
+  setElVal('inspect-bus-type', bus.busType || 'College Bus');
+  setElVal('inspect-bus-capacity', `${seatCap} Seating ${standCap > 0 ? `+ ${standCap} Standing ` : ''}(Total: ${totalCap})`);
+  setElVal('inspect-bus-model', [bus.manufacturer, bus.model, bus.manufacturingYear].filter(Boolean).join(' ') || '--');
+
+  // Assigned Route Details from routesCache
+  const assignedRoute = routesCache.find(r => 
+    (bus.assignedRouteId && r.id === bus.assignedRouteId) ||
+    (bus.routeName && r.name && r.name.toLowerCase() === bus.routeName.toLowerCase()) ||
+    (bus.route && r.name && r.name.toLowerCase() === bus.route.toLowerCase()) ||
+    (r.assignedBus && String(r.assignedBus) === String(bus.busNumber)) ||
+    (Array.isArray(r.assignedBuses) && r.assignedBuses.map(String).includes(String(bus.busNumber)))
+  );
+
+  let routeInspectorText = bus.routeName || bus.route || 'Unassigned';
+  if (assignedRoute) {
+    const stopsCount = assignedRoute.totalStops !== undefined 
+      ? assignedRoute.totalStops 
+      : (Array.isArray(assignedRoute.stops) ? assignedRoute.stops.length : 0);
+    routeInspectorText = `${assignedRoute.name} (${assignedRoute.startPoint || '--'} → ${assignedRoute.destination || '--'} • ${stopsCount} Stops)`;
+  }
+  setElVal('inspect-bus-route-name', routeInspectorText);
+  setElVal('inspect-bus-driver-name', bus.driverName || 'Not Assigned');
 
   const statusSelect = document.getElementById('inspect-bus-status-select');
   if (statusSelect) statusSelect.value = bus.status || 'Active';
 
-  // Render assigned students list
+  // Tab 2: Assigned Students
   const studentsListEl = document.getElementById('inspect-bus-students-list');
   if (studentsListEl) {
-    const busStudents = studentsCache.filter(s => s.assignedBus === bus.busNumber);
     if (busStudents.length === 0) {
-      studentsListEl.innerHTML = `<div style="color: var(--text-secondary); font-size: 13.5px;">No students assigned to this bus.</div>`;
+      studentsListEl.innerHTML = `<div style="color: var(--text-secondary); font-size: 13.5px; padding: 12px; text-align: center; background: #F9FAFB; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">No students currently assigned to Bus ${escapeHtml(bus.busNumber)}.</div>`;
     } else {
       studentsListEl.innerHTML = busStudents.map(s => `
-        <div style="background: #F9FAFB; padding: 10px 14px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
+        <div style="background: #F9FAFB; padding: 10px 14px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); margin-bottom: 6px;">
           <div>
-            <strong>${escapeHtml(s.name)}</strong> <span style="font-size: 12px; color: var(--text-muted);">(${s.id})</span>
-            <div style="font-size: 12px; color: var(--text-secondary);">${s.department} • Stop: ${s.pickupStop}</div>
+            <strong>${escapeHtml(s.name)}</strong> <span style="font-size: 12px; color: var(--text-muted);">(${escapeHtml(s.id)})</span>
+            <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(s.department)} • Boarding: ${escapeHtml(s.pickupStop)}</div>
           </div>
-          <span class="status-badge badge-green">Active</span>
+          <span class="status-badge ${s.status === 'Active' ? 'badge-green' : 'badge-gray'}">${escapeHtml(s.status)}</span>
         </div>
       `).join('');
     }
   }
 
-  // Render bus documents list
+  // Tab 3: Driver & Route Tab
+  setElVal('inspect-bus-driver-phone', bus.driverContact || bus.phone || '--');
+  setElVal('inspect-bus-driver-license', bus.driverLicense || '--');
+
+  const routeTabDetails = document.getElementById('inspect-bus-route-details-wrap');
+  if (routeTabDetails) {
+    let stops = Array.isArray(bus.stops) && bus.stops.length > 0 ? bus.stops : (assignedRoute?.stops || []);
+    const isSpecific = bus.coverageType === 'specific_stops';
+    const totalRouteStops = assignedRoute?.totalStops !== undefined 
+      ? assignedRoute.totalStops 
+      : (Array.isArray(assignedRoute?.stops) ? assignedRoute.stops.length : stops.length);
+
+    const coverageBadge = isSpecific
+      ? `<span class="status-badge badge-purple" style="font-size: 11px;">Specific Stops (${stops.length} of ${totalRouteStops} Stops Served)</span>`
+      : `<span class="status-badge badge-blue" style="font-size: 11px;">Full Route (${stops.length} Stops Served)</span>`;
+
+    if (assignedRoute) {
+      const sortedStops = [...stops].sort((a, b) => (a.order || a.stopOrder || 0) - (b.order || b.stopOrder || 0));
+      routeTabDetails.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Assigned Route Corridor</div>
+            <strong style="font-size: 15px; color: var(--text-primary);">${escapeHtml(assignedRoute.name)}</strong>
+            ${coverageBadge}
+          </div>
+          <button type="button" class="btn-action-icon btn-action-primary" onclick="window.adminInspectRoute('${assignedRoute.id}')" title="Inspect Corridor">Inspect Corridor &rarr;</button>
+        </div>
+        <div style="background: #F9FAFB; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 14px; font-size: 13px; margin-bottom: 16px;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div><span style="color: var(--text-muted);">Start Point:</span> <strong>${escapeHtml(assignedRoute.startPoint || '--')}</strong></div>
+            <div><span style="color: var(--text-muted);">Destination:</span> <strong>${escapeHtml(assignedRoute.destination || '--')}</strong></div>
+            <div><span style="color: var(--text-muted);">Distance:</span> <strong>${escapeHtml(assignedRoute.distance || '--')}</strong></div>
+            <div><span style="color: var(--text-muted);">Duration:</span> <strong>${escapeHtml(assignedRoute.duration || '--')}</strong></div>
+          </div>
+        </div>
+
+        <div style="font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 8px;">
+          Scheduled Bus Stops Sequence (${sortedStops.length})
+        </div>
+        <div style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+          ${sortedStops.map(s => {
+            const stopNum = s.order || s.stopOrder || 1;
+            const stopName = s.stopName || s.name || 'Unnamed Stop';
+            const arrTime = s.arrivalTime || s.morningArrival || '';
+            return `
+              <div style="background: #FFFFFF; padding: 8px 12px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); font-size: 13px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="status-badge badge-blue" style="font-size: 11px; padding: 2px 6px;">#${stopNum}</span>
+                  <strong>${escapeHtml(stopName)}</strong>
+                </div>
+                <span style="font-weight: 600; color: var(--text-secondary); font-size: 12.5px;">${arrTime ? `${escapeHtml(arrTime)} AM` : '--'}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else {
+      routeTabDetails.innerHTML = `
+        <div style="color: var(--text-secondary); font-size: 13.5px; padding: 14px; text-align: center; background: #F9FAFB; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">
+          No transit corridor assigned to Bus ${escapeHtml(bus.busNumber || '')}.
+        </div>
+      `;
+    }
+  }
+
+  // Tab 4: Compliance Documents Tab
   const docsListEl = document.getElementById('inspect-bus-docs-list');
   if (docsListEl) {
-    docsListEl.innerHTML = `
-      <div style="background: #F9FAFB; padding: 10px 14px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
-        <div>
-          <strong>Vehicle Insurance</strong>
-          <div style="font-size: 12px; color: var(--text-secondary);">Policy: INS-2026-${bus.busNumber} • Expiry: 2026-11-20</div>
+    const busDocs = Array.isArray(bus.documents) ? bus.documents : [];
+    if (busDocs.length === 0) {
+      docsListEl.innerHTML = `
+        <div style="color: var(--text-secondary); font-size: 13.5px; padding: 16px; text-align: center; background: #F9FAFB; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">
+          No compliance documents attached to Bus ${escapeHtml(bus.busNumber || '')}.
         </div>
-        <span class="status-badge badge-green">Valid</span>
-      </div>
-      <div style="background: #F9FAFB; padding: 10px 14px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); margin-top: 8px;">
-        <div>
-          <strong>Fitness Certificate (FC)</strong>
-          <div style="font-size: 12px; color: var(--text-secondary);">Cert: FC-TN-${bus.busNumber} • Expiry: 2026-09-15</div>
+      `;
+    } else {
+      docsListEl.innerHTML = busDocs.map(d => {
+        const exp = getDocumentExpiryStatus(d.expiryDate);
+        return `
+          <div style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <strong style="font-size: 14px; color: var(--text-primary);">${escapeHtml(d.documentType || 'Vehicle Document')}</strong>
+                <span class="status-badge ${exp.badgeClass}">${exp.label}</span>
+              </div>
+              <div style="font-size: 12.5px; color: var(--text-secondary); margin-top: 4px;">
+                <span style="font-family: monospace; font-weight: 600; color: #374151;">${escapeHtml(d.documentNumber || 'No Policy Number')}</span>
+                ${d.issueDate ? ` • Issue: ${d.issueDate}` : ''}
+                ${d.expiryDate ? ` • Expiry: <strong>${d.expiryDate}</strong>` : ''}
+                ${d.fileName ? ` • 📎 ${escapeHtml(d.fileName)}` : ''}
+              </div>
+            </div>
+            <div>
+              ${d.fileUrl ? `<a href="${d.fileUrl}" target="_blank" class="btn-action-icon btn-action-primary" style="text-decoration: none;">View Document</a>` : '<span style="font-size: 12px; color: var(--text-muted);">Verified</span>'}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // Tab 5: Maintenance & Issues Tab
+  setElVal('inspect-bus-last-service', bus.maintenance?.lastServiceDate || '--');
+  setElVal('inspect-bus-next-service', bus.maintenance?.nextServiceDate || '--');
+  const maintNotesEl = document.getElementById('inspect-bus-maintenance-notes');
+  if (maintNotesEl) {
+    maintNotesEl.textContent = bus.maintenance?.notes || 'No maintenance notes recorded.';
+  }
+
+  const issuesListEl = document.getElementById('inspect-bus-issues-list');
+  if (issuesListEl) {
+    const busTickets = reportsCache.filter(r => 
+      String(r.busNumber).trim() === String(bus.busNumber).trim() ||
+      (r.category && r.category.toLowerCase().includes('maintenance'))
+    );
+    if (busTickets.length === 0) {
+      issuesListEl.innerHTML = '<div style="color: var(--text-secondary); font-size: 13.5px; padding: 12px; text-align: center; background: #F9FAFB; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">No maintenance or vehicle incident reports logged.</div>';
+    } else {
+      issuesListEl.innerHTML = busTickets.map(t => `
+        <div style="background: #F9FAFB; padding: 10px 14px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color);">
+          <div>
+            <strong>${escapeHtml(t.subject || 'Maintenance Report')}</strong> <span style="font-size: 12px; color: var(--text-muted);">(${escapeHtml(t.reportNumber || t.id)})</span>
+            <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(t.description || '')}</div>
+          </div>
+          <span class="status-badge ${getStatusBadgeClass(t.status)}">${escapeHtml(t.status || 'Pending')}</span>
         </div>
-        <span class="status-badge badge-orange">Expiring Soon</span>
-      </div>
-    `;
+      `).join('');
+    }
   }
 
   document.getElementById('bus-inspector-modal')?.classList.remove('hidden');

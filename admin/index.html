@@ -53,9 +53,9 @@
         </div>
         <ul class="nav-links">
           <li><a href="#dashboard" class="nav-item active" data-view="dashboard-view">Dashboard</a></li>
-          <li><a href="#buses" class="nav-item" data-view="issues-view">Reports</a></li>
+          <li><a href="#reports" class="nav-item" data-view="issues-view">Reports</a></li>
           <li><a href="#routes" class="nav-item" data-view="routes-view">Routes</a></li>
-          <li><a href="#timings" class="nav-item" data-view="timings-view">Buses</a></li>
+          <li><a href="#buses" class="nav-item" data-view="buses-view">Buses</a></li>
           <li><a href="#approvals" class="nav-item" data-view="approvals-view">Approvals</a></li>
           <li><a href="#audit-logs" class="nav-item" data-view="audit-logs-view">Audit Logs</a></li>
           <li><a href="#settings" class="nav-item" data-view="settings-view">Settings</a></li>
@@ -343,6 +343,37 @@
             </tbody>
           </table>
         </div>
+
+        <!-- BUS TIMINGS & SCHEDULES INTEGRATED -->
+        <div class="section-header-row" style="margin-top: 36px;">
+          <div>
+            <h2 style="font-size: 18px; font-weight: 700; color: var(--text-primary);">Bus Timings &amp; Schedules</h2>
+            <p style="color: var(--text-secondary); font-size: 13.5px;">Morning, afternoon, and evening timetables for active buses.</p>
+          </div>
+        </div>
+
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Bus No</th>
+                <th>Route</th>
+                <th>Trip Type</th>
+                <th>Start Time</th>
+                <th>Expected Arrival</th>
+                <th>Assigned Driver</th>
+                <th>Schedule Conflict Check</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="timings-table-body">
+              <tr>
+                <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading bus
+                  timing schedules...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <!-- =============================================
@@ -542,7 +573,7 @@
                 <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
-            <tbody id="timings-table-body">
+            <tbody id="standalone-timings-table-body">
               <tr>
                 <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading bus
                   timing schedules...</td>
@@ -964,8 +995,16 @@
                 <input type="text" id="inspect-bus-reg" readonly />
               </div>
               <div class="form-group">
-                <label>Seating Capacity</label>
+                <label>Bus Type</label>
+                <input type="text" id="inspect-bus-type" readonly />
+              </div>
+              <div class="form-group">
+                <label>Seating / Standing Capacity</label>
                 <input type="text" id="inspect-bus-capacity" readonly />
+              </div>
+              <div class="form-group">
+                <label>Manufacturer &amp; Model</label>
+                <input type="text" id="inspect-bus-model" readonly />
               </div>
               <div class="form-group">
                 <label>Assigned Route</label>
@@ -987,6 +1026,7 @@
                   <option value="On Trip">On Trip</option>
                   <option value="Maintenance">Maintenance</option>
                   <option value="Inactive">Inactive</option>
+                  <option value="Unavailable">Unavailable</option>
                 </select>
                 <button id="save-bus-status-btn" class="primary-btn">Update Status</button>
               </div>
@@ -1014,11 +1054,12 @@
                 <input type="text" id="inspect-bus-driver-license" readonly />
               </div>
             </div>
+            <div id="inspect-bus-route-details-wrap" style="margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-color);"></div>
           </div>
 
           <!-- TAB 4: DOCS -->
           <div id="tab-bus-docs" class="inspect-panel hidden">
-            <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 14px;">Compliance Documents</h3>
+            <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 14px;">Compliance Documents &amp; Expiry</h3>
             <div id="inspect-bus-docs-list" style="display: flex; flex-direction: column; gap: 8px;">
               <div style="color: var(--text-secondary); font-size: 13.5px;">Loading documents...</div>
             </div>
@@ -1026,7 +1067,22 @@
 
           <!-- TAB 5: MAINTENANCE -->
           <div id="tab-bus-maintenance" class="inspect-panel hidden">
-            <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 14px;">Maintenance Log</h3>
+            <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 14px;">Vehicle Maintenance &amp; Workshop Log</h3>
+            <div class="form-grid" style="margin-bottom: 16px;">
+              <div class="form-group">
+                <label>Last Service Date</label>
+                <input type="text" id="inspect-bus-last-service" readonly />
+              </div>
+              <div class="form-group">
+                <label>Next Service Date</label>
+                <input type="text" id="inspect-bus-next-service" readonly />
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Maintenance &amp; Workshop Notes</label>
+              <div id="inspect-bus-maintenance-notes" style="background: #F9FAFB; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px; font-size: 13.5px; color: var(--text-primary); min-height: 50px;">--</div>
+            </div>
+            <h4 style="font-size: 14px; font-weight: 700; margin: 18px 0 10px 0; color: var(--text-primary);">Reported Maintenance &amp; Vehicle Issues</h4>
             <div id="inspect-bus-issues-list" style="display: flex; flex-direction: column; gap: 8px;">
               <div style="color: var(--text-secondary); font-size: 13.5px;">No open maintenance issues.</div>
             </div>
@@ -1037,56 +1093,229 @@
   </div>
 
   <!-- =============================================
-       MODAL 2: ADD / EDIT BUS MODAL
+       MODAL 2: ADD / EDIT BUS MODAL (COMPLETE BUS CONTROL CENTER)
        ============================================= -->
   <div id="bus-editor-modal" class="modal-overlay hidden">
-    <div class="modal-content">
+    <div class="modal-content modal-large">
       <div class="modal-header">
         <h2 id="bus-editor-title">Add New Bus</h2>
-        <button id="close-bus-editor-btn" class="close-btn">&times;</button>
+        <button id="close-bus-editor-btn" type="button" class="close-btn" title="Close dialog">&times;</button>
       </div>
       <form id="bus-editor-form">
-        <div class="modal-body">
+        <div class="modal-body" style="max-height: calc(85vh - 140px); overflow-y: auto; padding: 24px;">
           <input type="hidden" id="bus-edit-id" />
-          <div class="form-group">
-            <label>Bus Number *</label>
-            <input type="text" id="form-bus-no" required placeholder="e.g. 24" />
+          
+          <div id="bus-form-error-alert" class="conflict-warning-box hidden" style="margin-bottom: 20px;"></div>
+
+          <!-- 1. Basic Vehicle Information -->
+          <div class="section-title">1. Basic Vehicle Information</div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label>Bus Number *</label>
+              <input type="text" id="form-bus-no" required placeholder="e.g. 32" />
+            </div>
+            <div class="form-group">
+              <label>Registration Number *</label>
+              <input type="text" id="form-bus-reg" required placeholder="e.g. TN 33 AB 1234" />
+            </div>
+            <div class="form-group">
+              <label>Bus Type</label>
+              <select id="form-bus-type" class="filter-select" style="width: 100%;">
+                <option value="College Bus">College Bus</option>
+                <option value="Staff Bus">Staff Bus</option>
+                <option value="Shuttle">Shuttle</option>
+                <option value="Special Service">Special Service</option>
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Registration Number *</label>
-            <input type="text" id="form-bus-reg" required placeholder="e.g. TN 33 AB 1234" />
+
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label>Manufacturer</label>
+              <input type="text" id="form-bus-manufacturer" placeholder="e.g. Tata, Ashok Leyland" />
+            </div>
+            <div class="form-group">
+              <label>Model</label>
+              <input type="text" id="form-bus-model" placeholder="e.g. Starbus Ultra" />
+            </div>
+            <div class="form-group">
+              <label>Manufacturing Year</label>
+              <input type="number" id="form-bus-year" min="1990" max="2035" placeholder="e.g. 2022" />
+            </div>
           </div>
+
+          <!-- 2. Capacity & Operational Status -->
+          <div class="section-title" style="margin-top: 20px;">2. Capacity &amp; Operational Status</div>
           <div class="form-grid">
             <div class="form-group">
               <label>Seating Capacity *</label>
-              <input type="number" id="form-bus-capacity" required placeholder="e.g. 50" value="50" />
+              <input type="number" id="form-bus-capacity" required min="1" placeholder="e.g. 52" value="52" />
+            </div>
+            <div class="form-group">
+              <label>Standing Capacity</label>
+              <input type="number" id="form-bus-standing-capacity" min="0" placeholder="e.g. 0" value="0" />
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Total Capacity (Calculated)</label>
+              <input type="number" id="form-bus-total-capacity" readonly style="background: #F3F4F6; cursor: not-allowed;" value="52" />
             </div>
             <div class="form-group">
               <label>Status</label>
               <select id="form-bus-status" class="filter-select" style="width: 100%;">
                 <option value="Active">Active</option>
                 <option value="Available">Available</option>
+                <option value="On Trip">On Trip</option>
                 <option value="Maintenance">Maintenance</option>
                 <option value="Inactive">Inactive</option>
+                <option value="Unavailable">Unavailable</option>
               </select>
             </div>
           </div>
+
+          <!-- 3. Transit Route & Stop Coverage -->
+          <div class="section-title" style="margin-top: 20px;">3. Transit Route &amp; Stop Coverage</div>
           <div class="form-group">
             <label>Assigned Route</label>
             <select id="form-bus-route" class="filter-select" style="width: 100%;">
               <option value="">No Route Assigned</option>
             </select>
           </div>
+
+          <div id="form-bus-coverage-wrap" style="background: #F9FAFB; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 18px;">
+            <label style="font-size: 13.5px; font-weight: 700; color: var(--text-primary); display: block; margin-bottom: 8px;">Route Stop Coverage</label>
+            <div style="display: flex; gap: 24px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+              <label style="font-size: 13.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <input type="radio" name="form-bus-coverage" id="cov-full-route" value="full_route" checked />
+                <span>Full Route (Serves all active stops)</span>
+              </label>
+              <label style="font-size: 13.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <input type="radio" name="form-bus-coverage" id="cov-specific-stops" value="specific_stops" />
+                <span>Specific Stops Only (Custom stop coverage)</span>
+              </label>
+            </div>
+
+            <!-- Specific Stops Checklist Box -->
+            <div id="form-bus-specific-stops-box" class="hidden" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 12.5px; color: var(--text-secondary);">Select the stops this bus serves. Original route stop order is preserved.</span>
+                <div style="display: flex; gap: 8px;">
+                  <button type="button" id="btn-select-all-stops" class="btn-action-icon" style="font-size: 12px; padding: 3px 8px;">Select All</button>
+                  <button type="button" id="btn-clear-all-stops" class="btn-action-icon" style="font-size: 12px; padding: 3px 8px;">Clear All</button>
+                </div>
+              </div>
+              <div id="form-bus-stops-checklist" class="stops-checklist-box">
+                <div style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 12px;">Select a route above to view available stops.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Driver Assignment & Conflict Check -->
+          <div class="section-title" style="margin-top: 20px;">4. Driver Assignment &amp; Conflict Check</div>
           <div class="form-group">
             <label>Assigned Driver</label>
             <select id="form-bus-driver" class="filter-select" style="width: 100%;">
               <option value="">No Driver Assigned</option>
             </select>
           </div>
+          <div id="bus-driver-conflict-box" class="conflict-warning-box hidden"></div>
+
+          <!-- 5. Operating Timetables & Schedules -->
+          <div class="section-title" style="margin-top: 20px;">5. Operating Timetables &amp; Schedules</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Morning Trip Departure</label>
+              <input type="time" id="form-bus-morning-departure" value="06:30" />
+            </div>
+            <div class="form-group">
+              <label>Morning Expected Arrival</label>
+              <input type="time" id="form-bus-morning-arrival" value="08:45" />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Evening Trip Departure</label>
+              <input type="time" id="form-bus-evening-departure" value="16:50" />
+            </div>
+            <div class="form-group">
+              <label>Evening Expected Arrival</label>
+              <input type="time" id="form-bus-evening-arrival" value="18:30" />
+            </div>
+          </div>
+          <div id="bus-schedule-conflict-box" class="conflict-warning-box hidden"></div>
+
+          <!-- 6. Vehicle Maintenance & Service Log -->
+          <div class="section-title" style="margin-top: 20px;">6. Vehicle Maintenance &amp; Service Log</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Last Service Date</label>
+              <input type="date" id="form-bus-last-service" />
+            </div>
+            <div class="form-group">
+              <label>Next Service Date</label>
+              <input type="date" id="form-bus-next-service" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Maintenance Notes</label>
+            <textarea id="form-bus-maintenance-notes" rows="2" placeholder="e.g. Periodic oil filter replacement, brake pads inspection, tire rotation." style="width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px; font-family: inherit; font-size: 13.5px;"></textarea>
+          </div>
+
+          <!-- 7. Compliance Documents & Expiry -->
+          <div class="section-title" style="margin-top: 20px;">7. Vehicle Compliance Documents</div>
+          <div style="background: #F9FAFB; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 14px; margin-bottom: 16px;">
+            <div style="font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px;">Attach Document to Bus</div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label style="font-size: 12px;">Document Type</label>
+                <select id="form-doc-type" class="filter-select" style="width: 100%; font-size: 13px;">
+                  <option value="Registration Certificate (RC)">Registration Certificate (RC)</option>
+                  <option value="Insurance">Insurance Policy</option>
+                  <option value="Fitness Certificate">Fitness Certificate (FC)</option>
+                  <option value="Permit">Transport Permit</option>
+                  <option value="Pollution Certificate (PUC)">Pollution Certificate (PUC)</option>
+                  <option value="Road Tax">Road Tax Token</option>
+                  <option value="Other">Other Certificate</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="font-size: 12px;">Document / Policy Number</label>
+                <input type="text" id="form-doc-number" placeholder="e.g. POL-12345678" style="padding: 8px 10px; font-size: 13px;" />
+              </div>
+            </div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label style="font-size: 12px;">Issue Date</label>
+                <input type="date" id="form-doc-issue" style="padding: 7px 10px; font-size: 13px;" />
+              </div>
+              <div class="form-group">
+                <label style="font-size: 12px;">Expiry Date *</label>
+                <input type="date" id="form-doc-expiry" style="padding: 7px 10px; font-size: 13px;" />
+              </div>
+              <div class="form-group">
+                <label style="font-size: 12px;">Upload File (PDF / Image)</label>
+                <input type="file" id="form-doc-file" accept="image/*,application/pdf" style="padding: 6px 8px; font-size: 12px;" />
+              </div>
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+              <button type="button" id="add-doc-to-bus-btn" class="secondary-btn" style="padding: 7px 16px; font-size: 13px;">+ Add Document</button>
+            </div>
+          </div>
+
+          <!-- Current Attached Documents List -->
+          <div>
+            <label style="font-size: 12.5px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Attached Documents (<span id="form-bus-docs-count">0</span>)</label>
+            <div id="form-bus-docs-container" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+              <div style="color: var(--text-secondary); font-size: 13px; text-align: center; padding: 14px; background: #FFFFFF; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">No documents attached to this bus yet.</div>
+            </div>
+          </div>
         </div>
+
         <div class="modal-footer">
           <button type="button" id="cancel-bus-editor-btn" class="secondary-btn">Cancel</button>
-          <button type="submit" id="save-bus-btn" class="primary-btn">Save Bus</button>
+          <button type="submit" id="save-bus-btn" class="primary-btn">Save Bus Record</button>
         </div>
       </form>
     </div>

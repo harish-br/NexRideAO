@@ -373,8 +373,19 @@ document.addEventListener('DOMContentLoaded', () => {
           if (!routeResults.some(r => r.routeNo === bNumStr)) {
             routeResults.push({
               routeNo: bNumStr,
-              source: busData.route || busData.source || 'Unknown Route',
-              destination: busData.destination || '',
+              // routeName: the assigned route name from the database (bus.routeName || bus.route)
+              routeName: busData.routeName || busData.route || '',
+              source: busData.route || busData.source || '',
+              // destination: read explicit field first, then derive from last stop (mirrors admin.js pattern)
+              destination: busData.destination ||
+                (busData.stops && busData.stops.length > 0
+                  ? (busData.stops[busData.stops.length - 1].stopName || busData.stops[busData.stops.length - 1].name || '')
+                  : ''),
+              // startPoint: read explicit field first, then derive from first stop
+              startPoint: busData.startPoint ||
+                (busData.stops && busData.stops.length > 0
+                  ? (busData.stops[0].stopName || busData.stops[0].name || '')
+                  : ''),
               type: busData.type || 'Town',
               status: busData.status || (busData.isActive ? 'Active' : 'Offline'),
               eta: '',
@@ -537,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </svg>
         </div>
         <div class="bs-card-content">
-          <h4 class="bs-title">${highlightText(route.source, highlightQuery)}${route.destination ? ' ↔ ' + highlightText(route.destination, highlightQuery) : ''}</h4>
+          <h4 class="bs-title">${highlightText(route.routeName || route.source, highlightQuery)}</h4>
           <div style="margin-top: 4px; display: flex; gap: 8px; align-items: center; color: #6B7280; font-size: 13px; font-weight: 600;">
             <span>Bus: <span style="font-weight: 700; color: #3661E4;">${highlightText(route.routeNo, highlightQuery)}</span></span>
           </div>
@@ -548,8 +559,12 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
       <div class="bs-route-stops-dropdown hidden" style="display: none; width: calc(100% + 32px); margin: 16px -16px -10px -16px; background: transparent; border-top: 1px solid #E2E8F0; border-radius: 0 0 16px 16px; padding: 20px 16px 16px 16px; box-sizing: border-box;">
         <div style="text-align: center; font-size: 13.5px; font-weight: 600; color: #9CA3AF; margin-bottom: 6px;">Scheduled Stages</div>
-        <div style="text-align: center; font-size: 14px; font-weight: 700; color: #4B5563; margin-bottom: 16px;">
-          ${route.routeNo} ↓ towards ${route.destination || 'Destination'}
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; min-width: 0;">
+          <div class="bs-ampm-direction" style="font-size: 13px; font-weight: 700; color: #4B5563; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;"></div>
+          <div class="bs-ampm-toggle" style="display: flex; border: 1.5px solid #E2E8F0; border-radius: 6px; overflow: hidden; flex-shrink: 0;">
+            <button class="bs-ampm-btn bs-ampm-am" style="padding: 3px 10px; font-size: 11px; font-weight: 700; border: none; border-right: 1.5px solid #E2E8F0; cursor: pointer; background: #3661E4; color: #FFFFFF; transition: background 0.2s, color 0.2s; border-radius: 0;">AM</button>
+            <button class="bs-ampm-btn bs-ampm-pm" style="padding: 3px 10px; font-size: 11px; font-weight: 700; border: none; cursor: pointer; background: #FFFFFF; color: #6B7280; transition: background 0.2s, color 0.2s; border-radius: 0;">PM</button>
+          </div>
         </div>
         <div class="stops-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
       </div>
@@ -558,27 +573,97 @@ document.addEventListener('DOMContentLoaded', () => {
     const dropdown = card.querySelector('.bs-route-stops-dropdown');
     const stopsList = dropdown.querySelector('.stops-list');
     const arrow = card.querySelector('.route-dropdown-arrow');
+    const directionEl = dropdown.querySelector('.bs-ampm-direction');
+    const amBtn = dropdown.querySelector('.bs-ampm-am');
+    const pmBtn = dropdown.querySelector('.bs-ampm-pm');
 
-    if (route.stops && route.stops.length > 0) {
-      route.stops.forEach((stop, index) => {
-        const isLast = index === route.stops.length - 1;
-        const stopItem = document.createElement('div');
-        stopItem.style.display = 'flex';
-        stopItem.style.alignItems = 'stretch';
-        stopItem.style.position = 'relative';
-        stopItem.style.zIndex = '1';
+    // AM/PM state for this card
+    let selectedPeriod = 'AM';
 
-        stopItem.innerHTML = `
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; background: #FFFFFF; border: 1px solid #F1F5F9; border-radius: 14px; padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.02);">
-            <div style="font-size: 15px; font-weight: 700; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; padding-right: 12px;">${stop.stopName || stop.name || 'Unknown Stop'}</div>
-            <div style="font-size: 13.5px; color: #6B7280; font-weight: 600; flex-shrink: 0; min-width: 72px; text-align: right; font-variant-numeric: tabular-nums;">${stop.arrivalTime ? formatArrivalTime(stop.arrivalTime) : 'N/A'}</div>
-          </div>
-        `;
-        stopsList.appendChild(stopItem);
-      });
-    } else {
-      stopsList.innerHTML = '<div style="font-size: 13px; color: #9CA3AF; padding: 16px 0; text-align: center;">No stops information available.</div>';
+    function updateDirection() {
+      if (selectedPeriod === 'AM') {
+        // destination: Firestore field, or derived from last stop in performSearch — never a static string
+        const dest = route.destination ||
+          (route.stops && route.stops.length > 0
+            ? (route.stops[route.stops.length - 1].stopName || route.stops[route.stops.length - 1].name || '')
+            : '');
+        directionEl.textContent = dest
+          ? `${route.routeNo} ↓ towards ${dest}`
+          : `${route.routeNo} ↓`;
+      } else {
+        // startPoint: Firestore field, or derived from first stop in performSearch — never a static string
+        const start = route.startPoint ||
+          (route.stops && route.stops.length > 0
+            ? (route.stops[0].stopName || route.stops[0].name || '')
+            : '');
+        directionEl.textContent = start
+          ? `${route.routeNo} ↓ towards ${start}`
+          : `${route.routeNo} ↓`;
+      }
     }
+
+    function renderStops() {
+      stopsList.innerHTML = '';
+      if (route.stops && route.stops.length > 0) {
+        // PM: display stops in reverse order (return journey); AM: forward order.
+        // Spread into a new array so Firebase data is never mutated.
+        const displayedStops = selectedPeriod === 'AM'
+          ? route.stops
+          : [...route.stops].reverse();
+
+        displayedStops.forEach((stop) => {
+          const stopItem = document.createElement('div');
+          stopItem.style.display = 'flex';
+          stopItem.style.alignItems = 'stretch';
+          stopItem.style.position = 'relative';
+          stopItem.style.zIndex = '1';
+
+          // Each stop keeps its own time; AM = morning field, PM = evening field.
+          const timeVal = selectedPeriod === 'AM'
+            ? (stop.arrivalTime || stop.morningArrival || '')
+            : (stop.departureTime || stop.eveningArrival || '');
+
+          stopItem.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; background: #FFFFFF; border: 1px solid #F1F5F9; border-radius: 14px; padding: 14px 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); min-width: 0;">
+              <div style="font-size: 15px; font-weight: 700; color: #374151; white-space: nowrap; flex: 1; min-width: 0; padding-right: 10px;">${stop.stopName || stop.name || 'Unknown Stop'}</div>
+              <div style="font-size: 13.5px; color: #6B7280; font-weight: 600; flex-shrink: 0; text-align: right; font-variant-numeric: tabular-nums;">${timeVal ? formatArrivalTime(timeVal) : 'N/A'}</div>
+            </div>
+          `;
+          stopsList.appendChild(stopItem);
+        });
+      } else {
+        stopsList.innerHTML = '<div style="font-size: 13px; color: #9CA3AF; padding: 16px 0; text-align: center;">No stops information available.</div>';
+      }
+    }
+
+    // Initialize
+    updateDirection();
+    renderStops();
+
+    // AM/PM toggle button handlers
+    amBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedPeriod === 'AM') return;
+      selectedPeriod = 'AM';
+      amBtn.style.background = '#3661E4';
+      amBtn.style.color = '#FFFFFF';
+      pmBtn.style.background = '#FFFFFF';
+      pmBtn.style.color = '#6B7280';
+      updateDirection();
+      renderStops();
+    });
+
+    pmBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedPeriod === 'PM') return;
+      selectedPeriod = 'PM';
+      pmBtn.style.background = '#3661E4';
+      pmBtn.style.color = '#FFFFFF';
+      amBtn.style.background = '#FFFFFF';
+      amBtn.style.color = '#6B7280';
+      updateDirection();
+      renderStops();
+    });
 
     card.addEventListener('click', () => {
       // Trigger Haptic if available

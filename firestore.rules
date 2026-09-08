@@ -96,6 +96,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAuthenticated();
     }
+    match /schedules/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
     
     // ==========================================
     // 5. Pending Approvals Queue
