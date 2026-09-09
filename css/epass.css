@@ -241,10 +241,8 @@
 .pass-id-text {
   font-size: 10px;
   color: #6B7280;
-  font-family: 'Courier New', Courier, monospace;
   margin: 0;
   text-align: center;
-  letter-spacing: 0.5px;
 }
 
 /* Holographic Security Strip (Passport Microprint) */

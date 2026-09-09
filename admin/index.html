@@ -36,7 +36,7 @@
           <input type="password" id="admin-password" placeholder="••••••••" required />
         </div>
         <div id="login-error" class="error-msg hidden"></div>
-        <button type="submit" id="login-submit-btn" class="primary-btn"
+        <button type="submit" id="login-btn" class="primary-btn"
           style="width: 100%; height: 42px; margin-top: 8px;">Sign In to Transport Center</button>
       </form>
     </div>
@@ -56,7 +56,6 @@
           <li><a href="#reports" class="nav-item" data-view="issues-view">Reports</a></li>
           <li><a href="#routes" class="nav-item" data-view="routes-view">Routes</a></li>
           <li><a href="#buses" class="nav-item" data-view="buses-view">Buses</a></li>
-          <li><a href="#approvals" class="nav-item" data-view="approvals-view">Approvals</a></li>
           <li><a href="#audit-logs" class="nav-item" data-view="audit-logs-view">Audit Logs</a></li>
           <li><a href="#settings" class="nav-item" data-view="settings-view">Settings</a></li>
           <li><a href="#legal" class="nav-item" data-view="legal-view">Legal</a></li>
@@ -859,78 +858,1003 @@
            13. SETTINGS VIEW
            ============================================= -->
       <section id="settings-view" class="admin-view hidden">
-        <div class="section-header-row">
-          <div>
+
+        <!-- ═══ PAGE HEADER ═══════════════════════════════════════════════ -->
+        <div class="stg-page-header">
+          <div class="stg-page-header-text">
             <h1>Admin &amp; System Settings</h1>
-            <p style="color: var(--text-secondary); font-size: 14px;">Configure transport policies, admin roles, and
-              real-time synchronization parameters.</p>
+            <p>Manage system configuration, administrator access, security, notifications, reports, and operational policies.</p>
+          </div>
+          <!-- Settings Search -->
+          <div class="stg-search-wrap">
+            <svg class="stg-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="stg-search" class="stg-search-input" placeholder="Search settings…" autocomplete="off" spellcheck="false" />
+            <button class="stg-search-clear hidden" id="stg-search-clear" type="button" title="Clear search">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
           </div>
         </div>
 
-        <div class="widgets-grid">
-          <div class="widget-card">
-            <h2>Transport Operations Policies</h2>
-            <div class="form-group">
-              <label>Delay Threshold (Minutes)</label>
-              <input type="number" id="setting-delay-threshold" value="5" />
+        <!-- Feedback banner -->
+        <div id="settings-feedback" class="settings-feedback hidden" role="alert" aria-live="polite"></div>
+        <!-- No-results message for search -->
+        <div id="stg-no-results" class="stg-no-results hidden">No settings match your search.</div>
+
+        <!-- ═══ SETTINGS CONTENT ════════════════════════════════════════════ -->
+        <div class="stg-content">
+
+          <!-- ─── ROW 1: General + System & Operations ──────────────────── -->
+          <div class="stg-row-2col">
+
+            <!-- ╔═ GENERAL ══════════════════════════════════════════════╗ -->
+            <div class="stg-card" data-stg-section="general" data-stg-keywords="application name description language timezone date format time format general">
+              <div class="stg-card-header">
+                <div class="stg-card-icon stg-icon-blue stg-icon-general">
+                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/assets/info-circle.svg'); mask-image: url('/assets/info-circle.svg');">
+                    <img src="/assets/info-circle.svg" alt="General" />
+                  </span>
+                </div>
+                <div>
+                  <h2 class="stg-card-title">General</h2>
+                  <p class="stg-card-desc">Application identity and locale preferences.</p>
+                </div>
+              </div>
+              <div class="stg-card-body">
+
+                <div class="stg-field">
+                  <label class="stg-label" for="stg-app-name">Application Name</label>
+                  <p class="stg-hint">The name shown across the admin dashboard.</p>
+                  <input type="text" id="stg-app-name" class="stg-text-input" value="NexRide" maxlength="60" />
+                </div>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="stg-app-desc">Application Description</label>
+                  <p class="stg-hint">Short description of the system's purpose.</p>
+                  <input type="text" id="stg-app-desc" class="stg-text-input" value="University Campus Transport Management System" maxlength="120" />
+                </div>
+
+                <div class="stg-row-2col-inner">
+                  <div class="stg-field">
+                    <label class="stg-label" for="stg-language">Default Language</label>
+                    <p class="stg-hint">Interface display language.</p>
+                    <select id="stg-language" class="stg-select">
+                      <option value="en">English</option>
+                      <option value="ta">Tamil</option>
+                      <option value="hi">Hindi</option>
+                    </select>
+                  </div>
+                  <div class="stg-field">
+                    <label class="stg-label" for="stg-timezone">Timezone</label>
+                    <p class="stg-hint">Used for all timestamps.</p>
+                    <select id="stg-timezone" class="stg-select">
+                      <option value="Asia/Kolkata" selected>Asia/Kolkata (IST)</option>
+                      <option value="UTC">UTC</option>
+                      <option value="America/New_York">America/New_York</option>
+                      <option value="Europe/London">Europe/London</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="stg-row-2col-inner">
+                  <div class="stg-field">
+                    <label class="stg-label" for="stg-date-format">Date Format</label>
+                    <p class="stg-hint">How dates are displayed.</p>
+                    <select id="stg-date-format" class="stg-select">
+                      <option value="DD/MM/YYYY" selected>DD/MM/YYYY</option>
+                      <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                      <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    </select>
+                  </div>
+                  <div class="stg-field">
+                    <label class="stg-label" for="stg-time-format">Time Format</label>
+                    <p class="stg-hint">12-hour or 24-hour clock.</p>
+                    <select id="stg-time-format" class="stg-select">
+                      <option value="12h" selected>12-hour (AM/PM)</option>
+                      <option value="24h">24-hour</option>
+                    </select>
+                  </div>
+                </div>
+
+              </div>
             </div>
-            <div class="form-group">
-              <label>GPS Update Interval (Seconds)</label>
-              <input type="number" id="setting-gps-interval" value="5" />
+
+            <!-- ╔═ SYSTEM & OPERATIONS ═════════════════════════════════╗ -->
+            <div class="stg-card" data-stg-section="system" data-stg-keywords="route refresh interval geolocation timeout location update session timeout attachment real-time automatic data refresh operations">
+              <div class="stg-card-header">
+                <div class="stg-card-icon stg-icon-blue stg-icon-system">
+                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/routing.svg'); mask-image: url('/routing.svg');">
+                    <img src="/routing.svg" alt="System &amp; Operations" />
+                  </span>
+                </div>
+                <div>
+                  <h2 class="stg-card-title">System &amp; Operations</h2>
+                  <p class="stg-card-desc">Operational parameters for the transport management system.</p>
+                </div>
+              </div>
+              <div class="stg-card-body">
+
+                <div class="stg-field">
+                  <label class="stg-label" for="setting-gps-interval">Route Refresh Interval</label>
+                  <p class="stg-hint">How frequently route and bus information is refreshed from the server.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="setting-gps-interval" class="stg-num-input" value="5" min="1" max="300" step="1" />
+                    <span class="stg-unit">seconds</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="gps-interval-error" role="alert"></p>
+                </div>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="setting-delay-threshold">Geolocation Timeout</label>
+                  <p class="stg-hint">Maximum time allowed for GPS location detection before timing out.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="setting-delay-threshold" class="stg-num-input" value="5" min="1" max="60" step="1" />
+                    <span class="stg-unit">seconds</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="delay-threshold-error" role="alert"></p>
+                </div>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="stg-location-update">Location Update Interval</label>
+                  <p class="stg-hint">How frequently the driver's live location is sent to the server.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="stg-location-update" class="stg-num-input" value="10" min="5" max="120" step="1" />
+                    <span class="stg-unit">seconds</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="location-update-error" role="alert"></p>
+                </div>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="stg-session-timeout">Session Timeout</label>
+                  <p class="stg-hint">Inactivity period before the admin session requires re-authentication.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="stg-session-timeout" class="stg-num-input" value="30" min="5" max="480" step="5" />
+                    <span class="stg-unit">minutes</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="session-timeout-error" role="alert"></p>
+                </div>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="stg-max-attachment">Maximum Attachment Size</label>
+                  <p class="stg-hint">Maximum file size allowed for report attachments.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="stg-max-attachment" class="stg-num-input" value="5" min="1" max="25" step="1" />
+                    <span class="stg-unit">MB</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="max-attachment-error" role="alert"></p>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Enable Real-Time Updates</span>
+                    <span class="stg-hint">Keep dashboard data synchronized in real time via Firestore listeners.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Enable Real-Time Updates">
+                    <input type="checkbox" id="stg-realtime-updates" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Enable Automatic Data Refresh</span>
+                    <span class="stg-hint">Periodically re-fetch all cached data in the background.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Enable Automatic Data Refresh">
+                    <input type="checkbox" id="stg-auto-refresh" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+              </div>
             </div>
-            <div class="form-group">
-              <label>Document Expiry Warning Window (Days)</label>
-              <input type="number" id="setting-expiry-days" value="30" />
+          </div><!-- /stg-row-2col -->
+
+          <!-- ─── ROW 2: Reports + Notifications ────────────────────────── -->
+          <div class="stg-row-2col">
+
+            <!-- ╔═ REPORT MANAGEMENT ════════════════════════════════════╗ -->
+            <div class="stg-card" data-stg-section="reports" data-stg-keywords="report submission location category description attachment retention auto close default status priority management">
+              <div class="stg-card-header">
+                <div class="stg-card-icon stg-icon-orange stg-icon-reports">
+                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/document-text.svg'); mask-image: url('/document-text.svg');">
+                    <img src="/document-text.svg" alt="Report Management" />
+                  </span>
+                </div>
+                <div>
+                  <h2 class="stg-card-title">Report Management</h2>
+                  <p class="stg-card-desc">Control how users submit and manage issue reports.</p>
+                </div>
+              </div>
+              <div class="stg-card-body">
+
+                <p class="stg-section-label">Submission Controls</p>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Allow Report Submission</span>
+                    <span class="stg-hint">Enable or disable report submission for all users.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Allow Report Submission">
+                    <input type="checkbox" id="stg-report-submission" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Require Location</span>
+                    <span class="stg-hint">Reports must include a GPS location to be submitted.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Require Location">
+                    <input type="checkbox" id="stg-require-location" />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Require Category Selection</span>
+                    <span class="stg-hint">Users must choose a category when submitting a report.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Require Category Selection">
+                    <input type="checkbox" id="stg-require-category" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Require Description</span>
+                    <span class="stg-hint">Reports must include a written description.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Require Description">
+                    <input type="checkbox" id="stg-require-description" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Allow File Attachments</span>
+                    <span class="stg-hint">Users can attach images or documents to their reports.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Allow File Attachments">
+                    <input type="checkbox" id="stg-allow-attachments" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="stg-max-attachments">Maximum Attachments per Report</label>
+                  <p class="stg-hint">Maximum number of files a user can attach to a single report.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="stg-max-attachments" class="stg-num-input" value="3" min="1" max="10" step="1" />
+                    <span class="stg-unit">files</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="max-attachments-error" role="alert"></p>
+                </div>
+
+                <div class="stg-divider"></div>
+                <p class="stg-section-label">Retention &amp; Defaults</p>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="setting-expiry-days">Report Retention Window</label>
+                  <p class="stg-hint">Number of days reports remain available before archival.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="setting-expiry-days" class="stg-num-input" value="30" min="1" max="365" step="1" />
+                    <span class="stg-unit">days</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="expiry-days-error" role="alert"></p>
+                </div>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="stg-auto-close-days">Auto-Close Resolved Reports</label>
+                  <p class="stg-hint">Automatically close reports that have been resolved for this many days.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="stg-auto-close-days" class="stg-num-input" value="7" min="1" max="60" step="1" />
+                    <span class="stg-unit">days</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="auto-close-error" role="alert"></p>
+                </div>
+
+                <div class="stg-row-2col-inner">
+                  <div class="stg-field">
+                    <label class="stg-label" for="stg-default-status">Default Report Status</label>
+                    <p class="stg-hint">Status assigned to new reports on submission.</p>
+                    <select id="stg-default-status" class="stg-select">
+                      <option value="Under Review" selected>Under Review</option>
+                      <option value="Open">Open</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  </div>
+                  <div class="stg-field">
+                    <label class="stg-label" for="stg-default-priority">Default Priority</label>
+                    <p class="stg-hint">Priority level assigned to new reports.</p>
+                    <select id="stg-default-priority" class="stg-select">
+                      <option value="Normal" selected>Normal</option>
+                      <option value="Low">Low</option>
+                      <option value="High">High</option>
+                    </select>
+                  </div>
+                </div>
+
+              </div>
             </div>
-            <button class="primary-btn" id="save-settings-btn" style="width: auto;">Save Policies</button>
+
+            <!-- ╔═ NOTIFICATIONS ════════════════════════════════════════╗ -->
+            <div class="stg-card" data-stg-section="notifications" data-stg-keywords="notifications email in-app push report status admin response route update bus alert approval">
+              <div class="stg-card-header">
+                <div class="stg-card-icon stg-icon-purple stg-icon-notifications">
+                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/notification.svg'); mask-image: url('/notification.svg');">
+                    <img src="/notification.svg" alt="Notifications" />
+                  </span>
+                </div>
+                <div>
+                  <h2 class="stg-card-title">Notifications</h2>
+                  <p class="stg-card-desc">Control which events generate notifications for admins and users.</p>
+                </div>
+              </div>
+              <div class="stg-card-body">
+
+                <div class="stg-toggle-row stg-toggle-row--master">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Enable Notifications</span>
+                    <span class="stg-hint">Master switch — disabling this turns off all notifications.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Enable Notifications">
+                    <input type="checkbox" id="stg-notify-enabled" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-divider"></div>
+                <p class="stg-section-label">Delivery Channels</p>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">In-App Notifications</span>
+                    <span class="stg-hint">Notifications shown inside the application interface.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="In-App Notifications">
+                    <input type="checkbox" id="stg-notify-in-app" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Email Notifications</span>
+                    <span class="stg-hint">Send email alerts for important events.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Email Notifications">
+                    <input type="checkbox" id="stg-notify-email" />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-divider"></div>
+                <p class="stg-section-label">Event Types</p>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Report Status Updates</span>
+                    <span class="stg-hint">Notify users when their report status changes.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Report Status Updates">
+                    <input type="checkbox" id="stg-notify-report-status" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Admin Response Notifications</span>
+                    <span class="stg-hint">Notify users when an admin responds to their report.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Admin Response Notifications">
+                    <input type="checkbox" id="stg-notify-admin-response" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Route Update Notifications</span>
+                    <span class="stg-hint">Notify users when their assigned route changes.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Route Update Notifications">
+                    <input type="checkbox" id="stg-notify-route-updates" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Bus &amp; Route Alerts</span>
+                    <span class="stg-hint">Notify relevant users of bus delays, cancellations, or route alerts.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Bus and Route Alerts">
+                    <input type="checkbox" id="stg-notify-alerts" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Approval Notifications</span>
+                    <span class="stg-hint">Notify users when an approval request is reviewed.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Approval Notifications">
+                    <input type="checkbox" id="stg-notify-approvals" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+              </div>
+            </div>
+          </div><!-- /stg-row-2col -->
+
+          <!-- ─── FULL-WIDTH: Admin Roles & Permissions ──────────────────── -->
+          <div class="stg-card stg-card-full" data-stg-section="permissions" data-stg-keywords="admin role permissions super admin full control dashboard reports routes buses approvals audit logs settings legal view create edit delete matrix">
+            <div class="stg-card-header">
+              <div class="stg-card-icon stg-icon-green stg-icon-permissions">
+                <span class="stg-svg-icon" style="-webkit-mask-image: url('/assets/profile-2user.svg'); mask-image: url('/assets/profile-2user.svg');">
+                  <img src="/assets/profile-2user.svg" alt="Admin Roles &amp; Permissions" />
+                </span>
+              </div>
+              <div>
+                <h2 class="stg-card-title">Admin Roles &amp; Permissions</h2>
+                <p class="stg-card-desc">Your current access level and a detailed breakdown of module permissions.</p>
+              </div>
+            </div>
+            <div class="stg-card-body">
+
+              <!-- Role summary row -->
+              <div class="stg-role-summary">
+                <div class="stg-role-info">
+                  <div class="stg-role-avatar" id="stg-role-avatar">A</div>
+                  <div>
+                    <p class="stg-role-name" id="stg-role-email">Administrator</p>
+                    <div class="stg-role-badges">
+                      <span class="status-badge badge-green" id="settings-current-role">Super Admin</span>
+                      <span class="status-badge badge-blue">Full Control</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="stg-perm-notice">
+                  <span class="stg-notice-icon" style="-webkit-mask-image: url('/assets/info-circle.svg'); mask-image: url('/assets/info-circle.svg');">
+                    <img src="/assets/info-circle.svg" alt="" />
+                  </span>
+                  Permissions are managed by your Firebase Authentication configuration and cannot be modified through this interface.
+                </div>
+              </div>
+
+              <!-- Permission matrix -->
+              <div class="stg-perm-matrix-wrap">
+                <table class="stg-perm-matrix" aria-label="Permission matrix">
+                  <thead>
+                    <tr>
+                      <th class="stg-perm-module">Module</th>
+                      <th>View</th>
+                      <th>Create</th>
+                      <th>Edit</th>
+                      <th>Delete</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="stg-perm-module">Dashboard</td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-na" title="Not applicable">—</span></td>
+                      <td><span class="stg-perm-check stg-perm-na" title="Not applicable">—</span></td>
+                      <td><span class="stg-perm-check stg-perm-na" title="Not applicable">—</span></td>
+                    </tr>
+                    <tr>
+                      <td class="stg-perm-module">Reports</td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                    </tr>
+                    <tr>
+                      <td class="stg-perm-module">Routes</td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                    </tr>
+                    <tr>
+                      <td class="stg-perm-module">Buses</td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                    </tr>
+                    <tr>
+                      <td class="stg-perm-module">Approvals</td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                    </tr>
+                    <tr>
+                      <td class="stg-perm-module">Audit Logs</td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-no" title="Restricted">✗</span></td>
+                      <td><span class="stg-perm-check stg-perm-no" title="Restricted">✗</span></td>
+                      <td><span class="stg-perm-check stg-perm-no" title="Restricted">✗</span></td>
+                    </tr>
+                    <tr>
+                      <td class="stg-perm-module">Settings</td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-na" title="Not applicable">—</span></td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-na" title="Not applicable">—</span></td>
+                    </tr>
+                    <tr>
+                      <td class="stg-perm-module">Legal</td>
+                      <td><span class="stg-perm-check stg-perm-yes" title="Allowed">✓</span></td>
+                      <td><span class="stg-perm-check stg-perm-na" title="Not applicable">—</span></td>
+                      <td><span class="stg-perm-check stg-perm-na" title="Not applicable">—</span></td>
+                      <td><span class="stg-perm-check stg-perm-na" title="Not applicable">—</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
           </div>
 
-          <div class="widget-card">
-            <h2>Admin Roles &amp; Permissions</h2>
-            <div class="status-row">
-              <span class="status-label">Current Role:</span>
-              <span class="status-badge badge-green" id="settings-current-role">Super Admin</span>
+          <!-- ─── ROW 3: Security + Audit & Traceability ─────────────────── -->
+          <div class="stg-row-2col">
+
+            <!-- ╔═ SECURITY & ACCESS ════════════════════════════════════╗ -->
+            <div class="stg-card" data-stg-section="security" data-stg-keywords="security session timeout re-authentication login attempt protection authentication manage password access">
+              <div class="stg-card-header">
+                <div class="stg-card-icon stg-icon-red stg-icon-security">
+                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/assets/shield-tick.svg'); mask-image: url('/assets/shield-tick.svg');">
+                    <img src="/assets/shield-tick.svg" alt="Security &amp; Access" />
+                  </span>
+                </div>
+                <div>
+                  <h2 class="stg-card-title">Security &amp; Access</h2>
+                  <p class="stg-card-desc">Authentication controls and access security policies.</p>
+                </div>
+              </div>
+              <div class="stg-card-body">
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Require Re-authentication</span>
+                    <span class="stg-hint">Prompt admins to verify credentials before sensitive actions.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Require Re-authentication">
+                    <input type="checkbox" id="stg-require-reauth" checked />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Login Attempt Protection</span>
+                    <span class="stg-hint">Limit failed login attempts (managed by Firebase Authentication).</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Login Attempt Protection">
+                    <input type="checkbox" id="stg-login-protection" checked disabled />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+                <p class="stg-hint stg-hint-muted">Login protection is enforced at the Firebase level and cannot be disabled from this interface.</p>
+
+                <div class="stg-divider"></div>
+
+                <div class="stg-info-row">
+                  <span class="stg-label">Authentication Provider</span>
+                  <span class="status-badge badge-blue">Firebase Auth</span>
+                </div>
+                <div class="stg-info-row">
+                  <span class="stg-label">Multi-Factor Authentication</span>
+                  <span class="status-badge badge-gray">Firebase Managed</span>
+                </div>
+
+                <div class="stg-divider"></div>
+
+                <button class="stg-action-btn" id="stg-manage-auth-btn" type="button">
+                  <span class="stg-btn-icon" style="-webkit-mask-image: url('/assets/send-square2.svg'); mask-image: url('/assets/send-square2.svg');">
+                    <img src="/assets/send-square2.svg" alt="" />
+                  </span>
+                  Open Firebase Console
+                </button>
+
+              </div>
             </div>
-            <div class="status-row">
-              <span class="status-label">Fleet Permissions:</span>
-              <span class="status-badge badge-blue">Full Control</span>
+
+            <!-- ╔═ AUDIT & TRACEABILITY ═════════════════════════════════╗ -->
+            <div class="stg-card" data-stg-section="audit" data-stg-keywords="audit logs traceability immutable logging administrative actions settings changes report changes route changes approval retention">
+              <div class="stg-card-header">
+                <div class="stg-card-icon stg-icon-gray stg-icon-audit">
+                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/assets/clipboard-tick.svg'); mask-image: url('/assets/clipboard-tick.svg');">
+                    <img src="/assets/clipboard-tick.svg" alt="Audit &amp; Traceability" />
+                  </span>
+                </div>
+                <div>
+                  <h2 class="stg-card-title">Audit &amp; Traceability</h2>
+                  <p class="stg-card-desc">Configure audit log behavior and data retention policies.</p>
+                </div>
+              </div>
+              <div class="stg-card-body">
+
+                <!-- Immutable status rows -->
+                <div class="stg-info-row">
+                  <div>
+                    <span class="stg-label">Audit Logging</span>
+                    <p class="stg-hint">All administrative actions are recorded automatically.</p>
+                  </div>
+                  <span class="status-badge badge-green">Enabled</span>
+                </div>
+
+                <div class="stg-info-row">
+                  <div>
+                    <span class="stg-label">Immutable Audit Logs</span>
+                    <p class="stg-hint">Audit history cannot be modified or deleted through any interface.</p>
+                  </div>
+                  <span class="status-badge badge-green">Enforced</span>
+                </div>
+
+                <div class="stg-divider"></div>
+                <p class="stg-section-label">Logged Event Types</p>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Log Settings Changes</span>
+                    <span class="stg-hint">Record every modification to system settings.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Log Settings Changes">
+                    <input type="checkbox" id="stg-log-settings" checked disabled />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Log Report Changes</span>
+                    <span class="stg-hint">Record when reports are created, updated, or resolved.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Log Report Changes">
+                    <input type="checkbox" id="stg-log-reports" checked disabled />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Log Route &amp; Bus Changes</span>
+                    <span class="stg-hint">Record route and bus configuration modifications.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Log Route and Bus Changes">
+                    <input type="checkbox" id="stg-log-routes" checked disabled />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <div class="stg-toggle-row">
+                  <div class="stg-toggle-info">
+                    <span class="stg-label">Log Approval Changes</span>
+                    <span class="stg-hint">Record all approval decisions and status changes.</span>
+                  </div>
+                  <label class="stg-toggle" aria-label="Log Approval Changes">
+                    <input type="checkbox" id="stg-log-approvals" checked disabled />
+                    <span class="stg-toggle-track"><span class="stg-toggle-thumb"></span></span>
+                  </label>
+                </div>
+
+                <p class="stg-hint stg-hint-muted">Audit event types are controlled by the application and cannot be selectively disabled.</p>
+
+                <div class="stg-divider"></div>
+
+                <div class="stg-field">
+                  <label class="stg-label" for="stg-audit-retention">Audit Log Retention</label>
+                  <p class="stg-hint">Number of days audit records are retained before archival.</p>
+                  <div class="stg-num-row">
+                    <input type="number" id="stg-audit-retention" class="stg-num-input" value="90" min="30" max="730" step="1" />
+                    <span class="stg-unit">days</span>
+                  </div>
+                  <p class="stg-field-error hidden" id="audit-retention-error" role="alert"></p>
+                </div>
+
+              </div>
             </div>
-            <div class="status-row">
-              <span class="status-label">Audit Logs:</span>
-              <span class="status-badge badge-gray">Read-Only Immutable</span>
+          </div><!-- /stg-row-2col -->
+
+          <!-- ─── FULL-WIDTH: Data & Maintenance ────────────────────────── -->
+          <div class="stg-card stg-card-full" data-stg-section="data" data-stg-keywords="data maintenance system status database authentication notification synchronization refresh resync export">
+            <div class="stg-card-header">
+              <div class="stg-card-icon stg-icon-blue stg-icon-data">
+                <span class="stg-svg-icon" style="-webkit-mask-image: url('/card-receive.svg'); mask-image: url('/card-receive.svg');">
+                  <img src="/card-receive.svg" alt="Data &amp; Maintenance" />
+                </span>
+              </div>
+              <div>
+                <h2 class="stg-card-title">Data &amp; Maintenance</h2>
+                <p class="stg-card-desc">System health overview and safe maintenance actions.</p>
+              </div>
+            </div>
+            <div class="stg-card-body">
+              <div class="stg-maintenance-grid">
+                <!-- System Status column -->
+                <div>
+                  <p class="stg-section-label">System Status</p>
+                  <div class="stg-status-list">
+                    <div class="stg-status-item">
+                      <span class="stg-dot stg-dot-green"></span>
+                      <div>
+                        <span class="stg-label">Database</span>
+                        <span class="stg-status-val" id="stg-db-status">Connected</span>
+                      </div>
+                    </div>
+                    <div class="stg-status-item">
+                      <span class="stg-dot stg-dot-green"></span>
+                      <div>
+                        <span class="stg-label">Authentication</span>
+                        <span class="stg-status-val" id="stg-auth-status">Operational</span>
+                      </div>
+                    </div>
+                    <div class="stg-status-item">
+                      <span class="stg-dot stg-dot-green"></span>
+                      <div>
+                        <span class="stg-label">Notification Service</span>
+                        <span class="stg-status-val" id="stg-notif-status">Operational</span>
+                      </div>
+                    </div>
+                    <div class="stg-status-item">
+                      <span class="stg-dot stg-dot-blue"></span>
+                      <div>
+                        <span class="stg-label">Last Synchronized</span>
+                        <span class="stg-status-val" id="stg-last-sync">Calculating…</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Actions column -->
+                <div>
+                  <p class="stg-section-label">Maintenance Actions</p>
+                  <div class="stg-action-list">
+                    <button class="stg-action-btn" id="stg-refresh-btn" type="button">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                      Refresh System Data
+                    </button>
+                    <button class="stg-action-btn" id="stg-resync-btn" type="button">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                      Re-sync All Data
+                    </button>
+                    <button class="stg-action-btn" id="stg-export-data-btn" type="button">
+                      <span class="stg-btn-icon" style="-webkit-mask-image: url('/assets/send-square2.svg'); mask-image: url('/assets/send-square2.svg');">
+                        <img src="/assets/send-square2.svg" alt="" />
+                      </span>
+                      Export System Report
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ─── DANGER ZONE ─────────────────────────────────────────────── -->
+          <div class="stg-danger-zone" data-stg-section="danger" data-stg-keywords="danger zone reset configuration clear cache factory reset">
+            <div class="stg-danger-header">
+              <span class="stg-danger-icon" style="-webkit-mask-image: url('/assets/danger.svg'); mask-image: url('/assets/danger.svg');">
+                <img src="/assets/danger.svg" alt="Danger" />
+              </span>
+              <h2 class="stg-danger-title">Danger Zone</h2>
+            </div>
+            <p class="stg-danger-desc">These actions are irreversible. Proceed with extreme caution.</p>
+
+            <div class="stg-danger-actions">
+              <div class="stg-danger-item">
+                <div>
+                  <p class="stg-label">Reset System Configuration</p>
+                  <p class="stg-hint">Resets all system settings in <strong>systemConfig/global</strong> to default values. This cannot be undone.</p>
+                </div>
+                <button class="stg-danger-btn" id="stg-reset-config-btn" type="button">Reset Configuration</button>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /stg-content -->
+
+        <!-- ═══ STICKY SAVE BAR ══════════════════════════════════════════ -->
+        <div class="stg-save-bar" id="stg-save-bar">
+          <div class="stg-save-bar-left">
+            <span class="stg-unsaved-indicator hidden" id="stg-unsaved-dot">
+              <span class="stg-unsaved-pulse"></span>
+              Unsaved changes
+            </span>
+            <span class="stg-last-saved-text" id="settings-last-saved"></span>
+          </div>
+          <div class="stg-save-bar-right">
+            <button class="secondary-btn" id="stg-reset-btn" type="button" disabled>
+              Reset Changes
+            </button>
+            <button class="primary-btn stg-save-btn" id="save-settings-btn" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Save Changes
+            </button>
+          </div>
+        </div>
+
+        <!-- Danger Zone confirmation modal -->
+        <div class="modal-overlay hidden" id="stg-danger-modal">
+          <div class="modal-container" style="max-width:440px;">
+            <div class="modal-header">
+              <h2 style="font-size:16px;color:#DC2626;">Reset System Configuration?</h2>
+              <button class="modal-close-btn" id="stg-danger-modal-close" type="button">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div class="modal-body">
+              <p style="font-size:13.5px;color:#374151;margin-bottom:16px;line-height:1.6;">This will reset all system settings in <strong>systemConfig/global</strong> to their default values. This action will be recorded in the Audit Log and <strong>cannot be undone</strong>.</p>
+              <p style="font-size:13.5px;font-weight:600;color:#111827;margin-bottom:8px;">Type <strong>RESET</strong> to confirm:</p>
+              <input type="text" id="stg-danger-confirm-input" class="stg-text-input" placeholder="Type RESET here…" autocomplete="off" />
+            </div>
+            <div class="modal-footer">
+              <button class="secondary-btn" id="stg-danger-cancel-btn" type="button">Cancel</button>
+              <button class="danger-btn" id="stg-danger-confirm-btn" type="button" disabled>Reset Configuration</button>
             </div>
           </div>
         </div>
+
       </section>
+
+
 
 
       <!-- =============================================
            15. LEGAL VIEW
            ============================================= -->
       <section id="legal-view" class="admin-view hidden">
-        <div class="section-header-row">
-          <div>
-            <h1>Legal &amp; Regulatory Compliance</h1>
-            <p style="color: var(--text-secondary); font-size: 14px;">Transport licensing, compliance terms, passenger
-              privacy, and data governance policies.</p>
-          </div>
-        </div>
-        <div class="widgets-grid">
-          <div class="widget-card">
-            <h2>Terms of Transport Service</h2>
-            <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.6;">
-              NexRide operates as a unified transport orchestration software connecting transport operators, drivers,
-              and commuters. All fleet assets must adhere to local transport department guidelines and maintain valid
-              permits, fitness certifications, and insurance policies.
-            </p>
-          </div>
-          <div class="widget-card">
-            <h2>Privacy &amp; Telemetry Data Policy</h2>
-            <p style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.6;">
-              GPS tracking coordinates and user telemetry are strictly processed for live routing, estimated arrival
-              calculations, safety SOS emergency dispatch, and authorized transport management.
-            </p>
-          </div>
+        <!-- DOCUMENT CONTAINER: Continuous Legal Document -->
+        <div class="legal-doc-paper">
+
+          <!-- ═══ DOCUMENT 1: TERMS AND CONDITIONS ═══ -->
+          <article id="legal-doc-terms" class="legal-doc-content active">
+            <div class="legal-entity-name">NexRide Technologies Private Limited</div>
+            <h1 class="legal-main-title">Terms and Conditions</h1>
+
+            <div class="legal-meta-block">
+              <p class="legal-jurisdiction">INDIA</p>
+            </div>
+
+            <div class="legal-preamble-text">
+              <p>These Terms and Conditions (“Terms”) govern the access or use by you, an individual commuter, student, or transport user, of applications, websites, content, products, and services (the “Services”) made available by NexRide Technologies Private Limited (“NexRide”), a transport orchestration technology platform established in India.</p>
+              <p>PLEASE READ THESE TERMS CAREFULLY BEFORE ACCESSING OR USING THE SERVICES. This mobile application/platform i.e. <strong>NexRide</strong> (the “App”) is owned and operated by NexRide (the “Platform”). By accessing or using this App, You agree to be bound by these Terms. If You do not agree to these Terms, please refrain from using this App.</p>
+              <p>This document is an electronic record generated by a computer system and does not require physical or digital signatures. NexRide provides technology-based software services enabling Users (“Users”) to access transportation-related services including live bus tracking, route discovery, stop information, ETA updates, and travel assistance. These Terms govern the relationship between You and NexRide regarding the use of the App and Services.</p>
+            </div>
+
+            <!-- SECTION 1 -->
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">1. REGISTRATION AND ACCOUNT</h2>
+              <p class="legal-article-body"><strong>1.1</strong> Certain features of the App may require account registration using accurate, current, and complete information.</p>
+              <p class="legal-article-body"><strong>1.2</strong> Users are responsible for maintaining the confidentiality of their login credentials and all activities performed through their account.</p>
+              <p class="legal-article-body"><strong>1.3</strong> NexRide reserves the right to suspend or terminate accounts containing false, misleading, or unauthorized information, or accounts that violate platform policies.</p>
+            </div>
+
+            <!-- SECTION 2 -->
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">2. THE SERVICES</h2>
+              <p class="legal-article-body"><strong>2.1</strong> The App enables Users to view live bus locations, routes, stop details, and estimated arrival times across campus and designated transit corridors.</p>
+              <p class="legal-article-body"><strong>2.2</strong> NexRide makes reasonable efforts to ensure accurate real-time information; however, data accuracy may be affected by GPS limitations, network interruptions, traffic conditions, or operational delays.</p>
+              <p class="legal-article-body"><strong>2.3</strong> Service availability may vary depending on location, operator availability, route scheduling, and technical conditions.</p>
+            </div>
+
+            <!-- SECTION 3 -->
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">3. USER OBLIGATIONS</h2>
+              <p class="legal-article-body"><strong>3.1</strong> Users shall use the App only for lawful, authorized, and intended university transit purposes.</p>
+              <p class="legal-article-body"><strong>3.2</strong> Users shall not attempt to disrupt, damage, reverse engineer, intercept telemetry streams, or gain unauthorized access to the App or its systems.</p>
+              <p class="legal-article-body"><strong>3.3</strong> Misuse of the platform may result in restricted access, immediate suspension of account privileges, or account termination.</p>
+            </div>
+
+            <!-- SECTION 4 -->
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">4. LIMITATION OF LIABILITY</h2>
+              <p class="legal-article-body"><strong>4.1</strong> NexRide shall not be liable for delays, route changes, missed buses, traffic disruptions, mechanical failures, or service interruptions caused by third-party operators or external factors.</p>
+              <p class="legal-article-body"><strong>4.2</strong> NexRide functions as a technology platform and does not directly operate transport vehicles unless otherwise stated.</p>
+            </div>
+
+            <!-- SECTION 5 -->
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">5. PRIVACY AND DATA</h2>
+              <p class="legal-article-body"><strong>5.1</strong> NexRide may collect necessary data including location, route telemetry, and travel-related information to improve service quality, schedule optimization, and user experience.</p>
+              <p class="legal-article-body"><strong>5.2</strong> User data shall be handled in accordance with applicable privacy and data protection standards as detailed in our Privacy Policy.</p>
+            </div>
+
+            <!-- SECTION 6 -->
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">6. MODIFICATION OF SERVICES</h2>
+              <p class="legal-article-body"><strong>6.1</strong> NexRide reserves the right to modify, suspend, or discontinue any service, route coverage, or application feature at any time without prior notice.</p>
+            </div>
+
+            <!-- SECTION 7 -->
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">7. ACCEPTANCE</h2>
+              <p class="legal-article-body">By continuing to use NexRide, You acknowledge that You have read, understood, and agreed to these Terms and Conditions in their entirety.</p>
+            </div>
+          </article>
+
+          <!-- DIVIDER BETWEEN TERMS AND PRIVACY POLICY -->
+          <hr class="legal-document-divider" />
+
+          <!-- ═══ DOCUMENT 2: PRIVACY POLICY ═══ -->
+          <article id="legal-doc-privacy" class="legal-doc-content">
+            <div class="legal-entity-name">NexRide Technologies Private Limited</div>
+            <h1 class="legal-main-title">Privacy Policy</h1>
+
+            <div class="legal-meta-block">
+              <p class="legal-jurisdiction">INDIA</p>
+            </div>
+
+            <div class="legal-preamble-text">
+              <p>This Privacy Policy describes how <strong>NexRide</strong> (the “App”, “Platform”, “We”, “Us”, or “Our”) collects, uses, stores, and protects the information of users (“You” or “Users”) while accessing or using our transportation services. By using NexRide, You agree to the collection and use of information in accordance with this Privacy Policy.</p>
+              <p>This document is an electronic record generated by a computer system and does not require any physical or digital signature. NexRide is committed to protecting user privacy and ensuring that personal information is handled securely and responsibly.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">1. INFORMATION WE COLLECT</h2>
+              <p class="legal-article-body"><strong>1.1</strong> NexRide may collect personal information including, but not limited to, name, mobile number, email address, and account-related details during registration or usage of the App.</p>
+              <p class="legal-article-body"><strong>1.2</strong> We may collect location-related information, including real-time GPS data, to provide live tracking, route assistance, ETA calculations, and other location-based services.</p>
+              <p class="legal-article-body"><strong>1.3</strong> We may automatically collect device-related information such as device model, operating system, IP address, app version, and usage analytics for service improvement.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">2. USE OF INFORMATION</h2>
+              <p class="legal-article-body"><strong>2.1</strong> Information collected is used to provide, maintain, and improve NexRide transport orchestration services.</p>
+              <p class="legal-article-body"><strong>2.2</strong> User data may be used to enable live bus tracking, route planning, service optimization, and better travel assistance.</p>
+              <p class="legal-article-body"><strong>2.3</strong> Information may also be used to enhance platform security, detect misuse, and improve commuter experience.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">3. DATA SHARING</h2>
+              <p class="legal-article-body"><strong>3.1</strong> NexRide does not sell, rent, or trade personal information to third parties.</p>
+              <p class="legal-article-body"><strong>3.2</strong> Information may be shared with trusted service providers or partners only when necessary for service delivery, technical support, or legal compliance.</p>
+              <p class="legal-article-body"><strong>3.3</strong> We may disclose information if required by law, regulation, or lawful government request.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">4. DATA SECURITY</h2>
+              <p class="legal-article-body"><strong>4.1</strong> NexRide implements reasonable technical and organizational measures to protect user data against unauthorized access, misuse, alteration, or disclosure.</p>
+              <p class="legal-article-body"><strong>4.2</strong> While we strive to protect all information, no digital system can guarantee absolute security.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">5. LOCATION DATA</h2>
+              <p class="legal-article-body"><strong>5.1</strong> Certain NexRide features require access to device location to provide accurate real-time services.</p>
+              <p class="legal-article-body"><strong>5.2</strong> Users may disable location permissions at any time; however, some features may not function properly without location access.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">6. DATA RETENTION</h2>
+              <p class="legal-article-body"><strong>6.1</strong> User information shall be retained only for as long as necessary to provide services, comply with legal obligations, or resolve disputes.</p>
+              <p class="legal-article-body"><strong>6.2</strong> Unnecessary or outdated data may be deleted or anonymized periodically.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">7. USER RIGHTS</h2>
+              <p class="legal-article-body"><strong>7.1</strong> Users may request access, correction, or deletion of their personal information, subject to applicable laws and service requirements.</p>
+              <p class="legal-article-body"><strong>7.2</strong> Users may contact NexRide for privacy-related concerns or requests.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">8. CHANGES TO PRIVACY POLICY</h2>
+              <p class="legal-article-body"><strong>8.1</strong> NexRide reserves the right to modify or update this Privacy Policy at any time.</p>
+              <p class="legal-article-body"><strong>8.2</strong> Continued use of the App after updates constitutes acceptance of the revised Privacy Policy.</p>
+            </div>
+
+            <div class="legal-article-section">
+              <h2 class="legal-article-heading">9. ACCEPTANCE</h2>
+              <p class="legal-article-body">By accessing or using NexRide, You acknowledge that You have read, understood, and agreed to this Privacy Policy.</p>
+            </div>
+          </article>
+
         </div>
       </section>
 
@@ -1581,6 +2505,9 @@
       </div>
     </div>
   </div>
+
+  <!-- pptxgenjs — Audit Log PPTX Export -->
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 
   <!-- Core Scripts -->
   <script type="module" src="./admin.js"></script>

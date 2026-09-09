@@ -69,6 +69,16 @@ body {
   overscroll-behavior-y: none;
 }
 
+/* ── Global typography consistency ──────────────────────────────────────────
+   All identifiers, report IDs, ticket numbers, and references must use
+   the standard application font. No monospace anywhere in the UI.
+ ─────────────────────────────────────────────────────────────────────────── */
+code, kbd, samp, pre,
+[style*="monospace"], [style*="Courier"], [style*="Consolas"], [style*="Menlo"] {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  letter-spacing: normal !important;
+}
+
 #app {
   display: flex;
   flex-direction: column;

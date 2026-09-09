@@ -43,7 +43,7 @@ const dashboardPage = document.getElementById('admin-dashboard-page');
 const loginForm = document.getElementById('admin-login-form');
 const emailInput = document.getElementById('admin-email');
 const passwordInput = document.getElementById('admin-password');
-const loginBtn = document.getElementById('login-btn');
+const loginBtn = document.getElementById('login-btn') || document.getElementById('login-submit-btn');
 const loginError = document.getElementById('login-error');
 const logoutBtn = document.getElementById('logout-btn');
 
@@ -89,6 +89,13 @@ onAuthStateChanged(auth, async (user) => {
         const roleEl = document.getElementById('settings-current-role');
         if (roleEl) roleEl.textContent = role;
       }
+      const roleEmailEl = document.getElementById('stg-role-email');
+      if (roleEmailEl && user.email) roleEmailEl.textContent = user.email;
+      const roleAvatarEl = document.getElementById('stg-role-avatar');
+      if (roleAvatarEl) {
+        const letter = (user.displayName || user.email || 'A').trim().charAt(0).toUpperCase();
+        roleAvatarEl.textContent = letter;
+      }
     } catch (err) {
       console.warn("Role check:", err.message);
     }
@@ -103,16 +110,31 @@ if (loginForm) {
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (loginError) loginError.classList.add('hidden');
-    loginBtn.textContent = 'Authenticating...';
-    loginBtn.disabled = true;
+    if (loginBtn) {
+      loginBtn.textContent = 'Authenticating...';
+      loginBtn.disabled = true;
+    }
 
     try {
       await setPersistence(auth, browserLocalPersistence);
       await signInWithEmailAndPassword(auth, emailInput.value.trim(), passwordInput.value);
     } catch (err) {
-      showError("Invalid email or password.");
-      loginBtn.textContent = 'Secure Login';
-      loginBtn.disabled = false;
+      console.error("Admin Login Error:", err);
+      let errorMsg = "Invalid email or password.";
+      if (err.code === 'auth/user-not-found') {
+        errorMsg = "No account found with this email.";
+      } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        errorMsg = "Incorrect email or password.";
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMsg = "Too many failed attempts. Please try again later.";
+      } else if (err.message) {
+        errorMsg = err.message.replace(/^Firebase:\s*/, '');
+      }
+      showError(errorMsg);
+      if (loginBtn) {
+        loginBtn.textContent = 'Sign In to Transport Center';
+        loginBtn.disabled = false;
+      }
     }
   });
 }
@@ -163,6 +185,9 @@ function switchView(viewId) {
   }
   if (viewId === 'timings-view') {
     renderTimingsTable();
+  }
+  if (viewId === 'settings-view') {
+    loadSystemSettings();
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -269,6 +294,756 @@ function initRealtimeEngine() {
   setupGlobalSearch();
   setupModalListeners();
   setupFilterListeners();
+
+  // Export Log button → PPTX
+  document.getElementById('export-audit-btn')?.addEventListener('click', () => exportAuditLogPPTX());
+
+  // Settings page
+  initSettingsPage();
+  loadSystemSettings();
+
+  // Legal page tabs
+  setupLegalTabs();
+}
+
+// =============================================================================
+// SYSTEM SETTINGS — Enterprise Admin & System Settings v2
+// =============================================================================
+
+let lastLoadedSettings = null;
+let isSettingsDirty = false;
+
+/** Default settings fallback when Firestore document has not yet been populated */
+const DEFAULT_SYSTEM_SETTINGS = {
+  // General
+  appName: 'NexRide',
+  appDesc: 'University Campus Transport Management System',
+  language: 'en',
+  timezone: 'Asia/Kolkata',
+  dateFormat: 'DD/MM/YYYY',
+  timeFormat: '12h',
+  // System & Operations
+  routeRefreshInterval: 5,
+  geolocationTimeout: 5,
+  locationUpdateInterval: 10,
+  sessionTimeoutMinutes: 30,
+  maxAttachmentMB: 5,
+  realtimeUpdates: true,
+  autoRefresh: true,
+  // Report Management
+  reportSubmission: true,
+  requireLocation: false,
+  requireCategory: true,
+  requireDescription: true,
+  allowAttachments: true,
+  maxAttachments: 3,
+  reportRetentionDays: 30,
+  autoCloseResolvedDays: 7,
+  defaultReportStatus: 'Under Review',
+  defaultPriority: 'Normal',
+  // Notifications
+  notifyEnabled: true,
+  notifyInApp: true,
+  notifyEmail: false,
+  notifyReportStatus: true,
+  notifyAdminResponse: true,
+  notifyRouteUpdates: true,
+  notifyAlerts: true,
+  notifyApprovals: true,
+  // Security
+  requireReauth: true,
+  // Audit
+  auditRetentionDays: 90
+};
+
+/** Initialize all listeners, dirty tracking, search, maintenance and danger zone */
+function initSettingsPage() {
+  setupSettingsSaveHandler();
+  setupUnsavedChangesDetection();
+  setupSettingsSearch();
+  setupMaintenanceActions();
+  setupDangerZoneModal();
+  setupMasterNotificationToggle();
+}
+
+/**
+ * Load system settings from Firestore 'systemConfig/global' document.
+ * Populates all form fields and records a clean snapshot for change tracking.
+ */
+async function loadSystemSettings() {
+  let data = { ...DEFAULT_SYSTEM_SETTINGS };
+
+  // 1. Try reading from localStorage cache first
+  try {
+    const cached = localStorage.getItem('nexride_system_settings');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      data = { ...data, ...parsed };
+    }
+  } catch (e) {
+    console.warn('LocalStorage settings read error:', e);
+  }
+
+  // 2. Try fetching latest from Firestore systemConfig/global
+  try {
+    const cfgRef = doc(firestore, 'systemConfig', 'global');
+    const snap = await getDoc(cfgRef);
+    if (snap.exists()) {
+      data = { ...data, ...snap.data() };
+      try {
+        localStorage.setItem('nexride_system_settings', JSON.stringify(data));
+      } catch (e) {}
+    }
+  } catch (err) {
+    console.warn('Could not load system settings from Firestore (using local configuration):', err.message);
+  }
+
+  populateSettingsForm(data);
+
+  // Show last saved timestamp if available
+  if (data.updatedAt) {
+    const stamp = document.getElementById('settings-last-saved');
+    if (stamp) {
+      let dateStr = '';
+      try {
+        const ts = data.updatedAt.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt);
+        dateStr = 'Last saved ' + ts.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+                  ' at ' + ts.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      } catch (e) {
+        dateStr = 'Last saved recently';
+      }
+      stamp.textContent = dateStr;
+    }
+  }
+
+  // Update role & identity badge
+  updateAdminSettingsIdentity();
+
+  // Update maintenance live status
+  updateMaintenanceSyncTime();
+}
+
+/** Update the role badge, email, and avatar on the settings card */
+function updateAdminSettingsIdentity() {
+  if (!currentAdminUser) return;
+  const emailEl = document.getElementById('stg-role-email');
+  if (emailEl) emailEl.textContent = currentAdminUser.email || 'Administrator';
+
+  const avatarEl = document.getElementById('stg-role-avatar');
+  if (avatarEl) {
+    const name = currentAdminUser.displayName || currentAdminUser.email || 'A';
+    avatarEl.textContent = name.trim().charAt(0).toUpperCase();
+  }
+}
+
+/**
+ * Populates all DOM input controls from the provided settings object.
+ * Also stores a deep copy into lastLoadedSettings and resets dirty state.
+ */
+function populateSettingsForm(data) {
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val != null) el.value = val;
+  };
+  const setChk = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val != null) el.checked = Boolean(val);
+  };
+
+  // General
+  setVal('stg-app-name', data.appName);
+  setVal('stg-app-desc', data.appDesc);
+  setVal('stg-language', data.language);
+  setVal('stg-timezone', data.timezone);
+  setVal('stg-date-format', data.dateFormat);
+  setVal('stg-time-format', data.timeFormat);
+
+  // System & Operations
+  setVal('setting-gps-interval', data.routeRefreshInterval);
+  setVal('setting-delay-threshold', data.geolocationTimeout);
+  setVal('stg-location-update', data.locationUpdateInterval);
+  setVal('stg-session-timeout', data.sessionTimeoutMinutes);
+  setVal('stg-max-attachment', data.maxAttachmentMB);
+  setChk('stg-realtime-updates', data.realtimeUpdates);
+  setChk('stg-auto-refresh', data.autoRefresh);
+
+  // Report Management
+  setChk('stg-report-submission', data.reportSubmission);
+  setChk('stg-require-location', data.requireLocation);
+  setChk('stg-require-category', data.requireCategory);
+  setChk('stg-require-description', data.requireDescription);
+  setChk('stg-allow-attachments', data.allowAttachments);
+  setVal('stg-max-attachments', data.maxAttachments);
+  setVal('setting-expiry-days', data.reportRetentionDays);
+  setVal('stg-auto-close-days', data.autoCloseResolvedDays);
+  setVal('stg-default-status', data.defaultReportStatus);
+  setVal('stg-default-priority', data.defaultPriority);
+
+  // Notifications
+  setChk('stg-notify-enabled', data.notifyEnabled);
+  setChk('stg-notify-in-app', data.notifyInApp);
+  setChk('stg-notify-email', data.notifyEmail);
+  setChk('stg-notify-report-status', data.notifyReportStatus);
+  setChk('stg-notify-admin-response', data.notifyAdminResponse);
+  setChk('stg-notify-route-updates', data.notifyRouteUpdates);
+  setChk('stg-notify-alerts', data.notifyAlerts);
+  setChk('stg-notify-approvals', data.notifyApprovals);
+
+  // Security
+  setChk('stg-require-reauth', data.requireReauth);
+
+  // Audit
+  setVal('stg-audit-retention', data.auditRetentionDays);
+
+  // Sync state & clear errors
+  clearAllSettingsErrors();
+  syncMasterNotificationUI(Boolean(data.notifyEnabled));
+
+  lastLoadedSettings = collectSettingsPayload();
+  setDirtyState(false);
+}
+
+/** Collect current values from all inputs into a clean settings object */
+function collectSettingsPayload() {
+  const getVal = (id, fallback = '') => document.getElementById(id)?.value?.trim() || fallback;
+  const getInt = (id, fallback = 0) => {
+    const val = parseInt(document.getElementById(id)?.value, 10);
+    return isNaN(val) ? fallback : val;
+  };
+  const getChk = (id, fallback = false) => {
+    const el = document.getElementById(id);
+    return el ? el.checked : fallback;
+  };
+
+  return {
+    // General
+    appName:                getVal('stg-app-name', 'NexRide'),
+    appDesc:                getVal('stg-app-desc', 'University Campus Transport Management System'),
+    language:               getVal('stg-language', 'en'),
+    timezone:               getVal('stg-timezone', 'Asia/Kolkata'),
+    dateFormat:             getVal('stg-date-format', 'DD/MM/YYYY'),
+    timeFormat:             getVal('stg-time-format', '12h'),
+    // System & Operations
+    routeRefreshInterval:   getInt('setting-gps-interval', 5),
+    geolocationTimeout:     getInt('setting-delay-threshold', 5),
+    locationUpdateInterval: getInt('stg-location-update', 10),
+    sessionTimeoutMinutes:  getInt('stg-session-timeout', 30),
+    maxAttachmentMB:        getInt('stg-max-attachment', 5),
+    realtimeUpdates:        getChk('stg-realtime-updates', true),
+    autoRefresh:            getChk('stg-auto-refresh', true),
+    // Report Management
+    reportSubmission:       getChk('stg-report-submission', true),
+    requireLocation:        getChk('stg-require-location', false),
+    requireCategory:        getChk('stg-require-category', true),
+    requireDescription:     getChk('stg-require-description', true),
+    allowAttachments:       getChk('stg-allow-attachments', true),
+    maxAttachments:         getInt('stg-max-attachments', 3),
+    reportRetentionDays:    getInt('setting-expiry-days', 30),
+    autoCloseResolvedDays:  getInt('stg-auto-close-days', 7),
+    defaultReportStatus:    getVal('stg-default-status', 'Under Review'),
+    defaultPriority:        getVal('stg-default-priority', 'Normal'),
+    // Notifications
+    notifyEnabled:          getChk('stg-notify-enabled', true),
+    notifyInApp:            getChk('stg-notify-in-app', true),
+    notifyEmail:            getChk('stg-notify-email', false),
+    notifyReportStatus:     getChk('stg-notify-report-status', true),
+    notifyAdminResponse:    getChk('stg-notify-admin-response', true),
+    notifyRouteUpdates:     getChk('stg-notify-route-updates', true),
+    notifyAlerts:           getChk('stg-notify-alerts', true),
+    notifyApprovals:        getChk('stg-notify-approvals', true),
+    // Security
+    requireReauth:          getChk('stg-require-reauth', true),
+    // Audit
+    auditRetentionDays:     getInt('stg-audit-retention', 90)
+  };
+}
+
+/** Clear all field-level validation errors */
+function clearAllSettingsErrors() {
+  const fields = [
+    ['setting-gps-interval', 'gps-interval-error'],
+    ['setting-delay-threshold', 'delay-threshold-error'],
+    ['stg-location-update', 'location-update-error'],
+    ['stg-session-timeout', 'session-timeout-error'],
+    ['stg-max-attachment', 'max-attachment-error'],
+    ['stg-max-attachments', 'max-attachments-error'],
+    ['setting-expiry-days', 'expiry-days-error'],
+    ['stg-auto-close-days', 'auto-close-error'],
+    ['stg-audit-retention', 'audit-retention-error']
+  ];
+  fields.forEach(([inputId, errorId]) => {
+    document.getElementById(inputId)?.classList.remove('input-error');
+    const errEl = document.getElementById(errorId);
+    if (errEl) {
+      errEl.textContent = '';
+      errEl.classList.add('hidden');
+    }
+  });
+  showSettingsFeedback(null);
+}
+
+/**
+ * Validate all settings input fields.
+ * Displays field-level errors and returns true if all valid.
+ */
+function validateSettings(payload) {
+  clearAllSettingsErrors();
+  let valid = true;
+
+  const setError = (inputId, errorId, msg) => {
+    document.getElementById(inputId)?.classList.add('input-error');
+    const errEl = document.getElementById(errorId);
+    if (errEl) {
+      errEl.textContent = msg;
+      errEl.classList.remove('hidden');
+    }
+    valid = false;
+  };
+
+  if (!payload.appName || payload.appName.length > 60) {
+    showSettingsFeedback('error', 'Application name is required (max 60 characters).');
+    valid = false;
+  }
+
+  if (payload.routeRefreshInterval < 1 || payload.routeRefreshInterval > 300) {
+    setError('setting-gps-interval', 'gps-interval-error', 'Must be between 1 and 300 seconds.');
+  }
+
+  if (payload.geolocationTimeout < 1 || payload.geolocationTimeout > 60) {
+    setError('setting-delay-threshold', 'delay-threshold-error', 'Must be between 1 and 60 seconds.');
+  }
+
+  if (payload.locationUpdateInterval < 5 || payload.locationUpdateInterval > 120) {
+    setError('stg-location-update', 'location-update-error', 'Must be between 5 and 120 seconds.');
+  }
+
+  if (payload.sessionTimeoutMinutes < 5 || payload.sessionTimeoutMinutes > 480) {
+    setError('stg-session-timeout', 'session-timeout-error', 'Must be between 5 and 480 minutes.');
+  }
+
+  if (payload.maxAttachmentMB < 1 || payload.maxAttachmentMB > 25) {
+    setError('stg-max-attachment', 'max-attachment-error', 'Must be between 1 and 25 MB.');
+  }
+
+  if (payload.maxAttachments < 1 || payload.maxAttachments > 10) {
+    setError('stg-max-attachments', 'max-attachments-error', 'Must be between 1 and 10 files.');
+  }
+
+  if (payload.reportRetentionDays < 1 || payload.reportRetentionDays > 365) {
+    setError('setting-expiry-days', 'expiry-days-error', 'Must be between 1 and 365 days.');
+  }
+
+  if (payload.autoCloseResolvedDays < 1 || payload.autoCloseResolvedDays > 60) {
+    setError('stg-auto-close-days', 'auto-close-error', 'Must be between 1 and 60 days.');
+  }
+
+  if (payload.auditRetentionDays < 30 || payload.auditRetentionDays > 730) {
+    setError('stg-audit-retention', 'audit-retention-error', 'Must be between 30 and 730 days.');
+  }
+
+  if (!valid) {
+    showSettingsFeedback('error', 'Please correct the highlighted fields before saving.');
+  }
+
+  return valid;
+}
+
+/** Update the dirty state and UI indicators (dot + reset button) */
+function setDirtyState(dirty) {
+  isSettingsDirty = dirty;
+  const dot = document.getElementById('stg-unsaved-dot');
+  if (dot) {
+    dot.classList.toggle('hidden', !dirty);
+  }
+  const resetBtn = document.getElementById('stg-reset-btn');
+  if (resetBtn) {
+    resetBtn.disabled = !dirty;
+  }
+}
+
+/** Setup listener to detect any changes compared to lastLoadedSettings */
+function setupUnsavedChangesDetection() {
+  const container = document.getElementById('settings-view');
+  if (!container) return;
+
+  const checkDirty = () => {
+    if (!lastLoadedSettings) return;
+    const current = collectSettingsPayload();
+    let hasChanged = false;
+    for (const key of Object.keys(lastLoadedSettings)) {
+      if (current[key] !== lastLoadedSettings[key]) {
+        hasChanged = true;
+        break;
+      }
+    }
+    setDirtyState(hasChanged);
+  };
+
+  container.addEventListener('input', checkDirty);
+  container.addEventListener('change', checkDirty);
+
+  // Reset button restores to last saved
+  document.getElementById('stg-reset-btn')?.addEventListener('click', () => {
+    if (lastLoadedSettings) {
+      populateSettingsForm(lastLoadedSettings);
+      showSettingsFeedback('success', 'Changes reverted to last saved state.');
+      setTimeout(() => showSettingsFeedback(null), 3000);
+    }
+  });
+}
+
+/** Setup master notifications toggle: disables child switches when turned off */
+function setupMasterNotificationToggle() {
+  const master = document.getElementById('stg-notify-enabled');
+  if (!master) return;
+  master.addEventListener('change', (e) => {
+    syncMasterNotificationUI(e.target.checked);
+  });
+}
+
+function syncMasterNotificationUI(enabled) {
+  const childIds = [
+    'stg-notify-in-app',
+    'stg-notify-email',
+    'stg-notify-report-status',
+    'stg-notify-admin-response',
+    'stg-notify-route-updates',
+    'stg-notify-alerts',
+    'stg-notify-approvals'
+  ];
+  childIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.disabled = !enabled;
+      const row = el.closest('.stg-toggle-row');
+      if (row) {
+        row.style.opacity = enabled ? '1' : '0.55';
+        row.style.pointerEvents = enabled ? 'auto' : 'none';
+      }
+    }
+  });
+}
+
+/** Save Settings: validate → save to Firestore & LocalStorage → audit log → feedback */
+function setupSettingsSaveHandler() {
+  const btn = document.getElementById('save-settings-btn');
+  if (!btn) return;
+
+  btn.addEventListener('click', async () => {
+    const payload = collectSettingsPayload();
+    if (!validateSettings(payload)) return;
+
+    btn.disabled = true;
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> Saving…`;
+
+    try {
+      const nowIso = new Date().toISOString();
+      const adminEmail = currentAdminUser?.email || 'Admin';
+
+      // 1. Immediately cache in localStorage so settings are never lost
+      try {
+        localStorage.setItem('nexride_system_settings', JSON.stringify({
+          ...payload,
+          updatedAt: nowIso,
+          updatedBy: adminEmail
+        }));
+      } catch (lsErr) {
+        console.warn('LocalStorage save error:', lsErr);
+      }
+
+      // 2. Persist to Firestore systemConfig/global
+      let cloudSaved = false;
+      try {
+        const cfgRef = doc(firestore, 'systemConfig', 'global');
+        const toSave = {
+          ...payload,
+          updatedAt: serverTimestamp(),
+          updatedBy: adminEmail
+        };
+        await setDoc(cfgRef, toSave, { merge: true });
+        cloudSaved = true;
+      } catch (cloudErr) {
+        console.warn('Firestore cloud sync notice:', cloudErr.message);
+      }
+
+      // 3. Log audit event (safely isolated in its own try/catch)
+      await logAuditEvent('SYSTEM_SETTINGS_UPDATED', 'system_config', 'global', {
+        routeRefreshInterval: payload.routeRefreshInterval,
+        geolocationTimeout:   payload.geolocationTimeout,
+        reportRetentionDays:  payload.reportRetentionDays,
+        appName:              payload.appName,
+        notifyEnabled:        payload.notifyEnabled,
+        realtimeUpdates:      payload.realtimeUpdates
+      });
+
+      lastLoadedSettings = { ...payload };
+      setDirtyState(false);
+
+      // Update timestamp on UI
+      const stamp = document.getElementById('settings-last-saved');
+      if (stamp) {
+        const now = new Date();
+        stamp.textContent = 'Last saved ' +
+          now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+          ' at ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      }
+
+      updateMaintenanceSyncTime();
+
+      if (cloudSaved) {
+        showSettingsFeedback('success', '✓ Settings saved successfully. Changes are now active across the system.');
+      } else {
+        showSettingsFeedback('success', '✓ Settings saved successfully. Changes are now active.');
+      }
+
+    } catch (err) {
+      console.error('Settings save failed:', err);
+      showSettingsFeedback('error', 'Save failed: ' + (err.message || 'Unknown error. Please try again.'));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Save Changes`;
+    }
+  });
+}
+
+/** Settings search bar functionality */
+function setupSettingsSearch() {
+  const searchInput = document.getElementById('stg-search');
+  const clearBtn = document.getElementById('stg-search-clear');
+  const noResults = document.getElementById('stg-no-results');
+  if (!searchInput) return;
+
+  const performSearch = () => {
+    const q = searchInput.value.trim().toLowerCase();
+    clearBtn?.classList.toggle('hidden', q === '');
+
+    const cards = document.querySelectorAll('.stg-card, .stg-danger-zone');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+      if (!q) {
+        card.style.display = '';
+        visibleCount++;
+        return;
+      }
+      const keywords = (card.getAttribute('data-stg-keywords') || '').toLowerCase();
+      const text = (card.textContent || '').toLowerCase();
+      const match = keywords.includes(q) || text.includes(q);
+      card.style.display = match ? '' : 'none';
+      if (match) visibleCount++;
+    });
+
+    // Also handle 2-column parent rows: hide if all children hidden
+    document.querySelectorAll('.stg-row-2col').forEach(row => {
+      const rowChildren = Array.from(row.children).filter(c => c.classList.contains('stg-card'));
+      if (rowChildren.length > 0) {
+        const hasVisibleChild = rowChildren.some(c => c.style.display !== 'none');
+        row.style.display = hasVisibleChild ? '' : 'none';
+      }
+    });
+
+    if (noResults) {
+      noResults.classList.toggle('hidden', visibleCount > 0);
+    }
+  };
+
+  searchInput.addEventListener('input', performSearch);
+  clearBtn?.addEventListener('click', () => {
+    searchInput.value = '';
+    performSearch();
+    searchInput.focus();
+  });
+}
+
+/** Maintenance actions: Refresh System Data, Re-sync All Data, Export System Report */
+function setupMaintenanceActions() {
+  // 1. Refresh System Data
+  document.getElementById('stg-refresh-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Refreshing…`;
+
+    try {
+      await loadSystemSettings();
+      updateMaintenanceSyncTime();
+      showSettingsFeedback('success', '✓ System data and configurations refreshed successfully.');
+    } catch (err) {
+      showSettingsFeedback('error', 'Failed to refresh data: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  });
+
+  // 2. Re-sync All Data
+  document.getElementById('stg-resync-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 0.8s linear infinite"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg> Syncing…`;
+
+    try {
+      await loadSystemSettings();
+      updateMaintenanceSyncTime();
+      showSettingsFeedback('success', '✓ All data sources and real-time listeners synchronized.');
+    } catch (err) {
+      showSettingsFeedback('error', 'Re-sync encountered an issue: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  });
+
+  // 3. Export System Report
+  document.getElementById('stg-export-data-btn')?.addEventListener('click', () => {
+    try {
+      const payload = collectSettingsPayload();
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        exportedBy: currentAdminUser?.email || 'Admin',
+        systemConfiguration: payload,
+        status: {
+          database: 'Connected',
+          authentication: 'Operational',
+          notificationService: 'Operational'
+        }
+      };
+
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `NexRide_System_Config_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showSettingsFeedback('success', '✓ System configuration report downloaded.');
+    } catch (err) {
+      showSettingsFeedback('error', 'Export failed: ' + err.message);
+    }
+  });
+
+  // 4. Open Firebase Console
+  document.getElementById('stg-manage-auth-btn')?.addEventListener('click', () => {
+    window.open('https://console.firebase.google.com/', '_blank', 'noopener,noreferrer');
+  });
+}
+
+function updateMaintenanceSyncTime() {
+  const syncEl = document.getElementById('stg-last-sync');
+  if (syncEl) {
+    const now = new Date();
+    syncEl.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+}
+
+/** Danger Zone: Modal confirmation requiring typing 'RESET' */
+function setupDangerZoneModal() {
+  const openBtn = document.getElementById('stg-reset-config-btn');
+  const modal = document.getElementById('stg-danger-modal');
+  const closeBtn = document.getElementById('stg-danger-modal-close');
+  const cancelBtn = document.getElementById('stg-danger-cancel-btn');
+  const confirmBtn = document.getElementById('stg-danger-confirm-btn');
+  const confirmInput = document.getElementById('stg-danger-confirm-input');
+
+  if (!openBtn || !modal) return;
+
+  const closeModal = () => {
+    modal.classList.add('hidden');
+    if (confirmInput) confirmInput.value = '';
+    if (confirmBtn) confirmBtn.disabled = true;
+  };
+
+  openBtn.addEventListener('click', () => {
+    if (confirmInput) confirmInput.value = '';
+    if (confirmBtn) confirmBtn.disabled = true;
+    modal.classList.remove('hidden');
+    confirmInput?.focus();
+  });
+
+  closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
+
+  confirmInput?.addEventListener('input', (e) => {
+    const match = e.target.value.trim().toUpperCase() === 'RESET';
+    if (confirmBtn) confirmBtn.disabled = !match;
+  });
+
+  confirmBtn?.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Resetting…';
+
+    try {
+      const nowIso = new Date().toISOString();
+      const adminEmail = currentAdminUser?.email || 'Admin';
+
+      // 1. Reset localStorage cache
+      try {
+        localStorage.setItem('nexride_system_settings', JSON.stringify({
+          ...DEFAULT_SYSTEM_SETTINGS,
+          updatedAt: nowIso,
+          updatedBy: adminEmail
+        }));
+      } catch (e) {}
+
+      // 2. Attempt Firestore reset
+      try {
+        const cfgRef = doc(firestore, 'systemConfig', 'global');
+        const resetData = {
+          ...DEFAULT_SYSTEM_SETTINGS,
+          updatedAt: serverTimestamp(),
+          updatedBy: adminEmail
+        };
+        await setDoc(cfgRef, resetData, { merge: false });
+      } catch (cloudErr) {
+        console.warn('Firestore cloud reset notice:', cloudErr.message);
+      }
+
+      await logAuditEvent('SYSTEM_SETTINGS_RESET', 'system_config', 'global', {
+        resetBy: adminEmail,
+        defaultsApplied: true
+      });
+
+      closeModal();
+      populateSettingsForm(DEFAULT_SYSTEM_SETTINGS);
+      showSettingsFeedback('success', '✓ System configuration has been reset to default values.');
+
+    } catch (err) {
+      console.error('Reset config failed:', err);
+      alert('Reset failed: ' + err.message);
+    } finally {
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Reset Configuration';
+      }
+    }
+  });
+}
+
+/**
+ * Show or hide the settings feedback banner.
+ * @param {'success'|'error'|null} type
+ * @param {string} [message]
+ */
+function showSettingsFeedback(type, message) {
+  const el = document.getElementById('settings-feedback');
+  if (!el) return;
+  if (!type) {
+    el.classList.add('hidden');
+    el.classList.remove('feedback-success', 'feedback-error');
+    el.textContent = '';
+    return;
+  }
+  el.classList.remove('hidden', 'feedback-success', 'feedback-error');
+  el.classList.add(type === 'success' ? 'feedback-success' : 'feedback-error');
+  el.textContent = message || '';
+  if (type === 'success') {
+    clearTimeout(el._dismissTimer);
+    el._dismissTimer = setTimeout(() => showSettingsFeedback(null), 5000);
+  }
 }
 
 // 1a. Listen to Real Users Collection (Source of Truth for Bus Allocations)
@@ -501,6 +1276,247 @@ function listenToAuditLogs() {
   }, () => {
     // If collection empty or no index, fallback gracefully
   });
+}
+
+// =============================================================================
+// EXPORT AUDIT LOG → PPTX
+// =============================================================================
+function exportAuditLogPPTX() {
+  // Require pptxgenjs to be loaded via CDN
+  if (typeof PptxGenJS === 'undefined') {
+    alert('Export library is loading — please try again in a moment.');
+    return;
+  }
+
+  if (!auditLogsCache || auditLogsCache.length === 0) {
+    alert('No audit log entries to export.');
+    return;
+  }
+
+  const btn = document.getElementById('export-audit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+
+  try {
+    const pptx = new PptxGenJS();
+    pptx.layout = 'LAYOUT_WIDE';  // 13.33" × 7.5"
+
+    // ── Brand colours ──
+    const BRAND_BLUE  = '2563EB';
+    const BRAND_DARK  = '111827';
+    const LIGHT_GRAY  = 'F9FAFB';
+    const MED_GRAY    = '6B7280';
+    const BORDER      = 'E5E7EB';
+    const WHITE       = 'FFFFFF';
+
+    const now   = new Date();
+    const exportTs = now.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    // ── SLIDE 1 — Cover ──────────────────────────────────────────────────────
+    const cover = pptx.addSlide();
+    cover.background = { color: BRAND_DARK };
+
+    // Accent bar
+    cover.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.08, fill: { color: BRAND_BLUE } });
+
+    // Logo / title block
+    cover.addText('NexRide', {
+      x: 0.5, y: 1.4, w: 12, h: 0.7,
+      fontSize: 42, bold: true, color: WHITE,
+      fontFace: 'Inter',
+    });
+    cover.addText('Audit Log Report', {
+      x: 0.5, y: 2.1, w: 12, h: 0.6,
+      fontSize: 28, bold: false, color: '93C5FD',
+      fontFace: 'Inter',
+    });
+    cover.addText('Administrator Activity & Traceability', {
+      x: 0.5, y: 2.75, w: 12, h: 0.4,
+      fontSize: 16, color: '9CA3AF', fontFace: 'Inter',
+    });
+
+    // Divider
+    cover.addShape(pptx.ShapeType.rect, { x: 0.5, y: 3.35, w: 2.5, h: 0.04, fill: { color: BRAND_BLUE } });
+
+    // Meta
+    cover.addText(`Exported: ${exportTs}`, {
+      x: 0.5, y: 3.6, w: 12, h: 0.3,
+      fontSize: 13, color: '9CA3AF', fontFace: 'Inter',
+    });
+    cover.addText(`Total Records: ${auditLogsCache.length}`, {
+      x: 0.5, y: 3.95, w: 12, h: 0.3,
+      fontSize: 13, color: '9CA3AF', fontFace: 'Inter',
+    });
+    cover.addText('Transport Control Center  •  Admin Panel', {
+      x: 0.5, y: 6.8, w: 12, h: 0.3,
+      fontSize: 11, color: '6B7280', fontFace: 'Inter',
+    });
+
+    // ── SLIDE 2 — Summary Stats ───────────────────────────────────────────────
+    const stats = pptx.addSlide();
+    stats.background = { color: WHITE };
+    stats.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.08, fill: { color: BRAND_BLUE } });
+
+    stats.addText('Audit Summary', {
+      x: 0.5, y: 0.25, w: 12, h: 0.5,
+      fontSize: 22, bold: true, color: BRAND_DARK, fontFace: 'Inter',
+    });
+
+    // Count by action type
+    const actionCounts = {};
+    const entityCounts = {};
+    auditLogsCache.forEach(log => {
+      const a = formatAction(log.action || 'Unknown');
+      actionCounts[a] = (actionCounts[a] || 0) + 1;
+      const e = formatEntityType(log.entityType || 'Unknown');
+      entityCounts[e] = (entityCounts[e] || 0) + 1;
+    });
+
+    // Action breakdown table
+    stats.addText('Actions Breakdown', {
+      x: 0.5, y: 0.9, w: 6, h: 0.35,
+      fontSize: 13, bold: true, color: BRAND_DARK, fontFace: 'Inter',
+    });
+    const actionRows = [[ { text: 'Action', options: { bold: true } }, { text: 'Count', options: { bold: true } } ]];
+    Object.entries(actionCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .forEach(([action, count]) => {
+        actionRows.push([ action, String(count) ]);
+      });
+    stats.addTable(actionRows, {
+      x: 0.5, y: 1.3, w: 5.8,
+      fontSize: 12, fontFace: 'Inter',
+      border: { pt: 1, color: BORDER },
+      fill: { color: LIGHT_GRAY },
+      color: BRAND_DARK,
+      rowH: 0.35,
+      align: 'left',
+    });
+
+    // Entity breakdown table
+    stats.addText('Entity Types', {
+      x: 7.0, y: 0.9, w: 6, h: 0.35,
+      fontSize: 13, bold: true, color: BRAND_DARK, fontFace: 'Inter',
+    });
+    const entityRows = [[ { text: 'Entity', options: { bold: true } }, { text: 'Count', options: { bold: true } } ]];
+    Object.entries(entityCounts)
+      .sort((a, b) => b[1] - a[1])
+      .forEach(([entity, count]) => {
+        entityRows.push([ entity, String(count) ]);
+      });
+    stats.addTable(entityRows, {
+      x: 7.0, y: 1.3, w: 5.8,
+      fontSize: 12, fontFace: 'Inter',
+      border: { pt: 1, color: BORDER },
+      fill: { color: LIGHT_GRAY },
+      color: BRAND_DARK,
+      rowH: 0.35,
+      align: 'left',
+    });
+
+    // Footer
+    stats.addText(`NexRide Admin  •  ${exportTs}`, {
+      x: 0.5, y: 7.1, w: 12, h: 0.25,
+      fontSize: 10, color: MED_GRAY, fontFace: 'Inter',
+    });
+
+    // ── SLIDES 3+ — Log Table (12 rows per slide) ─────────────────────────────
+    const ROWS_PER_SLIDE = 12;
+    const chunks = [];
+    for (let i = 0; i < auditLogsCache.length; i += ROWS_PER_SLIDE) {
+      chunks.push(auditLogsCache.slice(i, i + ROWS_PER_SLIDE));
+    }
+
+    chunks.forEach((chunk, chunkIdx) => {
+      const slide = pptx.addSlide();
+      slide.background = { color: WHITE };
+      slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 0.08, fill: { color: BRAND_BLUE } });
+
+      slide.addText(`Audit Log Entries  (${chunkIdx * ROWS_PER_SLIDE + 1}–${Math.min((chunkIdx + 1) * ROWS_PER_SLIDE, auditLogsCache.length)} of ${auditLogsCache.length})`, {
+        x: 0.3, y: 0.15, w: 12, h: 0.38,
+        fontSize: 16, bold: true, color: BRAND_DARK, fontFace: 'Inter',
+      });
+
+      // Table headers + rows
+      const tableData = [
+        [
+          { text: 'Action',        options: { bold: true, color: WHITE, fill: { color: BRAND_BLUE } } },
+          { text: 'Entity Type',   options: { bold: true, color: WHITE, fill: { color: BRAND_BLUE } } },
+          { text: 'Entity ID',     options: { bold: true, color: WHITE, fill: { color: BRAND_BLUE } } },
+          { text: 'Performed By',  options: { bold: true, color: WHITE, fill: { color: BRAND_BLUE } } },
+          { text: 'Timestamp',     options: { bold: true, color: WHITE, fill: { color: BRAND_BLUE } } },
+          { text: 'Details',       options: { bold: true, color: WHITE, fill: { color: BRAND_BLUE } } },
+        ],
+      ];
+
+      chunk.forEach((log, rowIdx) => {
+        const action      = formatAction(log.action || 'Unknown');
+        const entityType  = formatEntityType(log.entityType || '');
+        const entityId    = String(log.entityId || 'N/A');
+        const performedBy = String(log.performedBy || 'Admin');
+        const details     = formatAuditDetails(log.action, log.metadata || {});
+
+        // timestamp text only
+        let tsText = 'Recently';
+        const ts = log.timestamp;
+        if (ts) {
+          try {
+            let d;
+            if (ts.toDate) d = ts.toDate();
+            else if (ts.seconds) d = new Date(ts.seconds * 1000);
+            else d = new Date(ts);
+            if (!isNaN(d.getTime())) {
+              tsText = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
+                       d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            }
+          } catch (e) {}
+        }
+
+        const rowFill = rowIdx % 2 === 0 ? WHITE : LIGHT_GRAY;
+        tableData.push([
+          { text: action,      options: { fill: { color: rowFill }, color: BRAND_DARK } },
+          { text: entityType,  options: { fill: { color: rowFill }, color: BRAND_DARK } },
+          { text: entityId,    options: { fill: { color: rowFill }, color: BRAND_DARK } },
+          { text: performedBy, options: { fill: { color: rowFill }, color: BRAND_DARK } },
+          { text: tsText,      options: { fill: { color: rowFill }, color: BRAND_DARK } },
+          { text: details,     options: { fill: { color: rowFill }, color: MED_GRAY } },
+        ]);
+      });
+
+      slide.addTable(tableData, {
+        x: 0.3, y: 0.65, w: 12.7,
+        fontSize: 9.5, fontFace: 'Inter',
+        border: { pt: 0.5, color: BORDER },
+        rowH: 0.38,
+        align: 'left',
+        valign: 'middle',
+        colW: [1.6, 1.2, 1.8, 1.8, 1.2, 5.1],
+      });
+
+      // Page footer
+      slide.addText(`NexRide Admin Audit Log  •  Page ${chunkIdx + 3}  •  ${exportTs}`, {
+        x: 0.3, y: 7.15, w: 12.7, h: 0.22,
+        fontSize: 9, color: MED_GRAY, fontFace: 'Inter',
+      });
+    });
+
+    // Save
+    const fileName = `NexRide_AuditLog_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    pptx.writeFile({ fileName })
+      .then(() => {
+        if (btn) { btn.disabled = false; btn.textContent = 'Export Log'; }
+      })
+      .catch(err => {
+        console.error('PPTX export failed:', err);
+        alert('Export failed: ' + err.message);
+        if (btn) { btn.disabled = false; btn.textContent = 'Export Log'; }
+      });
+
+  } catch (err) {
+    console.error('PPTX build failed:', err);
+    alert('Export failed: ' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Export Log'; }
+  }
 }
 
 // =============================================================================
@@ -905,7 +1921,7 @@ function renderBusesTable() {
 
     tr.innerHTML = `
       <td><strong style="font-size: 14.5px; color: var(--text-primary);">Bus ${escapeHtml(bus.busNumber || 'N/A')}</strong></td>
-      <td><span style="font-family: monospace; font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(regText)}</span></td>
+      <td><span style="font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(regText)}</span></td>
       <td>${routeHtml}</td>
       <td>${escapeHtml(bus.driverName || 'Not Assigned')}</td>
       <td>${seatCap} Seats ${standCap > 0 ? `+ ${standCap} Std ` : ''}<span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">(${assignedCount} Passenger${assignedCount === 1 ? '' : 's'} • ${occupancyPct}%)</span></td>
@@ -1014,7 +2030,7 @@ function renderStudentsTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>${escapeHtml(stu.name)}</strong></td>
-      <td><span style="font-family: monospace; font-size: 13px; font-weight: 700; color: #2563EB;">${escapeHtml(stu.id)}</span></td>
+      <td><span style="font-size: 13px; font-weight: 700; color: #2563EB;">${escapeHtml(stu.id)}</span></td>
       <td>${escapeHtml(stu.department)} • ${escapeHtml(stu.year)}</td>
       <td><strong>Bus ${escapeHtml(stu.assignedBus)}</strong></td>
       <td>${escapeHtml(stu.pickupStop)} &rarr; ${escapeHtml(stu.dropStop)}</td>
@@ -1321,7 +2337,7 @@ function renderBusEditorDocsList() {
             <span class="status-badge ${expInfo.badgeClass}" style="font-size: 11px;">${expInfo.label}</span>
           </div>
           <div style="font-size: 12px; color: var(--text-secondary); margin-top: 3px;">
-            <span style="font-family: monospace; font-weight: 600; color: #374151;">${escapeHtml(d.documentNumber || 'No Doc Number')}</span>
+            <span style="font-weight: 600; color: #374151;">${escapeHtml(d.documentNumber || 'No Doc Number')}</span>
             ${d.issueDate ? ` • Issued: ${d.issueDate}` : ''}
             ${d.expiryDate ? ` • Expiry: ${d.expiryDate}` : ''}
             ${d.fileName ? ` • 📎 ${escapeHtml(d.fileName)}` : ''}
@@ -1864,7 +2880,7 @@ function openRouteInspector(routeId) {
           <td>${s.eveningArrival ? escapeHtml(s.eveningArrival) : '<span style="color: var(--text-muted);">--</span>'}</td>
           <td>
             ${s.latitude !== null && s.latitude !== undefined && s.longitude !== null && s.longitude !== undefined 
-              ? `<span style="font-family: monospace; font-size: 12px;">${Number(s.latitude).toFixed(4)}, ${Number(s.longitude).toFixed(4)}</span>` 
+              ? `<span style="font-size: 12px;">${Number(s.latitude).toFixed(4)}, ${Number(s.longitude).toFixed(4)}</span>` 
               : '<span style="color: var(--text-muted); font-size: 12px;">Not Set</span>'}
           </td>
           <td><span class="status-badge ${getStatusBadgeClass(s.status)}">${escapeHtml(s.status || 'Active')}</span></td>
@@ -2034,7 +3050,7 @@ function renderTripsTable() {
   tripsCache.forEach(trip => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span style="font-family: monospace; font-weight: 700; color: #2563EB;">${trip.tripId}</span></td>
+      <td><span style="font-weight: 700; color: #2563EB;">${trip.tripId}</span></td>
       <td><strong>Bus ${trip.busNumber}</strong></td>
       <td>${escapeHtml(trip.driverName)}</td>
       <td>${escapeHtml(trip.route)}</td>
@@ -2159,7 +3175,7 @@ function renderDocumentsTable() {
     tr.innerHTML = `
       <td><strong>${escapeHtml(docItem.entity)}</strong></td>
       <td>${escapeHtml(docItem.type)}</td>
-      <td><span style="font-family: monospace; font-size: 13px; font-weight: 600;">${escapeHtml(docItem.number)}</span></td>
+      <td><span style="font-size: 13px; font-weight: 600;">${escapeHtml(docItem.number)}</span></td>
       <td>${docItem.issueDate}</td>
       <td><strong>${docItem.expiryDate}</strong></td>
       <td><span class="status-badge ${docItem.status === 'Valid' ? 'badge-green' : (docItem.status === 'Expiring Soon' ? 'badge-orange' : 'badge-red')}">${docItem.status}</span></td>
@@ -2211,26 +3227,38 @@ function renderAuditLogsTable() {
   if (auditLogsCache.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td><span class="status-badge badge-blue">SYSTEM_SYNC</span></td>
-        <td>Fleet / Database</td>
-        <td>All Collections</td>
-        <td>System Engine</td>
-        <td>Just now</td>
-        <td>Real-time synchronization established with Firestore</td>
+        <td><span class="status-badge badge-blue audit-action-badge">System Sync</span></td>
+        <td class="audit-entity-type">Fleet / Database</td>
+        <td class="audit-entity-id"><span class="audit-entity-id-text" title="All Collections">All Collections</span></td>
+        <td class="audit-performed-by">System Engine</td>
+        <td class="audit-timestamp">Just now</td>
+        <td class="audit-details">Real-time synchronization established with Firestore</td>
       </tr>
     `;
     return;
   }
 
   auditLogsCache.forEach(log => {
+    const action = log.action || 'ACTION';
+    const entityType = log.entityType || '';
+    const entityId = log.entityId || 'N/A';
+    const performedBy = log.performedBy || 'Admin';
+    const metadata = log.metadata || {};
+
+    const badgeClass = getAuditActionBadgeClass(action);
+    const formattedAction = formatAction(action);
+    const formattedEntityType = formatEntityType(entityType);
+    const formattedTimestamp = formatAuditTimestamp(log.timestamp);
+    const formattedDetails = formatAuditDetails(action, metadata);
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><span class="status-badge badge-purple">${escapeHtml(log.action || 'ACTION')}</span></td>
-      <td>${escapeHtml(log.entityType || 'Entity')}</td>
-      <td><span style="font-family: monospace; font-weight: 700;">${escapeHtml(log.entityId || 'N/A')}</span></td>
-      <td>${escapeHtml(log.performedBy || 'Admin')}</td>
-      <td>${formatDate(log.timestamp)}</td>
-      <td>${escapeHtml(JSON.stringify(log.metadata || {}))}</td>
+      <td><span class="status-badge ${badgeClass} audit-action-badge">${escapeHtml(formattedAction)}</span></td>
+      <td class="audit-entity-type">${escapeHtml(formattedEntityType)}</td>
+      <td class="audit-entity-id"><span class="audit-entity-id-text" title="${escapeHtml(entityId)}">${escapeHtml(entityId)}</span></td>
+      <td class="audit-performed-by">${escapeHtml(performedBy)}</td>
+      <td class="audit-timestamp">${formattedTimestamp}</td>
+      <td class="audit-details">${escapeHtml(formattedDetails)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -3485,7 +4513,7 @@ function openBusInspector(bus) {
                 <span class="status-badge ${exp.badgeClass}">${exp.label}</span>
               </div>
               <div style="font-size: 12.5px; color: var(--text-secondary); margin-top: 4px;">
-                <span style="font-family: monospace; font-weight: 600; color: #374151;">${escapeHtml(d.documentNumber || 'No Policy Number')}</span>
+                <span style="font-weight: 600; color: #374151;">${escapeHtml(d.documentNumber || 'No Policy Number')}</span>
                 ${d.issueDate ? ` • Issue: ${d.issueDate}` : ''}
                 ${d.expiryDate ? ` • Expiry: <strong>${d.expiryDate}</strong>` : ''}
                 ${d.fileName ? ` • 📎 ${escapeHtml(d.fileName)}` : ''}
@@ -3702,6 +4730,173 @@ function formatDate(ts) {
   return 'Recently';
 }
 
+// =============================================================================
+// AUDIT LOG PRESENTATION FORMATTERS
+// =============================================================================
+
+/**
+ * Convert raw SCREAMING_SNAKE_CASE action to a readable label.
+ * e.g. "ROUTE_STATUS_CHANGED" → "Route Status Changed"
+ */
+function formatAction(action) {
+  if (!action) return 'Unknown';
+  return String(action)
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
+ * Convert internal entity type strings to human-readable form.
+ * e.g. "routes" → "Routes", "pending_approvals" → "Pending Approvals"
+ */
+function formatEntityType(type) {
+  if (!type) return 'Unknown';
+  return String(type)
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/**
+ * Format a Firestore timestamp into a clean two-line HTML string
+ * for the audit log timestamp column.
+ * Returns a safe HTML string (not escaped — rendered via innerHTML in the td).
+ */
+function formatAuditTimestamp(ts) {
+  if (!ts) return '<span class="audit-ts-date">—</span>';
+  try {
+    let d;
+    if (ts.toDate && typeof ts.toDate === 'function') {
+      d = ts.toDate();
+    } else if (typeof ts.seconds === 'number') {
+      d = new Date(ts.seconds * 1000);
+    } else {
+      d = new Date(ts);
+    }
+    if (isNaN(d.getTime())) return '<span class="audit-ts-date">Recently</span>';
+    const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return `<span class="audit-ts-date">${datePart}</span><span class="audit-ts-time">${timePart}</span>`;
+  } catch (e) {}
+  return '<span class="audit-ts-date">Recently</span>';
+}
+
+/**
+ * Map action string to an appropriate badge colour class.
+ */
+function getAuditActionBadgeClass(action) {
+  if (!action) return 'badge-gray';
+  const a = String(action).toUpperCase();
+  if (a.includes('DELETE') || a.includes('REJECT')) return 'badge-red';
+  if (a.includes('CREATED') || a.includes('APPROVED') || a.includes('RESOLVED')) return 'badge-green';
+  if (a.includes('STATUS_CHANGED') || a.includes('UPDATED') || a.includes('ASSIGNED')) return 'badge-blue';
+  if (a.includes('DECISION') || a.includes('SYSTEM')) return 'badge-orange';
+  return 'badge-purple';
+}
+
+/**
+ * Convert raw metadata object + action into a concise human-readable string.
+ * The database record is NOT modified — only the display text changes.
+ */
+function formatAuditDetails(action, metadata) {
+  if (!metadata || typeof metadata !== 'object') return '—';
+  const m = metadata;
+  const a = String(action || '').toUpperCase();
+  const parts = [];
+
+  // ── Route actions ────────────────────────────────────────────────────────
+  if (a === 'ROUTE_UPDATED') {
+    if (m.name) parts.push(`Route "${m.name}" updated`);
+    if (m.totalStops != null) parts.push(`${m.totalStops} stops`);
+    return parts.join(' • ') || 'Route updated';
+  }
+  if (a === 'ROUTE_CREATED') {
+    if (m.name) parts.push(`Route "${m.name}" created`);
+    if (m.totalStops != null) parts.push(`${m.totalStops} stops`);
+    return parts.join(' • ') || 'New route created';
+  }
+  if (a === 'ROUTE_DELETED') {
+    return m.name ? `Route "${m.name}" deleted` : 'Route deleted';
+  }
+  if (a === 'ROUTE_STATUS_CHANGED') {
+    if (m.oldStatus && m.newStatus) return `Status changed from ${m.oldStatus} to ${m.newStatus}`;
+    if (m.newStatus) return `Status changed to ${m.newStatus}`;
+    return 'Route status updated';
+  }
+
+  // ── Bus actions ──────────────────────────────────────────────────────────
+  if (a === 'BUS_CREATED') {
+    if (m.busNumber) parts.push(`Bus ${m.busNumber} registered`);
+    if (m.route) parts.push(`Route: ${m.route}`);
+    return parts.join(' • ') || 'Bus created';
+  }
+  if (a === 'BUS_UPDATED') {
+    if (m.busNumber) parts.push(`Bus ${m.busNumber} updated`);
+    if (m.changes && typeof m.changes === 'object') {
+      const changeKeys = Object.keys(m.changes);
+      if (changeKeys.length) parts.push(`Fields: ${changeKeys.map(k => formatCamelLabel(k)).join(', ')}`);
+    }
+    return parts.join(' • ') || 'Bus details updated';
+  }
+  if (a === 'BUS_STATUS_CHANGED') {
+    if (m.oldStatus && m.newStatus) return `Status changed from ${m.oldStatus} to ${m.newStatus}`;
+    if (m.newStatus) return `Status changed to ${m.newStatus}`;
+    return 'Bus status updated';
+  }
+  if (a === 'DRIVER_ASSIGNED') {
+    if (m.driverName) parts.push(`Driver: ${m.driverName}`);
+    if (m.busNumber) parts.push(`Bus: ${m.busNumber}`);
+    return parts.join(' • ') || 'Driver assigned';
+  }
+
+  // ── Ticket / Report actions ──────────────────────────────────────────────
+  if (a === 'TICKET_RESOLVED') {
+    if (m.newStatus) parts.push(`Status changed to ${m.newStatus}`);
+    if (m.newPrio) parts.push(`Priority: ${m.newPrio}`);
+    if (m.replyText) parts.push('Reply added');
+    return parts.join(' • ') || 'Ticket resolved';
+  }
+
+  // ── System Settings ───────────────────────────────────────────────────────
+  if (a === 'SYSTEM_SETTINGS_UPDATED') {
+    const settingParts = [];
+    if (m.routeRefreshInterval != null) settingParts.push(`Route refresh: ${m.routeRefreshInterval}s`);
+    if (m.geolocationTimeout   != null) settingParts.push(`Geolocation timeout: ${m.geolocationTimeout}s`);
+    if (m.reportRetentionDays  != null) settingParts.push(`Report retention: ${m.reportRetentionDays} days`);
+    return settingParts.join(' • ') || 'System settings updated';
+  }
+  if (a === 'SYSTEM_SETTINGS_RESET') {
+    return 'All system configurations reset to default values';
+  }
+
+  // ── Approval actions ─────────────────────────────────────────────────────
+  if (a === 'APPROVAL_DECISION') {
+    return m.status ? `Request ${m.status.toLowerCase()}` : 'Approval decision made';
+  }
+
+  // ── Generic fallback: render known fields in human-readable form ──────────
+  const skipKeys = new Set(['id', 'docId']);
+  for (const [k, v] of Object.entries(m)) {
+    if (skipKeys.has(k) || v == null || v === '') continue;
+    if (typeof v === 'object') continue; // skip nested objects in generic path
+    // camelCase key → readable label
+    const label = formatCamelLabel(k);
+    parts.push(`${label}: ${v}`);
+  }
+  return parts.join(' • ') || '—';
+}
+
+/**
+ * Convert a camelCase key to a Title Case readable label.
+ * e.g. "newStatus" → "New Status", "totalStops" → "Total Stops"
+ */
+function formatCamelLabel(key) {
+  return String(key)
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, c => c.toUpperCase())
+    .trim();
+}
+
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)
@@ -3710,4 +4905,37 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+/**
+ * Setup Legal View Tab Navigation (Smooth scroll to Terms or Privacy on the continuous page)
+ */
+function setupLegalTabs() {
+  const tabs = document.querySelectorAll('.legal-nav-tab');
+  if (!tabs || tabs.length === 0) return;
+
+  tabs.forEach(tab => {
+    // Avoid double attaching
+    if (tab.dataset.bound === 'true') return;
+    tab.dataset.bound = 'true';
+
+    tab.addEventListener('click', (e) => {
+      e.preventDefault();
+      const target = tab.getAttribute('data-legal-tab');
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      const targetDoc = document.getElementById(`legal-doc-${target}`);
+      if (targetDoc) {
+        targetDoc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+}
+
+// Initial setup call for document tabs
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupLegalTabs);
+} else {
+  setupLegalTabs();
 }

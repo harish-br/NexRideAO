@@ -184,7 +184,16 @@ service cloud.firestore {
     // 8. Audit Logs
     // ==========================================
     match /auditLogs/{logId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if isAuthenticated();
+    }
+
+    // ==========================================
+    // 9. System Configuration
+    // ==========================================
+    match /systemConfig/{document=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
   }
 }

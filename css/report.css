@@ -1047,7 +1047,6 @@ input[type="datetime-local"].report-text-input:focus {
   font-size: 20px;
   font-weight: 800;
   color: #2563EB;
-  font-family: monospace, sans-serif;
   letter-spacing: 0.5px;
 }
 
@@ -1210,7 +1209,6 @@ input[type="datetime-local"].report-text-input:focus {
   font-size: 13px;
   font-weight: 800;
   color: #2563EB;
-  font-family: monospace;
 }
 
 .my-report-card-title {
