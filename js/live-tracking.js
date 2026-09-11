@@ -2,6 +2,41 @@ import { firestore } from './firebase-config.js';
 import { doc, getDoc, collection, query, where, onSnapshot, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 
+// Fetch stops from the admin-created routes collection.
+// Returns the stops array or null if no route is found.
+async function fetchAdminRouteStops(assignedRouteId, routeName) {
+    try {
+        // 1. Try direct lookup by assignedRouteId first (most reliable)
+        if (assignedRouteId) {
+            const routeSnap = await getDoc(doc(firestore, 'routes', assignedRouteId));
+            if (routeSnap.exists()) {
+                const routeData = routeSnap.data();
+                if (Array.isArray(routeData.stops) && routeData.stops.length > 0) {
+                    console.log('[LiveTracking] Stops loaded from routes collection (by ID):', assignedRouteId);
+                    return routeData.stops;
+                }
+            }
+        }
+
+        // 2. Fall back to querying by routeName
+        if (routeName) {
+            const routesRef = collection(firestore, 'routes');
+            const q = query(routesRef, where('name', '==', routeName));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                const routeData = snap.docs[0].data();
+                if (Array.isArray(routeData.stops) && routeData.stops.length > 0) {
+                    console.log('[LiveTracking] Stops loaded from routes collection (by name):', routeName);
+                    return routeData.stops;
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('[LiveTracking] Could not fetch admin route stops:', err);
+    }
+    return null;
+}
+
 // ----------------------------------------------------
 // STATE & DOM
 // ----------------------------------------------------
@@ -285,14 +320,21 @@ function startBusTracking(busDocId) {
     console.log(`[DEBUG USER] Attaching onSnapshot to buses/${busDocId}`);
     const busRef = doc(firestore, 'buses', busDocId);
     
-    unsubscribeBus = onSnapshot(busRef, (docSnap) => {
+    unsubscribeBus = onSnapshot(busRef, async (docSnap) => {
         if (docSnap.exists()) {
             const data = docSnap.data();
             console.log("[DEBUG USER] Received bus data:", data);
             
-            // Re-render stops if they have changed or are not rendered yet
-            if (stopItemsEl.length === 0 && data.stops) {
-                renderStops(data.stops);
+            // Load stops from the admin-created routes collection only.
+            // Never use the driver simulation's hardcoded stops.
+            if (stopItemsEl.length === 0) {
+                const adminStops = await fetchAdminRouteStops(
+                    data.assignedRouteId || null,
+                    data.routeName || data.route || null
+                );
+                // Use admin route stops; fall back to bus doc stops only if no route found
+                const stopsToRender = adminStops || data.stops || [];
+                renderStops(stopsToRender);
             }
             
             const now = Date.now();
@@ -318,19 +360,23 @@ function startBusTracking(busDocId) {
                 }
             }
 
-            // 2. Fallback to stops sequence arrival times
-            if (!isOperatingHours && data.stops && data.stops.length > 0) {
-                const firstStop = data.stops[0];
-                const lastStop = data.stops[data.stops.length - 1];
-                const firstTime = firstStop.arrivalTime || firstStop.scheduledArrival || firstStop.morningArrival;
-                const lastTime = lastStop.arrivalTime || lastStop.scheduledArrival || lastStop.morningArrival;
-                if (firstTime && lastTime) {
-                    const [fh, fm] = firstTime.split(':').map(Number);
-                    const [lh, lm] = lastTime.split(':').map(Number);
-                    const firstMinutes = fh * 60 + fm;
-                    const lastMinutes = lh * 60 + lm;
-                    if (currentMinutes >= firstMinutes && currentMinutes <= lastMinutes) {
-                        isOperatingHours = true;
+            // 2. Fallback to stops sequence arrival times (use rendered routeStops coords)
+            if (!isOperatingHours && routeStops.length > 0) {
+                // Use data.stops (which came from admin route) for time checks
+                const stopsForTime = data.stops && data.stops.length > 0 ? data.stops : [];
+                if (stopsForTime.length > 0) {
+                    const firstStop = stopsForTime[0];
+                    const lastStop = stopsForTime[stopsForTime.length - 1];
+                    const firstTime = firstStop.arrivalTime || firstStop.scheduledArrival || firstStop.morningArrival;
+                    const lastTime = lastStop.arrivalTime || lastStop.scheduledArrival || lastStop.morningArrival;
+                    if (firstTime && lastTime) {
+                        const [fh, fm] = firstTime.split(':').map(Number);
+                        const [lh, lm] = lastTime.split(':').map(Number);
+                        const firstMinutes = fh * 60 + fm;
+                        const lastMinutes = lh * 60 + lm;
+                        if (currentMinutes >= firstMinutes && currentMinutes <= lastMinutes) {
+                            isOperatingHours = true;
+                        }
                     }
                 }
             }
