@@ -1116,6 +1116,171 @@ header h1 {
   color: #6B7280;
 }
 
+/* ==========================================================================
+   UNIVERSAL SKELETON LOADING ANIMATION SYSTEM
+   GPU-accelerated, silky smooth shimmer with zero layout reflow
+   ========================================================================== */
+
+@keyframes skeletonShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes skeletonPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.skeleton-shimmer,
+.tracking-skeleton-shine {
+  position: relative !important;
+  overflow: hidden !important;
+  background-color: #E5E7EB !important;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+.skeleton-shimmer::after,
+.tracking-skeleton-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeletonShimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+/* Dark context shimmer (for colored or dark cards e.g. blue card, tags) */
+.skeleton-shimmer-dark {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.skeleton-shimmer-dark::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/* Subtle pulse for reduced motion accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer::after,
+  .tracking-skeleton-shine::after {
+    display: none !important;
+  }
+  .skeleton-shimmer,
+  .tracking-skeleton-shine {
+    animation: skeletonPulse 1.8s ease-in-out infinite !important;
+  }
+}
+
+/* Universal Skeleton Elements */
+.skeleton-circle {
+  border-radius: 50% !important;
+}
+
+.skeleton-pill {
+  border-radius: 9999px !important;
+}
+
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  display: block;
+}
+
+.skeleton-w-30 { width: 30% !important; }
+.skeleton-w-40 { width: 40% !important; }
+.skeleton-w-50 { width: 50% !important; }
+.skeleton-w-60 { width: 60% !important; }
+.skeleton-w-70 { width: 70% !important; }
+.skeleton-w-80 { width: 80% !important; }
+.skeleton-w-90 { width: 90% !important; }
+.skeleton-w-full { width: 100% !important; }
+
+/* Live Tracking Timeline Skeleton */
+.stop-item-skeleton {
+  display: flex;
+  align-items: center;
+  min-height: 80px;
+  pointer-events: none;
+}
+
+.stop-item-skeleton .stop-icon-wrapper {
+  width: 36px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.skeleton-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.stop-item-skeleton .stop-info {
+  flex-grow: 1;
+  margin-left: 16px;
+  padding: 24px 0;
+  border-bottom: 1px solid #F3F4F6;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.skeleton-text {
+  border-radius: 6px;
+  height: 14px;
+}
+
+.skeleton-stop-name {
+  width: 55%;
+  height: 15px;
+}
+
+.skeleton-stop-time {
+  width: 48px;
+  height: 14px;
+}
+
+.skeleton-bus-badge {
+  display: inline-block;
+  width: 42px;
+  height: 22px;
+  border-radius: 6px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+.skeleton-status-badge {
+  display: inline-block;
+  width: 80px;
+  height: 16px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
 /* --------------------------------------
    PERSONAL INFO PAGE
    -------------------------------------- */
@@ -1669,24 +1834,29 @@ input:-webkit-autofill:active {
 
 .skeleton-box {
   display: inline-block;
-  background: #E5E7EB;
-  border-radius: 4px;
-  animation: skeleton-pulse 1.5s infinite;
+  background-color: #E5E7EB;
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
   vertical-align: middle;
 }
 
-@keyframes skeleton-pulse {
-  0% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.5;
-  }
-
-  100% {
-    opacity: 1;
-  }
+.skeleton-box::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: skeletonShimmer 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
 }
 
 /* =============================================

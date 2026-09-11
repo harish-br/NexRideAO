@@ -22,8 +22,49 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+function showEPassSkeleton() {
+    const nameEl = document.getElementById('epass-name');
+    const idEl = document.getElementById('epass-id');
+    const busEl = document.getElementById('epass-bus');
+    const stageEl = document.getElementById('epass-stage');
+    const feesEl = document.getElementById('epass-fees');
+    const contactEl = document.getElementById('epass-contact');
+    const passIdEl = document.getElementById('pass-id-display');
+    const barcodeSvg = document.getElementById('epass-barcode');
+    
+    if (nameEl && (!nameEl.textContent.trim() || nameEl.querySelector('.skeleton-shimmer'))) {
+        nameEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:120px; height:14px; border-radius:4px;"></span>';
+    }
+    if (idEl && (!idEl.textContent.trim() || idEl.querySelector('.skeleton-shimmer'))) {
+        idEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:90px; height:14px; border-radius:4px;"></span>';
+    }
+    if (busEl && (!busEl.textContent.trim() || busEl.querySelector('.skeleton-shimmer'))) {
+        busEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:50px; height:14px; border-radius:4px;"></span>';
+    }
+    if (stageEl && (!stageEl.textContent.trim() || stageEl.querySelector('.skeleton-shimmer'))) {
+        stageEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:100px; height:14px; border-radius:4px;"></span>';
+    }
+    if (feesEl && (!feesEl.textContent.trim() || feesEl.querySelector('.skeleton-shimmer'))) {
+        feesEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:70px; height:14px; border-radius:4px;"></span>';
+    }
+    if (contactEl && (!contactEl.textContent.trim() || contactEl.querySelector('.skeleton-shimmer'))) {
+        contactEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:110px; height:14px; border-radius:4px;"></span>';
+    }
+    if (passIdEl && (!passIdEl.textContent.trim() || passIdEl.textContent === '...' || passIdEl.querySelector('.skeleton-shimmer'))) {
+        passIdEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:100px; height:12px; border-radius:4px;"></span>';
+    }
+    if (barcodeSvg && (!barcodeSvg.innerHTML.trim() || barcodeSvg.classList.contains('skeleton-shimmer'))) {
+        barcodeSvg.classList.add('skeleton-shimmer');
+        barcodeSvg.style.width = '230px';
+        barcodeSvg.style.height = '56px';
+        barcodeSvg.style.borderRadius = '8px';
+        barcodeSvg.style.display = 'block';
+    }
+}
+
 async function initializeEPass(userId) {
     if (barcodeLoaded) return;
+    showEPassSkeleton();
 
     const now = Date.now();
     let passData = null;
@@ -122,6 +163,12 @@ function renderBarcode(passId) {
     const displayEl = document.getElementById('pass-id-display');
     if (displayEl) {
         displayEl.textContent = displayId;
+    }
+
+    const barcodeSvg = document.getElementById('epass-barcode');
+    if (barcodeSvg) {
+        barcodeSvg.classList.remove('skeleton-shimmer');
+        barcodeSvg.removeAttribute('style');
     }
 
     if (window.JsBarcode) {
@@ -379,15 +426,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Temporarily disable the loaded flag to force a re-check
                 barcodeLoaded = false;
-
-                // Show global circle loading animation (app default)
-                const splash = document.getElementById('splash-screen');
-                if (splash) splash.style.display = 'flex';
+                showEPassSkeleton();
 
                 await initializeEPass(auth.currentUser.uid);
-
-                // Hide loader once done
-                if (splash) splash.style.display = 'none';
             }
         });
     }
@@ -405,6 +446,7 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
                         window.requestEpassMotionPermission();
                     }
                     barcodeLoaded = false;
+                    showEPassSkeleton();
                     await initializeEPass(auth.currentUser.uid);
                 }
             });

@@ -1,38 +1,21 @@
 import { firestore } from './firebase-config.js';
-import { doc, getDoc, collection, query, where, onSnapshot, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { doc, getDoc, collection, onSnapshot, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 
-// Fetch stops from the admin-created routes collection.
-// Returns the stops array or null if no route is found.
-async function fetchAdminRouteStops(assignedRouteId, routeName) {
+// Fetch stops from the routes collection using the document ID pattern: route_bus_<busNum>
+async function fetchRouteStops(busNum) {
     try {
-        // 1. Try direct lookup by assignedRouteId first (most reliable)
-        if (assignedRouteId) {
-            const routeSnap = await getDoc(doc(firestore, 'routes', assignedRouteId));
-            if (routeSnap.exists()) {
-                const routeData = routeSnap.data();
-                if (Array.isArray(routeData.stops) && routeData.stops.length > 0) {
-                    console.log('[LiveTracking] Stops loaded from routes collection (by ID):', assignedRouteId);
-                    return routeData.stops;
-                }
-            }
-        }
-
-        // 2. Fall back to querying by routeName
-        if (routeName) {
-            const routesRef = collection(firestore, 'routes');
-            const q = query(routesRef, where('name', '==', routeName));
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-                const routeData = snap.docs[0].data();
-                if (Array.isArray(routeData.stops) && routeData.stops.length > 0) {
-                    console.log('[LiveTracking] Stops loaded from routes collection (by name):', routeName);
-                    return routeData.stops;
-                }
+        const routeDocId = `route_bus_${busNum}`;
+        const routeSnap = await getDoc(doc(firestore, 'routes', routeDocId));
+        if (routeSnap.exists()) {
+            const routeData = routeSnap.data();
+            if (Array.isArray(routeData.stops) && routeData.stops.length > 0) {
+                console.log('[LiveTracking] Stops loaded from routes collection:', routeDocId);
+                return routeData.stops;
             }
         }
     } catch (err) {
-        console.warn('[LiveTracking] Could not fetch admin route stops:', err);
+        console.warn('[LiveTracking] Could not fetch route stops:', err);
     }
     return null;
 }
@@ -251,6 +234,36 @@ function updateTrackingLineHeight() {
     track.style.height = `${lineHeight}px`;
 }
 
+function showLiveTrackingSkeleton(count = 5) {
+    const stopsList = document.getElementById('stops-list');
+    if (!stopsList) return;
+
+    if (busTrackerEl) {
+        busTrackerEl.style.display = 'none';
+    }
+
+    const widths = [140, 190, 120, 165, 130];
+    let skeletonHtml = '';
+    for (let i = 0; i < count; i++) {
+        const isLast = i === count - 1;
+        const w = widths[i % widths.length];
+        skeletonHtml += `
+          <div class="stop-item-skeleton">
+            <div class="stop-icon-wrapper">
+              <div class="skeleton-dot skeleton-shimmer"></div>
+            </div>
+            <div class="stop-info" style="${isLast ? 'border-bottom: none;' : ''}">
+              <div class="stop-name-row">
+                <div class="skeleton-text skeleton-stop-name skeleton-shimmer" style="width: ${w}px;"></div>
+                <div class="skeleton-text skeleton-stop-time skeleton-shimmer"></div>
+              </div>
+            </div>
+          </div>
+        `;
+    }
+    stopsList.innerHTML = skeletonHtml;
+}
+
 function renderStops(stops) {
     const stopsList = document.getElementById('stops-list');
     if (!stopsList) return;
@@ -311,7 +324,7 @@ function renderStops(stops) {
     updateTrackingLineHeight();
 }
 
-function startBusTracking(busDocId) {
+function startBusTracking(busDocId, busNum) {
     if (unsubscribeBus) unsubscribeBus();
 
     busTrackerEl = document.getElementById('dynamic-bus');
@@ -325,15 +338,12 @@ function startBusTracking(busDocId) {
             const data = docSnap.data();
             console.log("[DEBUG USER] Received bus data:", data);
             
-            // Load stops from the admin-created routes collection only.
-            // Never use the driver simulation's hardcoded stops.
+            // Load stops from the routes collection (route_bus_<busNum>) — the authoritative dataset.
             if (stopItemsEl.length === 0) {
-                const adminStops = await fetchAdminRouteStops(
-                    data.assignedRouteId || null,
-                    data.routeName || data.route || null
-                );
-                // Use admin route stops; fall back to bus doc stops only if no route found
-                const stopsToRender = adminStops || data.stops || [];
+                const routeStopsData = await fetchRouteStops(busNum);
+                // Fall back to bus doc stops only if route doc has none
+                const stopsToRender = routeStopsData || data.stops || [];
+                console.log('[LiveTracking] Stops to render:', stopsToRender.length);
                 renderStops(stopsToRender);
             }
             
@@ -421,14 +431,29 @@ function startBusTracking(busDocId) {
 
 export function initLiveTracking() {
     busTrackerEl = document.getElementById('dynamic-bus');
+    const assignedBusEl = document.getElementById('assigned-bus-number');
+    const busStatusEl = document.getElementById('bus-status');
+    const stopsList = document.getElementById('stops-list');
+
+    // Show shimmer skeleton placeholders immediately while loading
+    if (assignedBusEl && (!assignedBusEl.textContent.trim() || assignedBusEl.innerHTML.includes('skeleton'))) {
+        assignedBusEl.innerHTML = '<span class="skeleton-bus-badge skeleton-shimmer"></span>';
+    }
+    if (busStatusEl && (!busStatusEl.textContent.trim() || busStatusEl.textContent.includes('Bus in halt') || busStatusEl.innerHTML.includes('skeleton'))) {
+        busStatusEl.innerHTML = '<span class="skeleton-status-badge skeleton-shimmer"></span>';
+    }
+    if (stopsList && stopItemsEl.length === 0) {
+        showLiveTrackingSkeleton(5);
+    }
     
     const auth = getAuth();
     onAuthStateChanged(auth, async (user) => {
-        const assignedBusEl = document.getElementById('assigned-bus-number');
-        const stopsList = document.getElementById('stops-list');
-        
         if (!user) {
             if (assignedBusEl) assignedBusEl.textContent = "N/A";
+            if (busStatusEl) {
+                busStatusEl.textContent = "Login required";
+                busStatusEl.style.color = "#6B7280";
+            }
             if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">Please login to view tracking.</div>';
             return;
         }
@@ -458,6 +483,10 @@ export function initLiveTracking() {
 
             if (!busNum) {
                 if (assignedBusEl) assignedBusEl.textContent = "None";
+                if (busStatusEl) {
+                    busStatusEl.textContent = "No bus assigned";
+                    busStatusEl.style.color = "#6B7280";
+                }
                 if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">No bus assigned to your profile.</div>';
                 if (busTrackerEl) busTrackerEl.style.display = 'none';
                 return;
@@ -469,7 +498,7 @@ export function initLiveTracking() {
 
             // 2. We don't need a query, the doc ID is just bus_{busNum}
             // By bypassing getDocs(), we avoid throwing a fatal offline error on slow networks!
-            startBusTracking(`bus_${busNum}`);
+            startBusTracking(`bus_${busNum}`, busNum);
 
         } catch (error) {
             console.error("Error loading live tracking:", error);

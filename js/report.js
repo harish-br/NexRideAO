@@ -2190,11 +2190,11 @@ export function updateNotificationsUI() {
     if (homeContentArea) {
       if (!notificationsLoaded && userNotifications.length === 0) {
         homeContentArea.innerHTML = `
-          <div class="home-notif-loading" style="padding: 16px 8px; display: flex; align-items: center; gap: 12px; opacity: 0.5;">
-            <div style="width: 36px; height: 36px; border-radius: 10px; background: #E5E7EB;"></div>
-            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-              <div style="width: 45%; height: 12px; background: #E5E7EB; border-radius: 4px;"></div>
-              <div style="width: 80%; height: 10px; background: #F3F4F6; border-radius: 4px;"></div>
+          <div class="home-notif-loading" style="padding: 10px 4px; display: flex; align-items: center; gap: 12px;">
+            <div class="skeleton-shimmer" style="width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;"></div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+              <div class="skeleton-line skeleton-w-50 skeleton-shimmer" style="height: 13px;"></div>
+              <div class="skeleton-line skeleton-w-80 skeleton-shimmer" style="height: 10px;"></div>
             </div>
           </div>
         `;
@@ -2289,6 +2289,40 @@ export function updateNotificationsUI() {
 
   const notifScrollBody = notifPage.querySelector('.notifications-scroll-list') || notifPage.children[1];
   if (!notifScrollBody) return;
+
+  if (!notificationsLoaded && userNotifications.length === 0) {
+    notifScrollBody.style.display = 'block';
+    notifScrollBody.style.padding = '16px 20px';
+    notifScrollBody.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+        <div style="background: #FFFFFF; border: 1px solid #F3F4F6; border-radius: 16px; padding: 16px; display: flex; gap: 14px; align-items: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+          <div class="skeleton-shimmer" style="width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;"></div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+            <div class="skeleton-line skeleton-w-50 skeleton-shimmer" style="height: 15px;"></div>
+            <div class="skeleton-line skeleton-w-90 skeleton-shimmer" style="height: 12px;"></div>
+            <div class="skeleton-line skeleton-w-30 skeleton-shimmer" style="height: 10px; margin-top: 4px;"></div>
+          </div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #F3F4F6; border-radius: 16px; padding: 16px; display: flex; gap: 14px; align-items: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+          <div class="skeleton-shimmer" style="width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;"></div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+            <div class="skeleton-line skeleton-w-60 skeleton-shimmer" style="height: 15px;"></div>
+            <div class="skeleton-line skeleton-w-80 skeleton-shimmer" style="height: 12px;"></div>
+            <div class="skeleton-line skeleton-w-40 skeleton-shimmer" style="height: 10px; margin-top: 4px;"></div>
+          </div>
+        </div>
+        <div style="background: #FFFFFF; border: 1px solid #F3F4F6; border-radius: 16px; padding: 16px; display: flex; gap: 14px; align-items: flex-start; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+          <div class="skeleton-shimmer" style="width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;"></div>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
+            <div class="skeleton-line skeleton-w-40 skeleton-shimmer" style="height: 15px;"></div>
+            <div class="skeleton-line skeleton-w-70 skeleton-shimmer" style="height: 12px;"></div>
+            <div class="skeleton-line skeleton-w-30 skeleton-shimmer" style="height: 10px; margin-top: 4px;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    return;
+  }
 
   if (userNotifications.length === 0) {
     notifScrollBody.style.display = 'flex';

@@ -234,9 +234,38 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
   }
 
+  function renderNearbyStopsSkeleton() {
+    nearbyStopsContainer.innerHTML = `
+      <div class="bs-stop-card" style="pointer-events: none; border-color: #F3F4F6;">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+            <div class="skeleton-circle skeleton-shimmer" style="width: 28px; height: 28px; flex-shrink: 0;"></div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <div class="skeleton-line skeleton-w-50 skeleton-shimmer" style="height: 14px;"></div>
+              <div class="skeleton-line skeleton-w-30 skeleton-shimmer" style="height: 10px;"></div>
+            </div>
+          </div>
+          <div class="skeleton-pill skeleton-shimmer" style="width: 52px; height: 22px;"></div>
+        </div>
+      </div>
+      <div class="bs-stop-card" style="pointer-events: none; border-color: #F3F4F6;">
+        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+          <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+            <div class="skeleton-circle skeleton-shimmer" style="width: 28px; height: 28px; flex-shrink: 0;"></div>
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+              <div class="skeleton-line skeleton-w-60 skeleton-shimmer" style="height: 14px;"></div>
+              <div class="skeleton-line skeleton-w-40 skeleton-shimmer" style="height: 10px;"></div>
+            </div>
+          </div>
+          <div class="skeleton-pill skeleton-shimmer" style="width: 52px; height: 22px;"></div>
+        </div>
+      </div>
+    `;
+  }
+
   function detectLocation() {
     updateLocationUI("Detecting location", "");
-    nearbyStopsContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">Locating you</div>';
+    renderNearbyStopsSkeleton();
 
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -245,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const { latitude, longitude } = position.coords;
 
           try {
-            nearbyStopsContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; text-align: center;">Finding nearby stops</div>';
+            renderNearbyStopsSkeleton();
             const nearbyStops = await fetchNearbyStopsFromDB(latitude, longitude);
 
             nearbyStopsContainer.innerHTML = '';
@@ -781,9 +810,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function renderRecentRoutesSkeleton() {
+    recentRoutesContainer.innerHTML = `
+      <div class="bs-recent-chip skeleton-shimmer" style="width: 130px; height: 32px; border: none; border-radius: 9999px;"></div>
+      <div class="bs-recent-chip skeleton-shimmer" style="width: 155px; height: 32px; border: none; border-radius: 9999px;"></div>
+      <div class="bs-recent-chip skeleton-shimmer" style="width: 115px; height: 32px; border: none; border-radius: 9999px;"></div>
+    `;
+  }
+
   async function renderSmartSuggestions() {
     // nearbyStopsContainer is now handled dynamically in detectLocation
-    recentRoutesContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; font-size: 14px; text-align: center; width: 100%;">Loading recent routes</div>';
+    renderRecentRoutesSkeleton();
 
     try {
       const recentRoutes = fetchRecentRoutesFromStorage();

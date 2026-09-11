@@ -683,7 +683,7 @@ function loadTickets() {
   var emptyEl = el('hs-tickets-empty');
   var listEl  = el('hs-tickets-list');
 
-  if (loading) loading.style.display = 'block';
+  if (loading) loading.style.display = 'flex';
   if (errorEl) { errorEl.style.display = 'none'; errorEl.classList.add('hidden'); }
   if (emptyEl) { emptyEl.style.display = 'none'; emptyEl.classList.add('hidden'); }
   if (listEl)  { listEl.style.display = 'none'; listEl.classList.add('hidden'); listEl.innerHTML = ''; }
