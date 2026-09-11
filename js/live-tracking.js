@@ -99,26 +99,34 @@ function updateArrowAnimation(status) {
     }
 }
 
-function calculateTargetY(currentStopIndex, nextStopIndex, lat, lng) {
+function calculateTargetY(currentStopIndex, nextStopIndex, lat, lng, busStatus) {
     if (!busTrackerEl || stopItemsEl.length === 0) return;
 
-    const fromDOM = stopItemsEl[currentStopIndex];
+    const clampedCurrentIdx = Math.max(0, Math.min(currentStopIndex, stopItemsEl.length - 1));
+    const fromDOM = stopItemsEl[clampedCurrentIdx];
     const toDOM = stopItemsEl[Math.min(nextStopIndex, stopItemsEl.length - 1)];
 
     if (fromDOM && toDOM) {
-        // Calculate visual progress using simple distance
         let progress = 0;
-        if (currentStopIndex < nextStopIndex && nextStopIndex < routeStops.length) {
+
+        // When bus is stopped/halted, pin the icon exactly at the current stop (no interpolation)
+        if (busStatus === 'stopped' || busStatus === 'offline' || busStatus === 'completed') {
+            progress = 0;
+        } else if (currentStopIndex < nextStopIndex && nextStopIndex < routeStops.length) {
+            // Bus is moving: interpolate using GPS distance between stops
             const fromStop = routeStops[currentStopIndex];
             const toStop = routeStops[nextStopIndex];
             
-            const totalDist = haversineDistance(fromStop.lat, fromStop.lng, toStop.lat, toStop.lng);
-            const distTravelled = haversineDistance(fromStop.lat, fromStop.lng, lat, lng);
-            
-            progress = totalDist > 0 ? distTravelled / totalDist : 0;
-            progress = Math.max(0, Math.min(1, progress));
+            if (fromStop && toStop && fromStop.lat && fromStop.lng && toStop.lat && toStop.lng) {
+                const totalDist = haversineDistance(fromStop.lat, fromStop.lng, toStop.lat, toStop.lng);
+                const distTravelled = haversineDistance(fromStop.lat, fromStop.lng, lat, lng);
+                
+                progress = totalDist > 0 ? distTravelled / totalDist : 0;
+                progress = Math.max(0, Math.min(0.95, progress)); // Cap at 0.95 so bus never overshoots next stop
+            }
         } else if (currentStopIndex >= routeStops.length - 1) {
-            progress = 1; // Completed
+            // At or past last stop — keep at last stop
+            progress = 0;
         }
 
         const fromY = fromDOM.offsetTop + 12;
@@ -126,8 +134,8 @@ function calculateTargetY(currentStopIndex, nextStopIndex, lat, lng) {
         
         trackingState.targetY = fromY + ((toY - fromY) * progress);
 
-        // Update CSS transition for smooth animation (lerp over 2s)
-        busTrackerEl.style.transition = `transform 1.5s linear`;
+        // Smooth animation when moving, instant snap when halted
+        busTrackerEl.style.transition = busStatus === 'moving' ? `transform 1.5s linear` : `transform 0.3s ease`;
         busTrackerEl.style.transform = `translate3d(0, ${trackingState.targetY}px, 0)`;
         busTrackerEl.style.display = 'flex';
     }
@@ -404,7 +412,7 @@ function startBusTracking(busDocId, busNum) {
             if (stopItemsEl.length > 0) {
                 busTrackerEl.style.display = 'flex';
                 busTrackerEl.style.opacity = '1';
-                calculateTargetY(data.currentStopIndex || 0, data.nextStopIndex || 1, data.lat || 0, data.lng || 0);
+                calculateTargetY(data.currentStopIndex || 0, data.nextStopIndex || 1, data.lat || 0, data.lng || 0, data.status);
                 updateStopStyles(data.currentStopIndex || 0, data.nextStopIndex || 1, data.status, data.etaMinutes || 0);
             }
         }
