@@ -307,6 +307,15 @@
       font-size: 13px;
       font-weight: 600;
       margin-bottom: 10px;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .leg-meta > div {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
     }
 
     .progress-track {
@@ -658,6 +667,8 @@
 
     .stop-details {
       flex: 1;
+      min-width: 0;
+      overflow: hidden;
     }
 
     .stop-row-top {
@@ -665,12 +676,20 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 4px;
+      gap: 10px;
+      min-width: 0;
     }
 
     .stop-title {
       font-size: 14px;
       font-weight: 700;
       color: #FFFFFF;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      min-width: 0;
+      display: block;
     }
 
     .stop-time-tag {
@@ -678,6 +697,8 @@
       font-weight: 600;
       color: var(--text-muted);
       font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .stop-coords {
