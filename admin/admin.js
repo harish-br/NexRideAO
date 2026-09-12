@@ -1802,22 +1802,24 @@ function renderLiveTracking() {
   if (radarCanvas) radarCanvas.innerHTML = '';
 
   busesCache.forEach((bus, index) => {
-    const isMoving = bus.status === 'Active' || bus.status === 'On Trip';
+    const isMoving = bus.status === 'Active' || bus.status === 'On Trip' || bus.status === 'moving';
     if (isMoving) moving++;
     if (index % 3 === 0 && isMoving) delayed++;
 
-    const speed = isMoving ? (32 + (index * 3) % 20) : 0;
+    const speed = bus.speed !== undefined ? bus.speed : (isMoving ? (32 + (index * 3) % 20) : 0);
+    const eta = bus.etaMinutes !== undefined ? `${bus.etaMinutes} mins` : `${12 + index} mins`;
     const card = document.createElement('div');
     card.className = 'live-bus-card';
     card.innerHTML = `
       <div class="live-bus-card-top">
         <span class="live-bus-no">Bus ${bus.busNumber || '01'}</span>
-        <span class="status-badge ${isMoving ? 'badge-green' : 'badge-gray'}">${isMoving ? 'Moving' : 'Stopped'}</span>
+        <span class="status-badge ${isMoving ? 'badge-green' : 'badge-gray'}">${isMoving ? 'Moving' : (bus.status === 'stopped' ? 'In Halt' : 'Stopped')}</span>
       </div>
       <div class="live-bus-meta">
         <div><strong>Route:</strong> ${escapeHtml(bus.routeName || bus.route || 'Campus Route')}</div>
-        <div><strong>Driver:</strong> ${escapeHtml(bus.driverName || 'Unassigned')}</div>
-        <div><strong>Speed:</strong> ${speed} km/h • <strong>ETA:</strong> ${12 + index} mins</div>
+        <div><strong>Driver:</strong> ${escapeHtml(bus.driverName || 'Telematics Simulation')}</div>
+        <div><strong>Speed:</strong> ${speed} km/h • <strong>ETA:</strong> ${eta}</div>
+        ${bus.lat ? `<div style="font-size: 11px; color: var(--text-secondary); font-family: monospace; margin-top: 3px;">GPS: ${bus.lat}, ${bus.lng}</div>` : ''}
       </div>
     `;
 

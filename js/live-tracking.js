@@ -1,11 +1,14 @@
 import { firestore } from './firebase-config.js';
-import { doc, getDoc, collection, onSnapshot, getDocs } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { doc, getDoc, collection, onSnapshot, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
+import { globalSimulator } from './bus-simulator.js';
 
-// Fetch stops from the routes collection using the document ID pattern: route_bus_<busNum>
+// Fetch stops from Firestore (checks route_bus_<busNum>, routes where assignedBus == busNum, or bus_<busNum>)
 async function fetchRouteStops(busNum) {
     try {
-        const routeDocId = `route_bus_${busNum}`;
+        const busStr = String(busNum).trim();
+        // 1. Check routes/route_bus_<busNum>
+        const routeDocId = `route_bus_${busStr}`;
         const routeSnap = await getDoc(doc(firestore, 'routes', routeDocId));
         if (routeSnap.exists()) {
             const routeData = routeSnap.data();
@@ -13,6 +16,35 @@ async function fetchRouteStops(busNum) {
                 console.log('[LiveTracking] Stops loaded from routes collection:', routeDocId);
                 return routeData.stops;
             }
+        }
+
+        // 2. Query routes collection where assignedBus == busStr
+        try {
+            const q = query(collection(firestore, 'routes'), where('assignedBus', '==', busStr));
+            const qSnap = await getDocs(q);
+            if (!qSnap.empty) {
+                const rData = qSnap.docs[0].data();
+                if (Array.isArray(rData.stops) && rData.stops.length > 0) {
+                    console.log('[LiveTracking] Stops loaded from routes query for bus:', busStr);
+                    return rData.stops;
+                }
+            }
+        } catch (e) {
+            console.warn('[LiveTracking] routes query error:', e);
+        }
+
+        // 3. Check buses/bus_<busNum> doc
+        try {
+            const busSnap = await getDoc(doc(firestore, 'buses', `bus_${busStr}`));
+            if (busSnap.exists()) {
+                const bData = busSnap.data();
+                if (Array.isArray(bData.stops) && bData.stops.length > 0) {
+                    console.log('[LiveTracking] Stops loaded from bus doc:', busStr);
+                    return bData.stops;
+                }
+            }
+        } catch (e) {
+            console.warn('[LiveTracking] bus doc error:', e);
         }
     } catch (err) {
         console.warn('[LiveTracking] Could not fetch route stops:', err);
@@ -517,3 +549,152 @@ export function initLiveTracking() {
 }
 
 initLiveTracking();
+
+// Allow switching tracked bus dynamically (useful for simulator testing)
+window.switchTrackingBus = function(newBusNum) {
+    if (!newBusNum) return;
+    const busNum = String(newBusNum).trim();
+    console.log('[LiveTracking] Switching to track Bus:', busNum);
+    const assignedBusEl = document.getElementById('assigned-bus-number');
+    if (assignedBusEl) assignedBusEl.textContent = busNum;
+    stopItemsEl = [];
+    routeStops = [];
+    showLiveTrackingSkeleton(5);
+    startBusTracking(`bus_${busNum}`, busNum);
+};
+
+// Bind In-Page Mini Simulator Controls
+function initMiniSimulatorControls() {
+    const toggleBtn = document.getElementById('live-sim-toggle-btn');
+    const drawer = document.getElementById('live-sim-drawer');
+    const closeBtn = document.getElementById('live-sim-close-btn');
+    const busInput = document.getElementById('live-sim-bus-input');
+    const switchBtn = document.getElementById('live-sim-switch-btn');
+    const startBtn = document.getElementById('live-sim-start-btn');
+    const pauseBtn = document.getElementById('live-sim-pause-btn');
+    const resetBtn = document.getElementById('live-sim-reset-btn');
+    const stepBtn = document.getElementById('live-sim-step-btn');
+    const statusBadge = document.getElementById('live-sim-status-badge');
+    const coordsEl = document.getElementById('live-sim-coords');
+    const rangeSlider = document.getElementById('live-sim-range-slider');
+    const sliderVal = document.getElementById('live-sim-slider-val');
+    let isScrubbing = false;
+
+    if (rangeSlider) {
+        rangeSlider.addEventListener('input', async (e) => {
+            isScrubbing = true;
+            const pct = parseFloat(e.target.value);
+            if (sliderVal) sliderVal.textContent = `${pct.toFixed(0)}%`;
+            await globalSimulator.setOverallProgress(pct);
+        });
+
+        const stopScrub = () => { isScrubbing = false; };
+        rangeSlider.addEventListener('change', stopScrub);
+        rangeSlider.addEventListener('mouseup', stopScrub);
+        rangeSlider.addEventListener('touchend', stopScrub);
+    }
+
+    if (!toggleBtn || !drawer) return;
+
+    toggleBtn.addEventListener('click', () => {
+        drawer.classList.toggle('hidden');
+    });
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            drawer.classList.add('hidden');
+        });
+    }
+
+    if (switchBtn && busInput) {
+        switchBtn.addEventListener('click', async () => {
+            const val = busInput.value.trim();
+            if (val) {
+                globalSimulator.busNumber = val;
+                await globalSimulator.loadStops(val);
+                window.switchTrackingBus(val);
+            }
+        });
+    }
+
+    if (startBtn) {
+        startBtn.addEventListener('click', async () => {
+            const currentBus = busInput ? busInput.value.trim() : globalSimulator.busNumber;
+            if (currentBus) {
+                globalSimulator.busNumber = currentBus;
+                window.switchTrackingBus(currentBus);
+            }
+            await globalSimulator.start();
+        });
+    }
+
+    if (pauseBtn) {
+        pauseBtn.addEventListener('click', () => {
+            globalSimulator.pause();
+        });
+    }
+
+    if (resetBtn) {
+        resetBtn.addEventListener('click', async () => {
+            await globalSimulator.reset();
+        });
+    }
+
+    if (stepBtn) {
+        stepBtn.addEventListener('click', async () => {
+            if (!globalSimulator.isRunning) {
+                await globalSimulator.start();
+                globalSimulator.pause();
+            }
+            await globalSimulator.tick();
+        });
+    }
+
+    document.querySelectorAll('.sim-spd-btn').forEach(b => {
+        b.addEventListener('click', () => {
+            document.querySelectorAll('.sim-spd-btn').forEach(btn => btn.classList.remove('active'));
+            b.classList.add('active');
+            const spd = Number(b.dataset.spd);
+            globalSimulator.setSpeedMultiplier(spd);
+        });
+    });
+
+    // Update mini drawer status based on simulator events
+    globalSimulator.subscribe((event, state) => {
+        if (coordsEl) {
+            coordsEl.textContent = `${Number(state.lat || 0).toFixed(4)}, ${Number(state.lng || 0).toFixed(4)}`;
+        }
+        if (!isScrubbing && rangeSlider) {
+            rangeSlider.value = state.overallPercent || 0;
+            if (sliderVal) sliderVal.textContent = `${Math.round(state.overallPercent || 0)}%`;
+        }
+        if (statusBadge) {
+            if (state.status === 'moving') {
+                statusBadge.className = 'sim-badge-moving';
+                statusBadge.textContent = 'MOVING';
+            } else if (state.status === 'stopped') {
+                statusBadge.className = 'sim-badge-halt';
+                statusBadge.textContent = 'IN HALT';
+            } else {
+                statusBadge.className = 'sim-badge-halt';
+                statusBadge.textContent = state.status.toUpperCase();
+            }
+        }
+        if (startBtn && pauseBtn) {
+            if (state.isRunning && !state.isPaused) {
+                startBtn.disabled = true;
+                pauseBtn.disabled = false;
+            } else {
+                startBtn.disabled = false;
+                pauseBtn.disabled = true;
+            }
+        }
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMiniSimulatorControls);
+} else {
+    initMiniSimulatorControls();
+}
+

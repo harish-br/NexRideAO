@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NexRide AO - Live Bus GPS Telematics Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-dark: #0B0F19;
+      --bg-card: rgba(18, 24, 38, 0.85);
+      --bg-card-hover: rgba(28, 36, 54, 0.95);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(59, 130, 246, 0.3);
+      --accent-blue: #3B82F6;
+      --accent-cyan: #06B6D4;
+      --accent-green: #10B981;
+      --accent-orange: #F97316;
+      --accent-purple: #8B5CF6;
+      --accent-red: #EF4444;
+      --text-main: #F9FAFB;
+      --text-muted: #9CA3AF;
+      --text-dim: #6B7280;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: radial-gradient(circle at top right, #131E35, #0B0F19 60%);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation */
+    header {
+      background: rgba(11, 15, 25, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 16px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #2563EB, #06B6D4);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+    }
+
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      background: linear-gradient(90deg, #FFFFFF, #93C5FD);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-tagline {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .pill-link {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: #E2E8F0;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 12.5px;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .pill-link:hover {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: var(--accent-blue);
+      color: #60A5FA;
+      transform: translateY(-1px);
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      max-width: 1440px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 28px 48px;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      position: relative;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Bus Selector Header */
+    .bus-select-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .bus-select-box label {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    select, input[type="text"] {
+      background: #111827;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FFFFFF;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    select:focus, input[type="text"]:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+
+    /* Telemetry HUD Gauges */
+    .hud-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 640px) {
+      .hud-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .hud-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hud-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .hud-value {
+      font-size: 20px;
+      font-weight: 800;
+      color: #FFFFFF;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .hud-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Live Status Badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-moving {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34D399;
+    }
+
+    .status-halt {
+      background: rgba(249, 115, 22, 0.15);
+      border: 1px solid rgba(249, 115, 22, 0.4);
+      color: #FB923C;
+    }
+
+    .status-completed {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.4);
+      color: #A5B4FC;
+    }
+
+    .status-offline {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #F87171;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+      animation: pulseAnim 1.5s infinite;
+    }
+
+    @keyframes pulseAnim {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Progress Bar */
+    .leg-progress-section {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+
+    .leg-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .progress-track {
+      height: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #3B82F6, #06B6D4);
+      border-radius: 10px;
+      transition: width 0.3s ease;
+      position: relative;
+    }
+
+    .progress-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; right: 0; bottom: 0; width: 20px;
+      background: rgba(255, 255, 255, 0.6);
+      filter: blur(3px);
+    }
+
+    /* Manual Route Scrubber Slider */
+    .scrubber-section {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(6, 182, 212, 0.05));
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .scrubber-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .scrubber-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #93C5FD;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .scrubber-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 800;
+      color: #38BDF8;
+      background: rgba(56, 189, 248, 0.1);
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+
+    .scrub-slider-wrap {
+      position: relative;
+      padding: 10px 0 4px 0;
+    }
+
+    .scrub-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 10px;
+      border-radius: 6px;
+      background: linear-gradient(90deg, #1E293B, #334155);
+      outline: none;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .scrub-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #38BDF8, #2563EB);
+      cursor: grab;
+      border: 3px solid #FFFFFF;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.8);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .scrub-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.18);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 1);
+    }
+
+    .scrub-slider::-webkit-slider-thumb:active {
+      cursor: grabbing;
+      transform: scale(1.25);
+    }
+
+    .scrubber-ticks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      padding: 0 4px;
+    }
+
+    .scrub-tick-btn {
+      background: none;
+      border: none;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    .scrub-tick-btn:hover {
+      color: #38BDF8;
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    .scrub-tick-btn.active {
+      color: #34D399;
+      background: rgba(16, 185, 129, 0.15);
+    }
+
+    /* Controls Panel */
+    .control-buttons-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+
+    .btn {
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-family: inherit;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+      outline: none;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563EB, #06B6D4);
+      color: #FFFFFF;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: #E2E8F0;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #F87171;
+    }
+
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    /* Speed & Multipliers */
+    .multiplier-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .multiplier-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .segmented-control {
+      display: flex;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .seg-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .seg-btn.active {
+      background: var(--accent-blue);
+      color: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+    }
+
+    /* Quick Override Badges */
+    .overrides-section {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 18px;
+      margin-top: 18px;
+    }
+
+    .section-subtitle {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .quick-triggers {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .trigger-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .trigger-chip:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Route Stops Timeline (Right Column) */
+    .timeline-container {
+      position: relative;
+      padding: 12px 4px;
+      max-height: 520px;
+      overflow-y: auto;
+    }
+
+    .timeline-track-line {
+      position: absolute;
+      top: 24px;
+      bottom: 24px;
+      left: 27px;
+      width: 3px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      z-index: 1;
+    }
+
+    .timeline-item {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 12px 12px 12px 16px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .timeline-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .timeline-item.active {
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+    }
+
+    .stop-indicator {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #1F2937;
+      border: 3px solid #374151;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 800;
+      flex-shrink: 0;
+      z-index: 3;
+      transition: all 0.3s;
+    }
+
+    .timeline-item.arrived .stop-indicator {
+      background: #10B981;
+      border-color: #059669;
+      color: #FFFFFF;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    }
+
+    .timeline-item.departed .stop-indicator {
+      background: #3B82F6;
+      border-color: #2563EB;
+      color: #FFFFFF;
+    }
+
+    .timeline-item.current-bus .stop-indicator {
+      background: #F59E0B;
+      border-color: #D97706;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+      transform: scale(1.2);
+    }
+
+    .stop-details {
+      flex: 1;
+    }
+
+    .stop-row-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .stop-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+
+    .stop-time-tag {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stop-coords {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stop-status-pill {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+
+    .pill-green { background: rgba(16, 185, 129, 0.2); color: #34D399; }
+    .pill-blue { background: rgba(59, 130, 246, 0.2); color: #60A5FA; }
+    .pill-orange { background: rgba(249, 115, 22, 0.2); color: #FB923C; }
+    .pill-gray { background: rgba(255, 255, 255, 0.05); color: #9CA3AF; }
+
+    /* Telemetry Feed Console */
+    .console-card {
+      grid-column: 1 / -1;
+      background: #0D1117;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 16px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 8px;
+    }
+
+    .console-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #60A5FA;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .console-logs {
+      max-height: 140px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .log-line {
+      display: flex;
+      gap: 12px;
+      line-height: 1.4;
+    }
+
+    .log-time { color: var(--text-dim); }
+    .log-event { color: #34D399; font-weight: 600; }
+    .log-data { color: #E5E7EB; word-break: break-all; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🚌</div>
+      <div>
+        <h1>NexRide AO Telematics Simulator</h1>
+        <div class="brand-tagline">Real-Time Firebase GPS Telemetry & UI Validation Engine</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a href="./index.html" target="_blank" class="pill-link" title="Open User App Live Tracking">
+        📱 Open User App Live UI
+      </a>
+      <a href="./admin/index.html" target="_blank" class="pill-link" title="Open Admin Fleet Radar">
+        🖥️ Open Admin Fleet Radar
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Simulator Area -->
+  <main>
+    <!-- Left Column: Controls & Telemetry HUD -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>⚡ Simulation Controller</span>
+        </div>
+
+        <!-- Bus Selector -->
+        <div class="bus-select-box">
+          <label for="bus-selector">Select Bus:</label>
+          <select id="bus-selector">
+            <option value="32" selected>Bus 32 (Primary)</option>
+            <option value="01">Bus 01</option>
+            <option value="15">Bus 15</option>
+            <option value="custom">+ Custom Bus No...</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Telemetry HUD Gauges -->
+      <div class="hud-grid">
+        <!-- Status Box -->
+        <div class="hud-box">
+          <div class="hud-label">Live Status</div>
+          <div id="hud-status" class="status-badge status-halt">
+            <span class="pulse-dot"></span>
+            <span id="hud-status-text">STOPPED</span>
+          </div>
+          <div id="hud-dwell-text" class="hud-sub">Halt dwell: 6s</div>
+        </div>
+
+        <!-- Speed Box -->
+        <div class="hud-box">
+          <div class="hud-label">GPS Speed</div>
+          <div class="hud-value"><span id="hud-speed">0</span> <span style="font-size: 13px; color: var(--text-dim);">km/h</span></div>
+          <div class="hud-sub">Dynamic throttle</div>
+        </div>
+
+        <!-- Coordinates Box -->
+        <div class="hud-box" style="grid-column: span 2;">
+          <div class="hud-label">GPS Coordinates (Lat, Lng)</div>
+          <div class="hud-value" style="font-size: 15px; color: #38BDF8;">
+            <span id="hud-lat">12.971600</span>, <span id="hud-lng">77.594600</span>
+          </div>
+          <div class="hud-sub" id="hud-coords-delta">Gradual step interpolation active</div>
+        </div>
+      </div>
+
+      <!-- Current Leg Progress -->
+      <div class="leg-progress-section">
+        <div class="leg-meta">
+          <div>
+            <span style="color: var(--text-muted);">From: </span>
+            <strong id="leg-from-name" style="color: #FFFFFF;">Stop 1</strong>
+          </div>
+          <div>
+            <span style="color: var(--text-muted);">To: </span>
+            <strong id="leg-to-name" style="color: #38BDF8;">Stop 2</strong>
+          </div>
+          <div>
+            <span style="color: var(--text-muted);">Progress: </span>
+            <strong id="leg-percent" style="color: #34D399; font-family: 'JetBrains Mono', monospace;">0%</strong>
+          </div>
+        </div>
+        <div class="progress-track">
+          <div id="leg-progress-bar" class="progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- Manual Route Moving Slider (Interactive Scrubbing) -->
+      <div class="scrubber-section">
+        <div class="scrubber-header">
+          <div class="scrubber-title">
+            <span>🎛️ Manual Route Slider</span>
+            <span style="font-size: 11px; color: var(--text-dim); font-weight: 500;">(Drag to move bus live)</span>
+          </div>
+          <span id="scrub-val-display" class="scrubber-val">0.0%</span>
+        </div>
+
+        <div class="scrub-slider-wrap">
+          <input type="range" id="manual-scrub-slider" min="0" max="100" value="0" step="0.2" class="scrub-slider" />
+        </div>
+
+        <!-- Stop Ticks Dynamically Rendered -->
+        <div class="scrubber-ticks" id="scrubber-ticks-container"></div>
+      </div>
+
+      <!-- Primary Action Buttons -->
+      <div class="control-buttons-row">
+        <button id="btn-start" class="btn btn-primary">
+          <span>▶</span> Start Simulation
+        </button>
+        <button id="btn-pause" class="btn btn-secondary" disabled>
+          <span>⏸</span> Pause
+        </button>
+        <button id="btn-reset" class="btn btn-danger">
+          <span>⏮</span> Reset (Stop 0)
+        </button>
+        <button id="btn-step" class="btn btn-secondary" title="Single step forward">
+          <span>⏭</span> Step +1
+        </button>
+      </div>
+
+      <!-- Speed Multiplier Control -->
+      <div class="multiplier-group">
+        <span class="multiplier-label">Speed Multiplier:</span>
+        <div class="segmented-control" id="speed-segmented">
+          <button class="seg-btn active" data-speed="1">1x</button>
+          <button class="seg-btn" data-speed="2">2x</button>
+          <button class="seg-btn" data-speed="5">5x (Fast)</button>
+          <button class="seg-btn" data-speed="10">10x (Sprint)</button>
+        </div>
+
+        <span class="multiplier-label" style="margin-left: 12px;">Halt Dwell:</span>
+        <div class="segmented-control" id="dwell-segmented">
+          <button class="seg-btn" data-dwell="3">3s</button>
+          <button class="seg-btn active" data-dwell="6">6s</button>
+          <button class="seg-btn" data-dwell="10">10s</button>
+        </div>
+      </div>
+
+      <!-- State Overrides -->
+      <div class="overrides-section">
+        <div class="section-subtitle">Quick Telematics State Overrides</div>
+        <div class="quick-triggers">
+          <button class="trigger-chip" id="force-halt-btn">🛑 Force Halt / Stopped</button>
+          <button class="trigger-chip" id="force-move-btn">🚀 Force Moving</button>
+          <button class="trigger-chip" id="force-dest-btn">🏁 Force Destination</button>
+          <button class="trigger-chip" id="force-offline-btn">📴 Force Offline</button>
+          <button class="trigger-chip" id="seed-stops-btn" style="color: #60A5FA; border-color: rgba(96, 165, 250, 0.3);">🌱 Re-Seed Firebase Stops</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Visual Route Timeline -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>📍 Live Route Stops Sequence</span>
+        </div>
+        <span id="stops-counter-badge" style="font-size: 12px; font-weight: 700; color: var(--text-muted); background: rgba(255,255,255,0.06); padding: 4px 10px; border-radius: 20px;">
+          0 Stops
+        </span>
+      </div>
+
+      <p style="font-size: 12.5px; color: var(--text-muted); margin-bottom: 14px;">
+        Click any stop to jump the simulated bus directly to that location.
+      </p>
+
+      <!-- Stops List with animated bus position -->
+      <div class="timeline-container" id="timeline-container">
+        <div class="timeline-track-line"></div>
+        <div id="stops-timeline-items">
+          <div style="text-align: center; padding: 40px 0; color: var(--text-dim); font-size: 13px;">
+            Loading stops from Firebase Firestore...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Row: Real-time Telemetry Log -->
+    <div class="console-card">
+      <div class="console-header">
+        <div class="console-title">
+          <span>📟 Firestore Live Telemetry Stream (buses/bus_<span id="log-bus-id">32</span>)</span>
+        </div>
+        <button id="btn-clear-log" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 11px;">Clear Log</button>
+      </div>
+      <div class="console-logs" id="console-logs">
+        <div class="log-line">
+          <span class="log-time">[Init]</span>
+          <span class="log-event">READY</span>
+          <span class="log-data">Simulation engine initialized. Ready to broadcast telematics.</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Simulator Client Script -->
+  <script type="module">
+    import { BusSimulator, globalSimulator } from './js/bus-simulator.js';
+
+    let sim = globalSimulator;
+
+    // DOM Elements
+    const busSelector = document.getElementById('bus-selector');
+    const hudStatus = document.getElementById('hud-status');
+    const hudStatusText = document.getElementById('hud-status-text');
+    const hudDwellText = document.getElementById('hud-dwell-text');
+    const hudSpeed = document.getElementById('hud-speed');
+    const hudLat = document.getElementById('hud-lat');
+    const hudLng = document.getElementById('hud-lng');
+    const hudCoordsDelta = document.getElementById('hud-coords-delta');
+    const legFromName = document.getElementById('leg-from-name');
+    const legToName = document.getElementById('leg-to-name');
+    const legPercent = document.getElementById('leg-percent');
+    const legProgressBar = document.getElementById('leg-progress-bar');
+    const stopsTimelineItems = document.getElementById('stops-timeline-items');
+    const stopsCounterBadge = document.getElementById('stops-counter-badge');
+    const consoleLogs = document.getElementById('console-logs');
+    const logBusId = document.getElementById('log-bus-id');
+
+    const btnStart = document.getElementById('btn-start');
+    const btnPause = document.getElementById('btn-pause');
+    const btnReset = document.getElementById('btn-reset');
+    const btnStep = document.getElementById('btn-step');
+
+    // Logging helper
+    function appendLog(event, data) {
+      if (!consoleLogs) return;
+      const now = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.innerHTML = `
+        <span class="log-time">[${now}]</span>
+        <span class="log-event">${event}</span>
+        <span class="log-data">${typeof data === 'object' ? JSON.stringify(data) : data}</span>
+      `;
+      consoleLogs.prepend(line);
+      if (consoleLogs.children.length > 50) {
+        consoleLogs.lastElementChild.remove();
+      }
+    }
+
+    // Render Stops Timeline
+    function renderTimeline(state) {
+      if (!stopsTimelineItems) return;
+      const stops = state.stops || [];
+      stopsCounterBadge.textContent = `${stops.length} Stops`;
+
+      if (scrubberTicksContainer && (!scrubberTicksContainer.children.length || scrubberTicksContainer.dataset.stopsCount !== String(stops.length))) {
+        renderScrubberTicks(stops);
+        scrubberTicksContainer.dataset.stopsCount = String(stops.length);
+      }
+
+      if (stops.length === 0) {
+        stopsTimelineItems.innerHTML = `
+          <div style="text-align: center; padding: 40px 0; color: var(--text-dim); font-size: 13px;">
+            No stops configured for Bus ${state.busNumber} in Firebase.<br/>
+            <button id="btn-quick-seed" style="margin-top: 10px; padding: 6px 14px; background: #2563EB; color: #FFF; border: none; border-radius: 6px; cursor: pointer; font-weight: 700;">
+              Seed Sample Campus Route Stops
+            </button>
+          </div>
+        `;
+        document.getElementById('btn-quick-seed')?.addEventListener('click', async () => {
+          await sim.seedDefaultStops();
+        });
+        return;
+      }
+
+      stopsTimelineItems.innerHTML = '';
+      stops.forEach((stop, idx) => {
+        let stopClass = '';
+        let badgeText = 'Upcoming';
+        let pillClass = 'pill-gray';
+
+        if (state.status === 'completed') {
+          stopClass = idx === stops.length - 1 ? 'arrived current-bus' : 'departed';
+          badgeText = idx === stops.length - 1 ? 'Destination' : 'Departed';
+          pillClass = idx === stops.length - 1 ? 'pill-green' : 'pill-blue';
+        } else if (idx < state.currentLegIndex) {
+          stopClass = 'departed';
+          badgeText = 'Departed';
+          pillClass = 'pill-blue';
+        } else if (idx === state.currentLegIndex) {
+          if (state.status === 'stopped') {
+            stopClass = 'arrived current-bus';
+            badgeText = 'At Stop (Halt)';
+            pillClass = 'pill-orange';
+          } else {
+            stopClass = 'departed';
+            badgeText = 'Departed';
+            pillClass = 'pill-blue';
+          }
+        } else if (idx === state.nextLegIndex && state.status === 'moving') {
+          stopClass = 'active';
+          badgeText = 'Next Stop';
+          pillClass = 'pill-green';
+        }
+
+        const el = document.createElement('div');
+        el.className = `timeline-item ${stopClass}`;
+        el.innerHTML = `
+          <div class="stop-indicator">${idx + 1}</div>
+          <div class="stop-details">
+            <div class="stop-row-top">
+              <span class="stop-title">${stop.name || stop.stopName}</span>
+              <span class="stop-time-tag">${stop.arrivalTime || ''}</span>
+            </div>
+            <div class="stop-coords">${Number(stop.latitude).toFixed(6)}, ${Number(stop.longitude).toFixed(6)}</div>
+            <span class="stop-status-pill ${pillClass}">${badgeText}</span>
+          </div>
+        `;
+        el.addEventListener('click', async () => {
+          appendLog('JUMP_STOP', `Jumping to stop ${idx + 1}: ${stop.name}`);
+          await sim.jumpToStop(idx);
+        });
+        stopsTimelineItems.appendChild(el);
+      });
+    }
+
+    const manualScrubSlider = document.getElementById('manual-scrub-slider');
+    const scrubValDisplay = document.getElementById('scrub-val-display');
+    const scrubberTicksContainer = document.getElementById('scrubber-ticks-container');
+    let isUserScrubbing = false;
+
+    // Render Stop Ticks along scrubber slider
+    function renderScrubberTicks(stops) {
+      if (!scrubberTicksContainer || !stops || stops.length < 2) return;
+      scrubberTicksContainer.innerHTML = '';
+      const totalLegs = stops.length - 1;
+      stops.forEach((stop, idx) => {
+        const pct = Math.round((idx / totalLegs) * 100);
+        const tickBtn = document.createElement('button');
+        tickBtn.className = 'scrub-tick-btn';
+        tickBtn.textContent = `S${idx + 1}: ${stop.name || stop.stopName}`;
+        tickBtn.title = `Snap to Stop ${idx + 1} (${pct}%)`;
+        tickBtn.addEventListener('click', async () => {
+          manualScrubSlider.value = pct;
+          scrubValDisplay.textContent = `${pct}.0%`;
+          appendLog('SCRUB_SNAP', `Snapped slider to Stop ${idx + 1} (${pct}%)`);
+          await sim.setOverallProgress(pct);
+        });
+        scrubberTicksContainer.appendChild(tickBtn);
+      });
+    }
+
+    // Update Telemetry Display
+    function updateUI(state) {
+      // Status Badge
+      hudStatus.className = 'status-badge';
+      if (state.status === 'moving') {
+        hudStatus.classList.add('status-moving');
+        hudStatusText.textContent = 'MOVING';
+        hudDwellText.textContent = `Cruising to Stop ${state.nextLegIndex + 1}`;
+      } else if (state.status === 'stopped') {
+        hudStatus.classList.add('status-halt');
+        hudStatusText.textContent = 'IN HALT';
+        hudDwellText.textContent = `Halt dwell: ${Math.max(0, Math.ceil(state.dwellRemaining))}s remaining`;
+      } else if (state.status === 'completed') {
+        hudStatus.classList.add('status-completed');
+        hudStatusText.textContent = 'COMPLETED';
+        hudDwellText.textContent = 'Route finished';
+      } else if (state.status === 'offline') {
+        hudStatus.classList.add('status-offline');
+        hudStatusText.textContent = 'OFFLINE';
+        hudDwellText.textContent = 'Bus inactive';
+      }
+
+      // Gauges
+      hudSpeed.textContent = state.speed;
+      hudLat.textContent = Number(state.lat || 0).toFixed(6);
+      hudLng.textContent = Number(state.lng || 0).toFixed(6);
+
+      // Progress
+      legFromName.textContent = state.currentStopName || 'Start';
+      legToName.textContent = state.nextStopName || 'End';
+      const pct = Math.round(state.progressOnLeg * 100);
+      legPercent.textContent = `${pct}%`;
+      legProgressBar.style.width = `${pct}%`;
+
+      // Sync Scrubber Slider when not user scrubbing
+      if (!isUserScrubbing && manualScrubSlider) {
+        const overall = state.overallPercent !== undefined ? state.overallPercent : pct;
+        manualScrubSlider.value = overall;
+        if (scrubValDisplay) {
+          scrubValDisplay.textContent = `${Number(overall).toFixed(1)}%`;
+        }
+      }
+
+      // Highlight active tick button
+      if (scrubberTicksContainer) {
+        const tickBtns = scrubberTicksContainer.querySelectorAll('.scrub-tick-btn');
+        tickBtns.forEach((btn, idx) => {
+          if (idx === state.currentLegIndex) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
+        });
+      }
+
+      // Buttons
+      if (state.isRunning && !state.isPaused) {
+        btnStart.disabled = true;
+        btnPause.disabled = false;
+      } else {
+        btnStart.disabled = false;
+        btnPause.disabled = true;
+      }
+
+      renderTimeline(state);
+    }
+
+    // Scrubber Slider Input Handler (real-time scrubbing)
+    if (manualScrubSlider) {
+      manualScrubSlider.addEventListener('input', async (e) => {
+        isUserScrubbing = true;
+        const val = parseFloat(e.target.value);
+        if (scrubValDisplay) {
+          scrubValDisplay.textContent = `${val.toFixed(1)}%`;
+        }
+        await sim.setOverallProgress(val);
+      });
+
+      const endScrub = () => {
+        isUserScrubbing = false;
+      };
+      manualScrubSlider.addEventListener('change', endScrub);
+      manualScrubSlider.addEventListener('mouseup', endScrub);
+      manualScrubSlider.addEventListener('touchend', endScrub);
+    }
+
+    // Subscribe to simulator events
+    sim.subscribe((event, state) => {
+      updateUI(state);
+      if (event === 'tick' || event === 'halted' || event === 'departed' || event === 'completed' || event === 'jumped') {
+        appendLog(event.toUpperCase(), {
+          status: state.status,
+          stopIdx: state.currentLegIndex,
+          lat: state.lat,
+          lng: state.lng,
+          speed: state.speed,
+          eta: state.etaMinutes
+        });
+      }
+    });
+
+    // Control Handlers
+    btnStart.addEventListener('click', async () => {
+      appendLog('START', 'Starting bus simulation');
+      await sim.start();
+    });
+
+    btnPause.addEventListener('click', () => {
+      appendLog('PAUSE', 'Paused bus simulation');
+      sim.pause();
+    });
+
+    btnReset.addEventListener('click', async () => {
+      appendLog('RESET', 'Resetting bus simulation to Stop 0');
+      await sim.reset();
+    });
+
+    btnStep.addEventListener('click', async () => {
+      if (!sim.isRunning) {
+        await sim.start();
+        sim.pause();
+      }
+      await sim.tick();
+    });
+
+    // Speed Segmented Buttons
+    document.querySelectorAll('#speed-segmented .seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#speed-segmented .seg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mult = Number(btn.dataset.speed);
+        sim.setSpeedMultiplier(mult);
+        appendLog('SPEED_CHANGE', `${mult}x multiplier`);
+      });
+    });
+
+    // Dwell Segmented Buttons
+    document.querySelectorAll('#dwell-segmented .seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#dwell-segmented .seg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const dwell = Number(btn.dataset.dwell);
+        sim.setDwellSeconds(dwell);
+        appendLog('DWELL_CHANGE', `${dwell}s halt dwell`);
+      });
+    });
+
+    // Quick State Override Buttons
+    document.getElementById('force-halt-btn').addEventListener('click', () => sim.forceStatus('stopped'));
+    document.getElementById('force-move-btn').addEventListener('click', () => sim.forceStatus('moving'));
+    document.getElementById('force-dest-btn').addEventListener('click', () => sim.forceStatus('completed'));
+    document.getElementById('force-offline-btn').addEventListener('click', () => sim.forceStatus('offline'));
+    document.getElementById('seed-stops-btn').addEventListener('click', async () => {
+      if (confirm(`Re-seed default campus stops for Bus ${sim.busNumber} in Firebase?`)) {
+        await sim.seedDefaultStops();
+        appendLog('SEEDED_STOPS', `Seeded default stops for Bus ${sim.busNumber}`);
+      }
+    });
+
+    document.getElementById('btn-clear-log').addEventListener('click', () => {
+      consoleLogs.innerHTML = '';
+    });
+
+    // Bus Selector
+    busSelector.addEventListener('change', async (e) => {
+      let val = e.target.value;
+      if (val === 'custom') {
+        const custom = prompt('Enter Bus Number to simulate:', '25');
+        if (custom) {
+          val = custom.trim();
+          const opt = document.createElement('option');
+          opt.value = val;
+          opt.textContent = `Bus ${val}`;
+          opt.selected = true;
+          busSelector.appendChild(opt);
+        } else {
+          busSelector.value = sim.busNumber;
+          return;
+        }
+      }
+
+      logBusId.textContent = val;
+      sim.pause();
+      sim.busNumber = val;
+      appendLog('SWITCH_BUS', `Switched to Bus ${val}`);
+      await sim.loadStops(val);
+      await sim.reset();
+    });
+
+    // Initial load
+    async function init() {
+      try {
+        await sim.loadStops('32');
+        if (sim.stops.length === 0) {
+          console.log('[Simulator] Auto-seeding default stops for Bus 32...');
+          await sim.seedDefaultStops('32');
+        }
+        updateUI(sim.getState());
+        appendLog('INITIALIZED', `Bus 32 loaded with ${sim.stops.length} stops.`);
+      } catch (err) {
+        console.error('Simulator init error:', err);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
