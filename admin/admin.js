@@ -1,4 +1,5 @@
 // admin.js - Complete Production-Ready NexRide Transport Control Dashboard Engine
+import '../js/instrument.js';
 import { auth, firestore } from '../js/firebase-config.js';
 import { 
   signInWithEmailAndPassword, signOut, onAuthStateChanged, 
@@ -73,32 +74,79 @@ function showError(msg) {
   }
 }
 
+const AUTHORIZED_ADMIN_EMAILS = [
+  'admin@nexride.com',
+  'teamnexride@gmail.com',
+  'harishsrhr@gmail.com'
+];
+
+function isAuthorizedAdminEmail(email) {
+  if (!email) return false;
+  const lower = email.toLowerCase().trim();
+  return AUTHORIZED_ADMIN_EMAILS.includes(lower) || /^[a-zA-Z0-9._%+-]+@admin\.nexride\.com$/.test(lower);
+}
+
 onAuthStateChanged(auth, async (user) => {
   if (user) {
+    let isAuthorized = false;
+    let adminRole = 'Admin';
+
+    try {
+      // 1. Check software_admin document
+      const adminDocRef = doc(firestore, 'software_admin', user.uid);
+      const adminDocSnap = await getDoc(adminDocRef);
+      if (adminDocSnap && adminDocSnap.exists()) {
+        isAuthorized = true;
+        adminRole = adminDocSnap.data().role || 'Super Admin';
+      }
+
+      // 2. Check custom claims
+      if (!isAuthorized && typeof user.getIdTokenResult === 'function') {
+        const tokenResult = await user.getIdTokenResult().catch(() => null);
+        if (tokenResult && tokenResult.claims && (tokenResult.claims.admin === true || tokenResult.claims.role === 'admin')) {
+          isAuthorized = true;
+          adminRole = 'Super Admin';
+        }
+      }
+
+      // 3. Check designated admin emails
+      if (!isAuthorized && isAuthorizedAdminEmail(user.email)) {
+        isAuthorized = true;
+        adminRole = 'Super Admin';
+      }
+    } catch (err) {
+      console.warn("Role check failed:", err.message);
+      if (isAuthorizedAdminEmail(user.email)) {
+        isAuthorized = true;
+        adminRole = 'Super Admin';
+      }
+    }
+
+    if (!isAuthorized) {
+      console.warn("Unauthorized access attempt to admin console:", user.email || user.uid);
+      showError("Access Denied: Administrator account required.");
+      currentAdminUser = null;
+      try { await signOut(auth); } catch (e) {}
+      showLogin();
+      return;
+    }
+
     currentAdminUser = user;
     const profileEmailEl = document.getElementById('header-profile-email');
     const profileNameEl = document.getElementById('header-profile-name');
     if (profileEmailEl && user.email) profileEmailEl.textContent = user.email;
     if (profileNameEl) profileNameEl.textContent = user.displayName || (user.email ? user.email.split('@')[0] : 'Admin');
 
-    try {
-      const adminDocRef = doc(firestore, 'software_admin', user.uid);
-      const adminDocSnap = await getDoc(adminDocRef);
-      if (adminDocSnap.exists()) {
-        const role = adminDocSnap.data().role || 'Super Admin';
-        const roleEl = document.getElementById('settings-current-role');
-        if (roleEl) roleEl.textContent = role;
-      }
-      const roleEmailEl = document.getElementById('stg-role-email');
-      if (roleEmailEl && user.email) roleEmailEl.textContent = user.email;
-      const roleAvatarEl = document.getElementById('stg-role-avatar');
-      if (roleAvatarEl) {
-        const letter = (user.displayName || user.email || 'A').trim().charAt(0).toUpperCase();
-        roleAvatarEl.textContent = letter;
-      }
-    } catch (err) {
-      console.warn("Role check:", err.message);
+    const roleEl = document.getElementById('settings-current-role');
+    if (roleEl) roleEl.textContent = adminRole;
+    const roleEmailEl = document.getElementById('stg-role-email');
+    if (roleEmailEl && user.email) roleEmailEl.textContent = user.email;
+    const roleAvatarEl = document.getElementById('stg-role-avatar');
+    if (roleAvatarEl) {
+      const letter = (user.displayName || user.email || 'A').trim().charAt(0).toUpperCase();
+      roleAvatarEl.textContent = letter;
     }
+
     showDashboard();
   } else {
     currentAdminUser = null;
@@ -1058,7 +1106,7 @@ function listenToUsers() {
     usersCache = [];
     snapshot.forEach(d => {
       const data = d.data();
-      const busNum = String(data.bus || data.busNumber || data['bus no'] || data.bus_no || '').trim();
+      const busNum = String(data.assignedBus || data.bus || data.busNumber || data['bus no'] || data.bus_no || '').trim();
       const studentId = data.regno || data.id || data.studentId || d.id;
       const studentName = data.name || 'Student';
       const pickup = data.stage || data.pickupStop || '--';
@@ -1073,6 +1121,8 @@ function listenToUsers() {
         department: dept,
         year: data.year || '2nd Year',
         assignedBus: busNum,
+        bus: busNum,
+        busNumber: busNum,
         pickupStop: pickup,
         dropStop: 'Nandha Engineering College',
         phone: phone,
@@ -1599,7 +1649,10 @@ function deriveDerivedState() {
   documentsCache = docList;
   
   // Real assigned students strictly derived from usersCache
-  studentsCache = usersCache.filter(u => u.assignedBus && String(u.assignedBus).trim() !== '');
+  studentsCache = usersCache.filter(u => {
+    const b = String(u.assignedBus || u.bus || u.busNumber || '').trim();
+    return b !== '' && b !== 'null' && b !== 'undefined' && b !== '--';
+  });
 
   // Scheduled & Active Trips Calculation from real bus schedules
   const tripList = [];
@@ -1883,7 +1936,7 @@ function renderBusesTable() {
     const seatCap = parseInt(bus.seatCapacity || bus.capacity || 52, 10);
     const standCap = parseInt(bus.standingCapacity || 0, 10);
     const totalCap = parseInt(bus.totalCapacity || (seatCap + standCap), 10);
-    const assignedCount = usersCache.filter(u => String(u.assignedBus).trim() === String(bus.busNumber).trim()).length;
+    const assignedCount = usersCache.filter(u => String(u.assignedBus || u.bus || u.busNumber || '').trim() === String(bus.busNumber).trim()).length;
     const occupancyPct = totalCap > 0 ? Math.round((assignedCount / totalCap) * 100) : 0;
     const regText = bus.registrationNumber || bus.regNumber || 'Not Registered';
 
@@ -1973,15 +2026,21 @@ function renderDriversTable() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><strong>${escapeHtml(driver.name)}</strong></td>
-      <td>${escapeHtml(driver.id)}<br><span style="font-size: 12px; color: var(--text-muted);">${driver.phone}</span></td>
-      <td>${driver.assignedBus !== 'N/A' ? `Bus ${driver.assignedBus}` : '<span style="color: var(--text-muted);">Unassigned</span>'}</td>
+      <td>${escapeHtml(driver.id)}<br><span style="font-size: 12px; color: var(--text-muted);">${escapeHtml(driver.phone)}</span></td>
+      <td>${driver.assignedBus !== 'N/A' ? `Bus ${escapeHtml(driver.assignedBus)}` : '<span style="color: var(--text-muted);">Unassigned</span>'}</td>
       <td>${escapeHtml(driver.assignedRoute)}</td>
-      <td><span class="status-badge ${driver.licenseStatus === 'Valid' ? 'badge-green' : 'badge-orange'}">${driver.licenseStatus}</span></td>
-      <td><span class="status-badge ${getStatusBadgeClass(driver.status)}">${driver.status}</span></td>
+      <td><span class="status-badge ${driver.licenseStatus === 'Valid' ? 'badge-green' : 'badge-orange'}">${escapeHtml(driver.licenseStatus)}</span></td>
+      <td><span class="status-badge ${getStatusBadgeClass(driver.status)}">${escapeHtml(driver.status)}</span></td>
       <td style="text-align: right;">
-        <button class="btn-action-icon btn-action-primary" onclick="window.adminOpenDriverAssign('${driver.name}')">Assign</button>
+        <button type="button" class="btn-action-icon btn-action-primary btn-driver-assign" data-driver-name="${escapeHtml(driver.name)}">Assign</button>
       </td>
     `;
+    const assignBtn = tr.querySelector('.btn-driver-assign');
+    if (assignBtn) {
+      assignBtn.addEventListener('click', () => {
+        window.adminOpenDriverAssign(driver.name);
+      });
+    }
     tbody.appendChild(tr);
   });
 }
@@ -2039,9 +2098,15 @@ function renderStudentsTable() {
       <td>${escapeHtml(stu.phone)}</td>
       <td><span class="status-badge badge-green">${escapeHtml(stu.status)}</span></td>
       <td style="text-align: right;">
-        <button class="btn-action-icon" onclick="alert('Student: ${stu.name}\\nID: ${stu.id}\\nBus: ${stu.assignedBus}\\nPickup: ${stu.pickupStop}')">Profile</button>
+        <button type="button" class="btn-action-icon btn-student-profile" data-student-id="${escapeHtml(stu.id)}">Profile</button>
       </td>
     `;
+    const profileBtn = tr.querySelector('.btn-student-profile');
+    if (profileBtn) {
+      profileBtn.addEventListener('click', () => {
+        alert(`Student: ${stu.name}\nID: ${stu.id}\nBus: ${stu.assignedBus}\nPickup: ${stu.pickupStop}`);
+      });
+    }
     tbody.appendChild(tr);
   });
 }
@@ -3178,13 +3243,19 @@ function renderDocumentsTable() {
       <td><strong>${escapeHtml(docItem.entity)}</strong></td>
       <td>${escapeHtml(docItem.type)}</td>
       <td><span style="font-size: 13px; font-weight: 600;">${escapeHtml(docItem.number)}</span></td>
-      <td>${docItem.issueDate}</td>
-      <td><strong>${docItem.expiryDate}</strong></td>
-      <td><span class="status-badge ${docItem.status === 'Valid' ? 'badge-green' : (docItem.status === 'Expiring Soon' ? 'badge-orange' : 'badge-red')}">${docItem.status}</span></td>
+      <td>${escapeHtml(docItem.issueDate)}</td>
+      <td><strong>${escapeHtml(docItem.expiryDate)}</strong></td>
+      <td><span class="status-badge ${docItem.status === 'Valid' ? 'badge-green' : (docItem.status === 'Expiring Soon' ? 'badge-orange' : 'badge-red')}">${escapeHtml(docItem.status)}</span></td>
       <td style="text-align: right;">
-        <button class="btn-action-icon" onclick="alert('Document Number: ${docItem.number}\\nExpiry: ${docItem.expiryDate}\\nCompliance: Verified')">View</button>
+        <button type="button" class="btn-action-icon btn-view-doc">View</button>
       </td>
     `;
+    const viewBtn = tr.querySelector('.btn-view-doc');
+    if (viewBtn) {
+      viewBtn.addEventListener('click', () => {
+        alert(`Document Number: ${docItem.number}\nExpiry: ${docItem.expiryDate}\nCompliance: Verified`);
+      });
+    }
     tbody.appendChild(tr);
   });
 }
@@ -3688,15 +3759,21 @@ function setupModalListeners() {
           updatedAt: serverTimestamp()
         };
 
-        let finalBusId = busEditId;
+        let finalBusId = busEditId || `bus_${busNo}`;
         if (busEditId) {
           await updateDoc(doc(firestore, 'buses', busEditId), payload);
           await logAuditEvent('BUS_UPDATED', 'buses', busEditId, { busNumber: busNo, changes: payload });
+          if (busEditId !== `bus_${busNo}`) {
+            try {
+              await setDoc(doc(firestore, 'buses', `bus_${busNo}`), payload, { merge: true });
+            } catch (syncErr) {
+              console.warn("Could not mirror bus to deterministic doc ID:", syncErr);
+            }
+          }
         } else {
           payload.createdAt = serverTimestamp();
-          const newDoc = await addDoc(collection(firestore, 'buses'), payload);
-          finalBusId = newDoc.id;
-          await logAuditEvent('BUS_CREATED', 'buses', newDoc.id, { busNumber: busNo, route: selectedRouteName });
+          await setDoc(doc(firestore, 'buses', finalBusId), payload, { merge: true });
+          await logAuditEvent('BUS_CREATED', 'buses', finalBusId, { busNumber: busNo, route: selectedRouteName });
         }
 
         // Sync to schedules collection for compatibility (morning & evening)
@@ -4371,7 +4448,7 @@ function openBusInspector(bus) {
   const seatCap = parseInt(bus.seatCapacity || bus.capacity || 52, 10);
   const standCap = parseInt(bus.standingCapacity || 0, 10);
   const totalCap = parseInt(bus.totalCapacity || (seatCap + standCap), 10);
-  const busStudents = usersCache.filter(u => String(u.assignedBus).trim() === String(bus.busNumber).trim());
+  const busStudents = usersCache.filter(u => String(u.assignedBus || u.bus || u.busNumber || '').trim() === String(bus.busNumber).trim());
   const assignedCount = busStudents.length;
   const occupancyPct = totalCap > 0 ? Math.round((assignedCount / totalCap) * 100) : 0;
 
@@ -4593,7 +4670,7 @@ function setupGlobalSearch() {
     if (matchedRoutes.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Routes</div>`;
       matchedRoutes.slice(0, 3).forEach(r => {
-        html += `<div class="search-item" onclick="window.adminInspectRoute('${r.id}')"><span><strong>${escapeHtml(r.name)}</strong> (${escapeHtml(r.startPoint || '')} &rarr; ${escapeHtml(r.destination || '')})</span><span class="status-badge badge-blue">Inspect</span></div>`;
+        html += `<div class="search-item" data-action="inspect-route" data-route-id="${escapeHtml(r.id)}"><span><strong>${escapeHtml(r.name)}</strong> (${escapeHtml(r.startPoint || '')} &rarr; ${escapeHtml(r.destination || '')})</span><span class="status-badge badge-blue">Inspect</span></div>`;
       });
       html += `</div>`;
     }
@@ -4601,7 +4678,7 @@ function setupGlobalSearch() {
     if (matchedBuses.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Buses</div>`;
       matchedBuses.slice(0, 3).forEach(b => {
-        html += `<div class="search-item" onclick="window.adminInspectBus('${b.id}')"><span><strong>Bus ${b.busNumber}</strong> - ${b.routeName || 'Route'}</span><span class="status-badge badge-blue">Inspect</span></div>`;
+        html += `<div class="search-item" data-action="inspect-bus" data-bus-id="${escapeHtml(b.id)}"><span><strong>Bus ${escapeHtml(b.busNumber)}</strong> - ${escapeHtml(b.routeName || 'Route')}</span><span class="status-badge badge-blue">Inspect</span></div>`;
       });
       html += `</div>`;
     }
@@ -4609,7 +4686,7 @@ function setupGlobalSearch() {
     if (matchedDrivers.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Drivers</div>`;
       matchedDrivers.slice(0, 3).forEach(d => {
-        html += `<div class="search-item" onclick="window.adminOpenDriverAssign('${d.name}')"><span><strong>${d.name}</strong> (${d.phone})</span><span class="status-badge badge-green">Driver</span></div>`;
+        html += `<div class="search-item" data-action="assign-driver" data-driver-name="${escapeHtml(d.name)}"><span><strong>${escapeHtml(d.name)}</strong> (${escapeHtml(d.phone || '')})</span><span class="status-badge badge-green">Driver</span></div>`;
       });
       html += `</div>`;
     }
@@ -4617,7 +4694,7 @@ function setupGlobalSearch() {
     if (matchedTickets.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Support Tickets</div>`;
       matchedTickets.slice(0, 3).forEach(t => {
-        html += `<div class="search-item" onclick="window.adminOpenTicket('${t.id}')"><span><strong>${t.reportNumber || 'Ticket'}</strong>: ${t.subject || 'Issue'}</span><span class="status-badge badge-orange">${t.status || 'Open'}</span></div>`;
+        html += `<div class="search-item" data-action="open-ticket" data-ticket-id="${escapeHtml(t.id)}"><span><strong>${escapeHtml(t.reportNumber || 'Ticket')}</strong>: ${escapeHtml(t.subject || 'Issue')}</span><span class="status-badge badge-orange">${escapeHtml(t.status || 'Open')}</span></div>`;
       });
       html += `</div>`;
     }
@@ -4628,6 +4705,22 @@ function setupGlobalSearch() {
 
     resultsBox.innerHTML = html;
     resultsBox.classList.remove('hidden');
+  });
+
+  resultsBox.addEventListener('click', (e) => {
+    const item = e.target.closest('.search-item');
+    if (!item) return;
+    const action = item.getAttribute('data-action');
+    if (action === 'inspect-route') {
+      window.adminInspectRoute(item.getAttribute('data-route-id'));
+    } else if (action === 'inspect-bus') {
+      window.adminInspectBus(item.getAttribute('data-bus-id'));
+    } else if (action === 'assign-driver') {
+      window.adminOpenDriverAssign(item.getAttribute('data-driver-name'));
+    } else if (action === 'open-ticket') {
+      window.adminOpenTicket(item.getAttribute('data-ticket-id'));
+    }
+    resultsBox.classList.add('hidden');
   });
 
   document.addEventListener('click', (e) => {

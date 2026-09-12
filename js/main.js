@@ -1,3 +1,5 @@
+import "./instrument.js";
+
 // Globally prevent unwanted interactions
 window.addEventListener("contextmenu", (e) => {
   if (e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {

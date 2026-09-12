@@ -426,6 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if stops match
         if (busData.stops && Array.isArray(busData.stops)) {
           busData.stops.forEach(stop => {
+            if (!stop) return;
             let stopName = stop.stopName || stop.name;
             if (!stopName) return;
             stopName = String(stopName).trim(); // Remove trailing spaces
@@ -530,10 +531,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cache logic removed, querying DB directly in performSearch
 
   // --- Rendering Cards ---
+  function escapeRegex(str) {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function escapeHtml(str) {
+    if (!str && str !== 0) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function highlightText(text, query) {
-    if (!query) return text;
-    const regex = new RegExp(`(${query})`, "gi");
-    return text.replace(regex, `<span class="bs-highlight">$1</span>`);
+    if (!text && text !== 0) return '';
+    const safeText = escapeHtml(String(text));
+    if (!query || typeof query !== 'string' || !query.trim()) return safeText;
+    const escapedQuery = escapeRegex(escapeHtml(query.trim()));
+    try {
+      const regex = new RegExp(`(${escapedQuery})`, "gi");
+      return safeText.replace(regex, `<span class="bs-highlight">$1</span>`);
+    } catch (e) {
+      return safeText;
+    }
   }
 
   function formatArrivalTime(timeStr) {

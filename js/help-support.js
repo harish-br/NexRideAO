@@ -9,6 +9,9 @@
 
 'use strict';
 
+import { auth, firestore } from './firebase-config.js';
+import { doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA / SERVICE LAYER
 // ─────────────────────────────────────────────────────────────────────────────
@@ -246,37 +249,64 @@ function getSupportRequest(id) {
 }
 
 /** Create a new support request */
-function createSupportRequest(data) {
-  return new Promise(function(resolve, reject) {
-    setTimeout(function() {
-      try {
-        var raw = localStorage.getItem(STORAGE_KEY);
-        var tickets = raw ? JSON.parse(raw) : [];
+async function createSupportRequest(data) {
+  var id = 'NR-' + Date.now().toString(36).toUpperCase();
+  var currentUser = auth ? auth.currentUser : null;
+  var uid = currentUser ? currentUser.uid : 'anonymous';
+  var userName = currentUser ? (currentUser.displayName || currentUser.email || 'Student') : 'Student';
+  var userEmail = currentUser ? (currentUser.email || '') : '';
 
-        var id = 'NR-' + Date.now().toString(36).toUpperCase();
-        var ticket = {
-          id: id,
-          category: data.category,
-          description: data.description,
-          status: 'submitted',
-          createdAt: new Date().toISOString(),
-          responses: [
-            {
-              from: 'System',
-              message: 'Your request has been received. Our support team will review it shortly.',
-              at: new Date().toISOString()
-            }
-          ]
-        };
-
-        tickets.unshift(ticket);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
-        resolve({ ok: true, ticket: ticket });
-      } catch (e) {
-        reject(new Error('Failed to save request. Please try again.'));
+  var ticket = {
+    id: id,
+    category: data.category,
+    description: data.description,
+    status: 'Submitted',
+    createdAt: new Date().toISOString(),
+    responses: [
+      {
+        from: 'System',
+        message: 'Your request has been received. Our support team will review it shortly.',
+        at: new Date().toISOString()
       }
-    }, 800);
-  });
+    ]
+  };
+
+  // Always store to localStorage for immediate offline/local availability
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    var tickets = raw ? JSON.parse(raw) : [];
+    tickets.unshift(ticket);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tickets));
+  } catch (e) {
+    console.warn('[HelpSupport] localStorage caching warning:', e);
+  }
+
+  // Sync to Firestore reports collection so transport admin receives the ticket
+  if (firestore) {
+    try {
+      var reportPayload = {
+        reportNumber: id,
+        userId: uid,
+        userName: userName,
+        userEmail: userEmail,
+        category: data.category,
+        categoryId: data.category,
+        subject: 'Support Request: ' + data.category,
+        description: data.description,
+        status: 'Submitted',
+        priority: data.category === 'safety' ? 'Urgent' : 'Medium',
+        source: 'Help & Support',
+        createdAt: serverTimestamp ? serverTimestamp() : new Date().toISOString(),
+        submittedAt: new Date().toISOString()
+      };
+      await setDoc(doc(firestore, 'reports', id), reportPayload);
+      console.log('[HelpSupport] Ticket synced to Firestore reports:', id);
+    } catch (fsErr) {
+      console.warn('[HelpSupport] Firestore report sync notice (cached locally):', fsErr.message);
+    }
+  }
+
+  return { ok: true, ticket: ticket };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

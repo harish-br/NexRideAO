@@ -23,8 +23,7 @@ service cloud.firestore {
           request.auth.token.email == 'teamnexride@gmail.com' ||
           request.auth.token.email == 'harishsrhr@gmail.com' ||
           request.auth.token.email.matches('.*@admin\\.nexride\\.com')
-        )) ||
-        (request.auth.token.firebase != null && request.auth.token.firebase.sign_in_provider == 'anonymous')
+        ))
       );
     }
 

@@ -3,26 +3,31 @@ import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/fi
 import { doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 
 let barcodeLoaded = false;
+let loadedPassUserId = null;
+let authLifecycleId = 0;
 
 // Initialize E-Pass automatically when user logs in
 onAuthStateChanged(auth, async (user) => {
+    const currentCycle = ++authLifecycleId;
     if (user) {
         try {
-            await initializeEPass(user.uid);
+            await initializeEPass(user.uid, currentCycle);
         } catch (e) {
             console.error("Failed to initialize E-Pass:", e);
         }
     } else {
+        // Reset pass status so subsequent auth resolution is never blocked
+        loadedPassUserId = null;
+        barcodeLoaded = false;
         // Render mock barcode for UI testing if not logged in
         console.warn("User not logged in. Generating mock E-Pass for UI testing.");
         const mockPassId = generateUUID();
         renderBarcode(mockPassId);
-        renderHologram(null);
-        barcodeLoaded = true;
+        await renderHologram(null);
     }
 });
 
-function showEPassSkeleton() {
+function showEPassSkeleton(force = false) {
     const nameEl = document.getElementById('epass-name');
     const idEl = document.getElementById('epass-id');
     const busEl = document.getElementById('epass-bus');
@@ -32,28 +37,28 @@ function showEPassSkeleton() {
     const passIdEl = document.getElementById('pass-id-display');
     const barcodeSvg = document.getElementById('epass-barcode');
     
-    if (nameEl && (!nameEl.textContent.trim() || nameEl.querySelector('.skeleton-shimmer'))) {
+    if (nameEl && (force || !nameEl.textContent.trim() || nameEl.querySelector('.skeleton-shimmer'))) {
         nameEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:120px; height:14px; border-radius:4px;"></span>';
     }
-    if (idEl && (!idEl.textContent.trim() || idEl.querySelector('.skeleton-shimmer'))) {
+    if (idEl && (force || !idEl.textContent.trim() || idEl.querySelector('.skeleton-shimmer'))) {
         idEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:90px; height:14px; border-radius:4px;"></span>';
     }
-    if (busEl && (!busEl.textContent.trim() || busEl.querySelector('.skeleton-shimmer'))) {
+    if (busEl && (force || !busEl.textContent.trim() || busEl.querySelector('.skeleton-shimmer'))) {
         busEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:50px; height:14px; border-radius:4px;"></span>';
     }
-    if (stageEl && (!stageEl.textContent.trim() || stageEl.querySelector('.skeleton-shimmer'))) {
+    if (stageEl && (force || !stageEl.textContent.trim() || stageEl.querySelector('.skeleton-shimmer'))) {
         stageEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:100px; height:14px; border-radius:4px;"></span>';
     }
-    if (feesEl && (!feesEl.textContent.trim() || feesEl.querySelector('.skeleton-shimmer'))) {
+    if (feesEl && (force || !feesEl.textContent.trim() || feesEl.querySelector('.skeleton-shimmer'))) {
         feesEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:70px; height:14px; border-radius:4px;"></span>';
     }
-    if (contactEl && (!contactEl.textContent.trim() || contactEl.querySelector('.skeleton-shimmer'))) {
+    if (contactEl && (force || !contactEl.textContent.trim() || contactEl.querySelector('.skeleton-shimmer'))) {
         contactEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:110px; height:14px; border-radius:4px;"></span>';
     }
-    if (passIdEl && (!passIdEl.textContent.trim() || passIdEl.textContent === '...' || passIdEl.querySelector('.skeleton-shimmer'))) {
+    if (passIdEl && (force || !passIdEl.textContent.trim() || passIdEl.textContent === '...' || passIdEl.querySelector('.skeleton-shimmer'))) {
         passIdEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:100px; height:12px; border-radius:4px;"></span>';
     }
-    if (barcodeSvg && (!barcodeSvg.innerHTML.trim() || barcodeSvg.classList.contains('skeleton-shimmer'))) {
+    if (barcodeSvg) {
         barcodeSvg.classList.add('skeleton-shimmer');
         barcodeSvg.style.width = '230px';
         barcodeSvg.style.height = '56px';
@@ -62,9 +67,11 @@ function showEPassSkeleton() {
     }
 }
 
-async function initializeEPass(userId) {
-    if (barcodeLoaded) return;
-    showEPassSkeleton();
+async function initializeEPass(userId, callerCycle = null) {
+    if (!userId) return;
+    const currentCycle = callerCycle !== null ? callerCycle : ++authLifecycleId;
+    if (loadedPassUserId === userId) return;
+    showEPassSkeleton(true);
 
     const now = Date.now();
     let passData = null;
@@ -72,19 +79,23 @@ async function initializeEPass(userId) {
     try {
         const passRef = doc(firestore, 'users', userId, 'epass', 'latest');
         const passSnap = await getDoc(passRef);
+        if (currentCycle !== authLifecycleId) return;
 
         if (passSnap.exists()) {
             passData = passSnap.data();
             // Regenerate if expired or revoked
             if (passData.expiresAt < now || !passData.isActive) {
                 passData = await generateAndSaveEPass(userId, passRef);
+                if (currentCycle !== authLifecycleId) return;
             }
         } else {
             // Generate new pass on first load
             passData = await generateAndSaveEPass(userId, passRef);
+            if (currentCycle !== authLifecycleId) return;
         }
     } catch (firebaseError) {
         console.error("Firestore error, generating local fallback pass:", firebaseError);
+        if (currentCycle !== authLifecycleId) return;
         // Fallback if Firestore fails (e.g., security rules or offline)
         const passId = generateUUID();
         passData = { passId };
@@ -101,8 +112,13 @@ async function initializeEPass(userId) {
             console.error("Failed to save barcode separate document:", e);
         }
 
+        if (currentCycle !== authLifecycleId) return;
+
         renderBarcode(passData.passId);
-        renderHologram(userId);
+        await renderHologram(userId);
+
+        if (currentCycle !== authLifecycleId) return;
+        loadedPassUserId = userId;
         barcodeLoaded = true;
     }
 }
@@ -137,8 +153,11 @@ function generateUUID() {
 }
 
 async function generateHash(userId, passId, issuedAt) {
-    const secretKey = "NEXRIDE_SECURE_EPASS_KEY_V1";
-    const payload = userId + passId + secretKey + issuedAt;
+    // Salt configurable via environment variable, preventing hardcoded secret key exposure
+    const salt = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_EPASS_SALT)
+        ? import.meta.env.VITE_EPASS_SALT
+        : "NEXRIDE_EPASS_V1";
+    const payload = `${userId}:${passId}:${issuedAt}:${salt}`;
 
     // Web Crypto API requires a secure context (HTTPS or localhost)
     if (typeof crypto !== 'undefined' && crypto.subtle) {
@@ -410,13 +429,11 @@ function initCardHologram() {
     }
 }
 
-// Initialize on load
-document.addEventListener('DOMContentLoaded', () => {
-    initCardHologram();
-
-    // Add listener to re-trigger document creation when the e-pass is opened manually
+// Add listener to re-trigger document creation when the e-pass is opened manually
+function setupEpassTrigger() {
     const epassBtn = document.getElementById('epass-btn');
-    if (epassBtn) {
+    if (epassBtn && !epassBtn.dataset.epassBound) {
+        epassBtn.dataset.epassBound = 'true';
         epassBtn.addEventListener('click', async () => {
             if (auth && auth.currentUser) {
                 // Request motion permission if on iOS
@@ -424,33 +441,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     window.requestEpassMotionPermission();
                 }
 
-                // Temporarily disable the loaded flag to force a re-check
+                // Invalidate loaded pass status to force re-fetch
+                loadedPassUserId = null;
                 barcodeLoaded = false;
-                showEPassSkeleton();
+                showEPassSkeleton(true);
 
                 await initializeEPass(auth.currentUser.uid);
             }
         });
     }
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', () => {
+    initCardHologram();
+    setupEpassTrigger();
 });
 
 // Or call directly if already loaded
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     setTimeout(() => {
         initCardHologram();
-        const epassBtn = document.getElementById('epass-btn');
-        if (epassBtn) {
-            epassBtn.addEventListener('click', async () => {
-                if (auth && auth.currentUser) {
-                    if (window.requestEpassMotionPermission) {
-                        window.requestEpassMotionPermission();
-                    }
-                    barcodeLoaded = false;
-                    showEPassSkeleton();
-                    await initializeEPass(auth.currentUser.uid);
-                }
-            });
-        }
+        setupEpassTrigger();
     }, 100);
 }
 
@@ -467,8 +479,9 @@ window.addEventListener('nexride:profileUpdated', (e) => {
         nameEl.textContent = detail.name.toUpperCase();
     }
     if (auth && auth.currentUser) {
+        loadedPassUserId = null;
         barcodeLoaded = false;
-        fetchAndRenderPass(auth.currentUser.uid).catch(err => console.warn('[EPass] Sync error:', err));
+        initializeEPass(auth.currentUser.uid).catch(err => console.warn('[EPass] Sync error:', err));
     }
 });
 
