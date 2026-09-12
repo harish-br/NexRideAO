@@ -271,61 +271,8 @@
     <!-- Live Page Overlay -->
     <div id="live-page" class="page-overlay hidden">
       <div class="live-info">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div class="assigned-bus-title">Assigned Bus: <span id="assigned-bus-number"><span class="skeleton-bus-badge skeleton-shimmer"></span></span></div>
-          <button id="live-sim-toggle-btn" class="live-sim-pill" title="Toggle Bus Simulation Controls">
-            ⚡ Simulator
-          </button>
-        </div>
+        <div class="assigned-bus-title">Assigned Bus: <span id="assigned-bus-number"><span class="skeleton-bus-badge skeleton-shimmer"></span></span></div>
         <div class="bus-status" id="bus-status"><span class="skeleton-status-badge skeleton-shimmer"></span></div>
-      </div>
-
-      <!-- In-Page Live Simulator Drawer (Collapsible) -->
-      <div id="live-sim-drawer" class="live-sim-drawer hidden">
-        <div class="live-sim-drawer-header">
-          <div class="live-sim-drawer-title">
-            <span>⚡ Live Telematics Simulator</span>
-            <span id="live-sim-status-badge" class="sim-badge-halt">IN HALT</span>
-          </div>
-          <button id="live-sim-close-btn" class="sim-close-btn">&times;</button>
-        </div>
-
-        <div class="live-sim-body">
-          <div class="sim-row">
-            <label style="font-size: 11.5px; color: #94A3B8; font-weight: 600;">Bus:</label>
-            <input type="text" id="live-sim-bus-input" value="32" style="width: 55px; text-align: center; padding: 4px; font-size: 12px;" />
-            <button id="live-sim-switch-btn" class="sim-btn-xs">Track</button>
-            <span style="font-size: 11px; color: #38BDF8; font-family: monospace; margin-left: auto;" id="live-sim-coords">12.9716, 77.5946</span>
-          </div>
-
-          <div class="sim-row" style="margin-top: 8px;">
-            <button id="live-sim-start-btn" class="sim-btn-primary">▶ Start</button>
-            <button id="live-sim-pause-btn" class="sim-btn-secondary" disabled>⏸ Pause</button>
-            <button id="live-sim-reset-btn" class="sim-btn-secondary">⏮ Reset</button>
-            <button id="live-sim-step-btn" class="sim-btn-secondary">⏭ Step</button>
-          </div>
-
-          <!-- Manual Move Route Slider -->
-          <div style="margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 8px;">
-            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">
-              <span style="color: #94A3B8; font-weight: 600;">Manual Move Slider:</span>
-              <span id="live-sim-slider-val" style="color: #38BDF8; font-weight: 800; font-family: monospace;">0%</span>
-            </div>
-            <input type="range" id="live-sim-range-slider" min="0" max="100" value="0" step="0.5" style="width: 100%; cursor: pointer; accent-color: #38BDF8;" />
-          </div>
-
-          <div class="sim-row" style="margin-top: 8px; justify-content: space-between;">
-            <div class="sim-speed-toggles">
-              <span style="font-size: 11px; color: #94A3B8; font-weight: 600;">Speed:</span>
-              <button class="sim-spd-btn active" data-spd="1">1x</button>
-              <button class="sim-spd-btn" data-spd="2">2x</button>
-              <button class="sim-spd-btn" data-spd="5">5x</button>
-            </div>
-            <a href="./simulator.html" target="_blank" style="font-size: 11px; color: #38BDF8; font-weight: 700; text-decoration: none;">
-              Open Full HUD ↗
-            </a>
-          </div>
-        </div>
       </div>
 
       <!-- Vertical Tracking Timeline -->

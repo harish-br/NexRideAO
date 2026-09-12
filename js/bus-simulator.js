@@ -45,6 +45,7 @@ export class BusSimulator {
     this.speedMultiplier = options.speedMultiplier || 1; // 1x, 2x, 5x, 10x
     this.haltDwellSeconds = options.haltDwellSeconds !== undefined ? options.haltDwellSeconds : 6;
     this.autoLoop = options.autoLoop !== undefined ? options.autoLoop : true;
+    this.isEngineOn = options.isEngineOn !== undefined ? Boolean(options.isEngineOn) : true;
 
     // Simulation State
     this.isRunning = false;
@@ -83,6 +84,8 @@ export class BusSimulator {
     const overallPercent = Math.min(100, Math.max(0, Math.round(((this.currentLegIndex + this.progressOnLeg) / totalLegs) * 100)));
 
     return {
+      isEngineOn: this.isEngineOn,
+      engine: this.isEngineOn ? 'on' : 'off',
       busNumber: this.busNumber,
       isRunning: this.isRunning,
       isPaused: this.isPaused,
@@ -257,6 +260,7 @@ export class BusSimulator {
 
     this.isRunning = true;
     this.isPaused = false;
+    this.isEngineOn = true;
 
     // If starting fresh or stopped at a stop, begin with dwell countdown or immediately move
     if (this.status === 'stopped' && this.dwellRemaining <= 0) {
@@ -409,6 +413,33 @@ export class BusSimulator {
         resolve();
       }, 60);
     });
+  }
+
+  // Set Engine ON or OFF
+  async setEngine(isOn) {
+    this.isEngineOn = Boolean(isOn);
+    if (!this.isEngineOn) {
+      // Engine turned off -> bus immediately halts
+      if (this.isRunning && !this.isPaused) {
+        this.pause();
+      }
+      this.status = 'stopped';
+      this.currentSpeed = 0;
+    }
+
+    await this.syncToFirebase({
+      engine: this.isEngineOn ? 'on' : 'off',
+      isEngineOn: this.isEngineOn,
+      status: this.status,
+      speed: this.currentSpeed
+    });
+
+    this.notify('engine_toggled', { isEngineOn: this.isEngineOn });
+    return this.isEngineOn;
+  }
+
+  toggleEngine() {
+    return this.setEngine(!this.isEngineOn);
   }
 
   // Set speed multiplier (1x, 2x, 5x, 10x)
@@ -589,6 +620,8 @@ export class BusSimulator {
     const payload = {
       busNumber: this.busNumber,
       status: this.status,
+      engine: this.isEngineOn ? 'on' : 'off',
+      isEngineOn: this.isEngineOn,
       currentStopIndex: this.currentLegIndex,
       nextStopIndex: Math.min(this.currentLegIndex + 1, Math.max(0, this.stops.length - 1)),
       lat: Number(this.currentLat.toFixed(6)),

@@ -266,6 +266,12 @@
       color: #FB923C;
     }
 
+    .status-stopped {
+      background: rgba(37, 99, 235, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.4);
+      color: #60A5FA;
+    }
+
     .status-completed {
       background: rgba(99, 102, 241, 0.15);
       border: 1px solid rgba(99, 102, 241, 0.4);
@@ -507,6 +513,38 @@
 
     .btn-danger:hover {
       background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-engine-on {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2));
+      border: 1px solid #10B981;
+      color: #34D399;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+    }
+
+    .btn-engine-on:hover {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(6, 182, 212, 0.3));
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.5);
+    }
+
+    .btn-engine-off {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(249, 115, 22, 0.2));
+      border: 1px solid #EF4444;
+      color: #F87171;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.35);
+    }
+
+    .btn-engine-off:hover {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(249, 115, 22, 0.3));
+      box-shadow: 0 0 18px rgba(239, 68, 68, 0.5);
+    }
+
+    .engine-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
     }
 
     /* Speed & Multipliers */
@@ -893,6 +931,10 @@
         <button id="btn-step" class="btn btn-secondary" title="Single step forward">
           <span>⏭</span> Step +1
         </button>
+        <button id="btn-engine-toggle" class="btn btn-engine-on" title="Turn Engine ON or OFF">
+          <span class="engine-indicator"></span>
+          <span id="btn-engine-text">ENGINE: ON</span>
+        </button>
       </div>
 
       <!-- Speed Multiplier Control -->
@@ -917,7 +959,8 @@
       <div class="overrides-section">
         <div class="section-subtitle">Quick Telematics State Overrides</div>
         <div class="quick-triggers">
-          <button class="trigger-chip" id="force-halt-btn">🛑 Force Halt / Stopped</button>
+          <button class="trigger-chip" id="toggle-engine-chip" style="color: #34D399; border-color: rgba(16, 185, 129, 0.4);">🔑 Toggle Engine (ON/OFF)</button>
+          <button class="trigger-chip" id="force-halt-btn">🛑 Force Engine Off (Halt)</button>
           <button class="trigger-chip" id="force-move-btn">🚀 Force Moving</button>
           <button class="trigger-chip" id="force-dest-btn">🏁 Force Destination</button>
           <button class="trigger-chip" id="force-offline-btn">📴 Force Offline</button>
@@ -1059,8 +1102,8 @@
         } else if (idx === state.currentLegIndex) {
           if (state.status === 'stopped') {
             stopClass = 'arrived current-bus';
-            badgeText = 'At Stop (Halt)';
-            pillClass = 'pill-orange';
+            badgeText = !state.isEngineOn ? 'Bus in halt' : 'At Stop';
+            pillClass = !state.isEngineOn ? 'pill-orange' : 'pill-blue';
           } else {
             stopClass = 'departed';
             badgeText = 'Departed';
@@ -1121,16 +1164,20 @@
 
     // Update Telemetry Display
     function updateUI(state) {
-      // Status Badge
+      // Status Badge: halt only when engine is off
       hudStatus.className = 'status-badge';
-      if (state.status === 'moving') {
+      if (!state.isEngineOn) {
+        hudStatus.classList.add('status-halt');
+        hudStatusText.textContent = 'ENGINE OFF (HALT)';
+        hudDwellText.textContent = 'Engine turned off - bus in halt';
+      } else if (state.status === 'moving') {
         hudStatus.classList.add('status-moving');
         hudStatusText.textContent = 'MOVING';
         hudDwellText.textContent = `Cruising to Stop ${state.nextLegIndex + 1}`;
       } else if (state.status === 'stopped') {
-        hudStatus.classList.add('status-halt');
-        hudStatusText.textContent = 'IN HALT';
-        hudDwellText.textContent = `Halt dwell: ${Math.max(0, Math.ceil(state.dwellRemaining))}s remaining`;
+        hudStatus.classList.add('status-stopped');
+        hudStatusText.textContent = 'AT STOP';
+        hudDwellText.textContent = `Stop dwell: ${Math.max(0, Math.ceil(state.dwellRemaining))}s remaining`;
       } else if (state.status === 'completed') {
         hudStatus.classList.add('status-completed');
         hudStatusText.textContent = 'COMPLETED';
@@ -1139,6 +1186,30 @@
         hudStatus.classList.add('status-offline');
         hudStatusText.textContent = 'OFFLINE';
         hudDwellText.textContent = 'Bus inactive';
+      }
+
+      // Engine Control Button UI Sync
+      const btnEngineToggle = document.getElementById('btn-engine-toggle');
+      const btnEngineText = document.getElementById('btn-engine-text');
+      const toggleEngineChip = document.getElementById('toggle-engine-chip');
+      if (btnEngineToggle && btnEngineText) {
+        if (state.isEngineOn) {
+          btnEngineToggle.className = 'btn btn-engine-on';
+          btnEngineText.textContent = 'ENGINE: ON';
+          if (toggleEngineChip) {
+            toggleEngineChip.textContent = '🔑 Engine: ON (Click to Halt)';
+            toggleEngineChip.style.color = '#34D399';
+            toggleEngineChip.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+          }
+        } else {
+          btnEngineToggle.className = 'btn btn-engine-off';
+          btnEngineText.textContent = 'ENGINE: OFF';
+          if (toggleEngineChip) {
+            toggleEngineChip.textContent = '🛑 Engine: OFF (Click to Turn ON)';
+            toggleEngineChip.style.color = '#F87171';
+            toggleEngineChip.style.borderColor = 'rgba(239, 68, 68, 0.4)';
+          }
+        }
       }
 
       // Gauges
@@ -1266,9 +1337,24 @@
       });
     });
 
-    // Quick State Override Buttons
-    document.getElementById('force-halt-btn').addEventListener('click', () => sim.forceStatus('stopped'));
-    document.getElementById('force-move-btn').addEventListener('click', () => sim.forceStatus('moving'));
+    // Quick State Override Buttons & Engine Controls
+    const handleSimEngineToggle = async () => {
+      const isNowOn = await sim.toggleEngine();
+      appendLog('ENGINE_TOGGLE', `Engine toggled to ${isNowOn ? 'ON' : 'OFF'}`);
+    };
+
+    document.getElementById('btn-engine-toggle')?.addEventListener('click', handleSimEngineToggle);
+    document.getElementById('toggle-engine-chip')?.addEventListener('click', handleSimEngineToggle);
+
+    document.getElementById('force-halt-btn').addEventListener('click', async () => {
+      await sim.setEngine(false);
+      appendLog('FORCE_HALT', 'Engine switched off - bus placed in halt');
+    });
+    document.getElementById('force-move-btn').addEventListener('click', async () => {
+      if (!sim.isEngineOn) await sim.setEngine(true);
+      await sim.forceStatus('moving');
+      appendLog('FORCE_MOVE', 'Forced moving status');
+    });
     document.getElementById('force-dest-btn').addEventListener('click', () => sim.forceStatus('completed'));
     document.getElementById('force-offline-btn').addEventListener('click', () => sim.forceStatus('offline'));
     document.getElementById('seed-stops-btn').addEventListener('click', async () => {

@@ -1,7 +1,6 @@
 import { firestore } from './firebase-config.js';
 import { doc, getDoc, collection, onSnapshot, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
-import { globalSimulator } from './bus-simulator.js';
 
 // Fetch stops from Firestore (checks route_bus_<busNum>, routes where assignedBus == busNum, or bus_<busNum>)
 async function fetchRouteStops(busNum) {
@@ -84,18 +83,23 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 // CORE UI UPDATES (NO ROUTE LOGIC)
 // ----------------------------------------------------
 
-function updateStatusBanner(status, delayMinutes, isOperatingHours = true) {
+function updateStatusBanner(status, delayMinutes, isOperatingHours = true, engine = 'on') {
     const statusEl = document.getElementById('bus-status');
     if (!statusEl) return;
     
     if (trackingState.offline) {
-        if (isOperatingHours) {
-            statusEl.textContent = "Bus Offline";
-            statusEl.style.color = "#EF4444";
-        } else {
-            statusEl.textContent = "Bus in halt";
-            statusEl.style.color = "#6B7280";
-        }
+        statusEl.textContent = "Bus Offline";
+        statusEl.style.color = "#EF4444";
+        statusEl.style.textShadow = "none";
+        return;
+    }
+
+    const isEngineOff = engine === 'off' || engine === false || status === 'halt';
+
+    // Only show "Bus in halt" when the bus engine is turned off!
+    if (isEngineOff) {
+        statusEl.textContent = "Bus in halt";
+        statusEl.style.color = "#F97316";
         statusEl.style.textShadow = "none";
         return;
     }
@@ -105,8 +109,9 @@ function updateStatusBanner(status, delayMinutes, isOperatingHours = true) {
         statusEl.style.color = delayMinutes > 0 ? "#EAB308" : "#10b981";
         statusEl.style.textShadow = delayMinutes > 0 ? "none" : "0 0 8px rgba(16,185,129,0.18)";
     } else if (status === 'stopped') {
-        statusEl.textContent = "Bus in halt";
-        statusEl.style.color = "#F97316";
+        // When stopped at a stop (engine ON), show "Bus at Stop" (never "Bus in halt" as default)
+        statusEl.textContent = "Bus at Stop";
+        statusEl.style.color = "#2563EB";
         statusEl.style.textShadow = "none";
     } else if (status === 'completed') {
         statusEl.textContent = "Reached Destination";
@@ -436,9 +441,8 @@ function startBusTracking(busDocId, busNum) {
             }
 
             trackingState.lastFirebaseUpdate = Date.now();
-            trackingState.offline = data.status === 'offline';
-            
-            updateStatusBanner(data.status, data.delayMinutes, isOperatingHours);
+            const engineStatus = data.engine !== undefined ? data.engine : (data.isEngineOn !== undefined ? (data.isEngineOn ? 'on' : 'off') : 'on');
+            updateStatusBanner(data.status, data.delayMinutes, isOperatingHours, engineStatus);
             updateArrowAnimation(data.status);
             
             if (stopItemsEl.length > 0) {
@@ -479,7 +483,7 @@ export function initLiveTracking() {
     if (assignedBusEl && (!assignedBusEl.textContent.trim() || assignedBusEl.innerHTML.includes('skeleton'))) {
         assignedBusEl.innerHTML = '<span class="skeleton-bus-badge skeleton-shimmer"></span>';
     }
-    if (busStatusEl && (!busStatusEl.textContent.trim() || busStatusEl.textContent.includes('Bus in halt') || busStatusEl.innerHTML.includes('skeleton'))) {
+    if (busStatusEl && (!busStatusEl.textContent.trim() || busStatusEl.innerHTML.includes('skeleton'))) {
         busStatusEl.innerHTML = '<span class="skeleton-status-badge skeleton-shimmer"></span>';
     }
     if (stopsList && stopItemsEl.length === 0) {
@@ -563,138 +567,5 @@ window.switchTrackingBus = function(newBusNum) {
     startBusTracking(`bus_${busNum}`, busNum);
 };
 
-// Bind In-Page Mini Simulator Controls
-function initMiniSimulatorControls() {
-    const toggleBtn = document.getElementById('live-sim-toggle-btn');
-    const drawer = document.getElementById('live-sim-drawer');
-    const closeBtn = document.getElementById('live-sim-close-btn');
-    const busInput = document.getElementById('live-sim-bus-input');
-    const switchBtn = document.getElementById('live-sim-switch-btn');
-    const startBtn = document.getElementById('live-sim-start-btn');
-    const pauseBtn = document.getElementById('live-sim-pause-btn');
-    const resetBtn = document.getElementById('live-sim-reset-btn');
-    const stepBtn = document.getElementById('live-sim-step-btn');
-    const statusBadge = document.getElementById('live-sim-status-badge');
-    const coordsEl = document.getElementById('live-sim-coords');
-    const rangeSlider = document.getElementById('live-sim-range-slider');
-    const sliderVal = document.getElementById('live-sim-slider-val');
-    let isScrubbing = false;
 
-    if (rangeSlider) {
-        rangeSlider.addEventListener('input', async (e) => {
-            isScrubbing = true;
-            const pct = parseFloat(e.target.value);
-            if (sliderVal) sliderVal.textContent = `${pct.toFixed(0)}%`;
-            await globalSimulator.setOverallProgress(pct);
-        });
-
-        const stopScrub = () => { isScrubbing = false; };
-        rangeSlider.addEventListener('change', stopScrub);
-        rangeSlider.addEventListener('mouseup', stopScrub);
-        rangeSlider.addEventListener('touchend', stopScrub);
-    }
-
-    if (!toggleBtn || !drawer) return;
-
-    toggleBtn.addEventListener('click', () => {
-        drawer.classList.toggle('hidden');
-    });
-
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            drawer.classList.add('hidden');
-        });
-    }
-
-    if (switchBtn && busInput) {
-        switchBtn.addEventListener('click', async () => {
-            const val = busInput.value.trim();
-            if (val) {
-                globalSimulator.busNumber = val;
-                await globalSimulator.loadStops(val);
-                window.switchTrackingBus(val);
-            }
-        });
-    }
-
-    if (startBtn) {
-        startBtn.addEventListener('click', async () => {
-            const currentBus = busInput ? busInput.value.trim() : globalSimulator.busNumber;
-            if (currentBus) {
-                globalSimulator.busNumber = currentBus;
-                window.switchTrackingBus(currentBus);
-            }
-            await globalSimulator.start();
-        });
-    }
-
-    if (pauseBtn) {
-        pauseBtn.addEventListener('click', () => {
-            globalSimulator.pause();
-        });
-    }
-
-    if (resetBtn) {
-        resetBtn.addEventListener('click', async () => {
-            await globalSimulator.reset();
-        });
-    }
-
-    if (stepBtn) {
-        stepBtn.addEventListener('click', async () => {
-            if (!globalSimulator.isRunning) {
-                await globalSimulator.start();
-                globalSimulator.pause();
-            }
-            await globalSimulator.tick();
-        });
-    }
-
-    document.querySelectorAll('.sim-spd-btn').forEach(b => {
-        b.addEventListener('click', () => {
-            document.querySelectorAll('.sim-spd-btn').forEach(btn => btn.classList.remove('active'));
-            b.classList.add('active');
-            const spd = Number(b.dataset.spd);
-            globalSimulator.setSpeedMultiplier(spd);
-        });
-    });
-
-    // Update mini drawer status based on simulator events
-    globalSimulator.subscribe((event, state) => {
-        if (coordsEl) {
-            coordsEl.textContent = `${Number(state.lat || 0).toFixed(4)}, ${Number(state.lng || 0).toFixed(4)}`;
-        }
-        if (!isScrubbing && rangeSlider) {
-            rangeSlider.value = state.overallPercent || 0;
-            if (sliderVal) sliderVal.textContent = `${Math.round(state.overallPercent || 0)}%`;
-        }
-        if (statusBadge) {
-            if (state.status === 'moving') {
-                statusBadge.className = 'sim-badge-moving';
-                statusBadge.textContent = 'MOVING';
-            } else if (state.status === 'stopped') {
-                statusBadge.className = 'sim-badge-halt';
-                statusBadge.textContent = 'IN HALT';
-            } else {
-                statusBadge.className = 'sim-badge-halt';
-                statusBadge.textContent = state.status.toUpperCase();
-            }
-        }
-        if (startBtn && pauseBtn) {
-            if (state.isRunning && !state.isPaused) {
-                startBtn.disabled = true;
-                pauseBtn.disabled = false;
-            } else {
-                startBtn.disabled = false;
-                pauseBtn.disabled = true;
-            }
-        }
-    });
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMiniSimulatorControls);
-} else {
-    initMiniSimulatorControls();
-}
 
