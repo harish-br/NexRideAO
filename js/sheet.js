@@ -520,23 +520,6 @@ document.addEventListener('DOMContentLoaded', () => {
     scDoneBtn.addEventListener('click', closeScPage);
   }
 
-  // Emergency Actions overlay logic
-  const btnEmergencyActions = document.getElementById('emergency-actions-btn');
-  const eaPage = document.getElementById('emergency-actions-page');
-  const eaBackBtn = document.getElementById('back-emergency-actions');
-
-  if (btnEmergencyActions && eaPage && eaBackBtn) {
-    btnEmergencyActions.addEventListener('click', () => {
-      eaPage.classList.remove('hidden');
-    });
-
-    const closeEaPage = () => {
-      eaPage.classList.add('hidden');
-    };
-
-    eaBackBtn.addEventListener('click', closeEaPage);
-  }
-
   // Safety overlay logic
   const btnSafety = document.getElementById('safety-btn');
   const safetyPage = document.getElementById('safety-page');

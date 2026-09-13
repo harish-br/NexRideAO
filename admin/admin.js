@@ -2806,13 +2806,18 @@ async function saveRoute(e) {
       const matchedBus = busesCache.find(b => String(b.busNumber) === String(assignedBus));
       if (matchedBus) {
         try {
-          const busStops = currentEditingStops.map(s => ({
-            order: s.stopOrder,
-            stopName: s.name,
-            arrivalTime: s.morningArrival || '',
-            departureTime: s.eveningArrival || '',
-            latitude: s.latitude,
-            longitude: s.longitude
+          const busStops = currentEditingStops.map((s, idx) => ({
+            stopOrder: s.stopOrder !== undefined ? s.stopOrder : idx + 1,
+            order: s.stopOrder !== undefined ? s.stopOrder : idx + 1,
+            name: s.name || s.stopName || '',
+            stopName: s.name || s.stopName || '',
+            morningArrival: s.morningArrival || s.arrivalTime || '',
+            arrivalTime: s.morningArrival || s.arrivalTime || '',
+            eveningArrival: s.eveningArrival || s.departureTime || '',
+            departureTime: s.eveningArrival || s.departureTime || '',
+            latitude: s.latitude !== undefined ? s.latitude : null,
+            longitude: s.longitude !== undefined ? s.longitude : null,
+            status: s.status || 'Active'
           }));
 
           const busUpdate = {
@@ -3687,23 +3692,33 @@ function setupModalListeners() {
           servedStops = routeStops.filter(s => 
             stopAssignments.some(sa => sa.stopOrder === (s.stopOrder || s.order))
           ).map((s, idx) => ({
+            stopOrder: s.stopOrder || s.order || idx + 1,
             order: s.stopOrder || s.order || idx + 1,
+            name: s.name || s.stopName || '',
             stopName: s.name || s.stopName || '',
+            morningArrival: s.morningArrival || s.arrivalTime || '',
             arrivalTime: s.morningArrival || s.arrivalTime || '',
+            eveningArrival: s.eveningArrival || s.departureTime || '',
             departureTime: s.eveningArrival || s.departureTime || '',
             latitude: s.latitude !== undefined ? s.latitude : null,
-            longitude: s.longitude !== undefined ? s.longitude : null
+            longitude: s.longitude !== undefined ? s.longitude : null,
+            status: s.status || 'Active'
           }));
         } else {
           coverageType = 'full_route';
           stopAssignments = [];
           servedStops = routeStops.map((s, idx) => ({
+            stopOrder: s.stopOrder || s.order || idx + 1,
             order: s.stopOrder || s.order || idx + 1,
+            name: s.name || s.stopName || '',
             stopName: s.name || s.stopName || '',
+            morningArrival: s.morningArrival || s.arrivalTime || '',
             arrivalTime: s.morningArrival || s.arrivalTime || '',
+            eveningArrival: s.eveningArrival || s.departureTime || '',
             departureTime: s.eveningArrival || s.departureTime || '',
             latitude: s.latitude !== undefined ? s.latitude : null,
-            longitude: s.longitude !== undefined ? s.longitude : null
+            longitude: s.longitude !== undefined ? s.longitude : null,
+            status: s.status || 'Active'
           }));
         }
       }

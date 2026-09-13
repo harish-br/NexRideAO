@@ -248,13 +248,6 @@ body.safety-page-body {
   color: #9ca3af;
 }
 
-.emergency-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 8px;
-  margin-top: 12px;
-}
-
 .em-btn {
   background: #f3f4f6;
   border: none;
