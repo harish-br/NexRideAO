@@ -10,7 +10,26 @@ const __dirname = dirname(__filename);
 export default defineConfig({
   plugins: [
     basicSsl(),
-    react()
+    react(),
+    {
+      name: 'notification-api-middleware',
+      configureServer(server) {
+        server.middlewares.use(async (req, res, next) => {
+          if (req.url && req.url.startsWith('/api/notifications')) {
+            try {
+              const { handleNotificationApi } = await import('./backend/api-router.js');
+              const handled = await handleNotificationApi(req, res);
+              if (handled !== false) return;
+            } catch (err) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: err.message }));
+              return;
+            }
+          }
+          next();
+        });
+      }
+    }
   ],
   server: {
     host: true, // Listen on all local IPs

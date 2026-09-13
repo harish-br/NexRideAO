@@ -16,6 +16,7 @@
  */
 
 import { firestore as db, auth, storage } from './firebase-config.js';
+import { notificationClient } from './notifications/notification-service.js';
 import {
   collection, doc, setDoc, addDoc, getDoc, getDocs, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot, serverTimestamp
@@ -128,6 +129,11 @@ let notificationsLoaded = false;
 let activeReportDetailId = null;
 let myReportsUnsubscribe = null;
 let notificationsUnsubscribe = null;
+let broadcastUnsubscribe = null;
+let isInitialDirectNotifs = true;
+let isInitialBroadcastNotifs = true;
+let directNotifsList = [];
+let broadcastNotifsList = [];
 
 // Attempt to restore cached reports immediately
 try {
@@ -185,7 +191,13 @@ export function initReportModule() {
         loadUserProfile(user.uid);
         subscribeToMyReports(user.uid);
         subscribeToNotifications(user.uid);
+        notificationClient.initialize(user, 'user').catch(err => {
+          console.warn('[FCM] User notification initialization:', err);
+        });
       } else {
+        try {
+          notificationClient.unregisterDeviceToken();
+        } catch (e) { }
         if (myReportsUnsubscribe) {
           try { myReportsUnsubscribe(); } catch (e) { }
           myReportsUnsubscribe = null;
@@ -194,6 +206,14 @@ export function initReportModule() {
           try { notificationsUnsubscribe(); } catch (e) { }
           notificationsUnsubscribe = null;
         }
+        if (broadcastUnsubscribe) {
+          try { broadcastUnsubscribe(); } catch (e) { }
+          broadcastUnsubscribe = null;
+        }
+        isInitialDirectNotifs = true;
+        isInitialBroadcastNotifs = true;
+        directNotifsList = [];
+        broadcastNotifsList = [];
         userProfile = null;
         myReportsCache = [];
         userNotifications = [];
@@ -472,12 +492,125 @@ function subscribeToMyReports(uid) {
   }
 }
 
+function getReadBroadcastIds() {
+  try {
+    const raw = localStorage.getItem('nexride_read_broadcasts');
+    return new Set(raw ? JSON.parse(raw) : []);
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function saveReadBroadcastId(id) {
+  if (!id) return;
+  try {
+    const set = getReadBroadcastIds();
+    set.add(id);
+    localStorage.setItem('nexride_read_broadcasts', JSON.stringify(Array.from(set)));
+  } catch (e) { }
+}
+
+function dispatchLiveNotificationAlert(notif) {
+  if (!notif || notif.read) return;
+
+  // 1. Display non-intrusive floating in-app toast
+  try {
+    notificationClient.showInAppToast(notif);
+  } catch (e) {
+    console.warn('[Report] Toast dispatch error:', e);
+  }
+
+  // 2. Native System / Browser Notification if permission granted
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      const n = new Notification(notif.title || 'NexRide Notification', {
+        body: notif.body || '',
+        icon: './notification.svg',
+        badge: './notification.svg',
+        tag: notif.id || `nr_${Date.now()}`
+      });
+      n.onclick = () => {
+        window.focus();
+        if (window.openNotificationDetails) {
+          window.openNotificationDetails(notif);
+        }
+      };
+    }
+  } catch (e) {
+    console.warn('[Report] Native notification error:', e);
+  }
+
+  // 3. Audio / vibration feedback
+  try {
+    if (navigator.vibrate) navigator.vibrate([150, 75, 150]);
+  } catch (e) { }
+}
+
+function mergeAndRenderNotifications() {
+  const readBroadcasts = getReadBroadcastIds();
+  const mergedMap = new Map();
+
+  // 1. Direct user subcollection notifications (canonical source)
+  directNotifsList.forEach(n => {
+    mergedMap.set(n.id, n);
+  });
+
+  // 2. Broadcast global announcements
+  broadcastNotifsList.forEach(b => {
+    const alreadyExists = Array.from(mergedMap.values()).some(existing =>
+      existing.id === b.id || (existing.title === b.title && existing.body === b.body)
+    );
+    if (!alreadyExists) {
+      const isRead = b.read || readBroadcasts.has(b.id);
+      mergedMap.set(b.id, {
+        ...b,
+        read: isRead,
+        isBroadcast: true
+      });
+    }
+  });
+
+  const rawNotifs = Array.from(mergedMap.values());
+
+  // Sort in-memory newest first safely
+  rawNotifs.sort((a, b) => {
+    const getTime = (val) => {
+      if (!val) return 0;
+      if (typeof val.toMillis === 'function') return val.toMillis();
+      if (typeof val.toDate === 'function') return val.toDate().getTime();
+      if (typeof val.seconds === 'number') return val.seconds * 1000;
+      if (val instanceof Date) return val.getTime();
+      const t = new Date(val).getTime();
+      return isNaN(t) ? 0 : t;
+    };
+    return getTime(b.createdAt) - getTime(a.createdAt);
+  });
+
+  userNotifications = rawNotifs;
+  notificationsLoaded = true;
+
+  try {
+    localStorage.setItem('nexride_user_notifs_cache', JSON.stringify(userNotifications));
+  } catch (e) { }
+
+  updateNotificationsUI();
+}
+
 function subscribeToNotifications(uid) {
   if (!db) return;
   if (notificationsUnsubscribe) {
     try { notificationsUnsubscribe(); } catch (e) { }
     notificationsUnsubscribe = null;
   }
+  if (broadcastUnsubscribe) {
+    try { broadcastUnsubscribe(); } catch (e) { }
+    broadcastUnsubscribe = null;
+  }
+
+  isInitialDirectNotifs = true;
+  isInitialBroadcastNotifs = true;
+
+  // 1. Listen to personal notifications: users/{uid}/notifications
   try {
     const q = collection(db, 'users', uid, 'notifications');
     notificationsUnsubscribe = onSnapshot(q, async (snapshot) => {
@@ -488,41 +621,68 @@ function subscribeToNotifications(uid) {
           ...docSnap.data()
         });
       });
+      directNotifsList = rawNotifs;
 
-      // Sort in-memory newest first safely
-      rawNotifs.sort((a, b) => {
-        const getTime = (val) => {
-          if (!val) return 0;
-          if (typeof val.toMillis === 'function') return val.toMillis();
-          if (typeof val.toDate === 'function') return val.toDate().getTime();
-          if (typeof val.seconds === 'number') return val.seconds * 1000;
-          if (val instanceof Date) return val.getTime();
-          const t = new Date(val).getTime();
-          return isNaN(t) ? 0 : t;
-        };
-        return getTime(b.createdAt) - getTime(a.createdAt);
-      });
+      // Real-time alert dispatch for incoming notifications while app is open
+      if (!isInitialDirectNotifs) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            if (!data.read) {
+              dispatchLiveNotificationAlert({ id: change.doc.id, ...data });
+            }
+          }
+        });
+      }
+      isInitialDirectNotifs = false;
 
-      userNotifications = rawNotifs;
-      notificationsLoaded = true;
-
-      try {
-        localStorage.setItem('nexride_user_notifs_cache', JSON.stringify(userNotifications));
-      } catch (e) {}
-
-      updateNotificationsUI();
+      mergeAndRenderNotifications();
 
       // Clean any notifications whose reports were deleted in backend
       await cleanOrphanedReportNotifications(uid);
     }, (error) => {
       console.warn('[Report] Notifications subscription error:', error);
       notificationsLoaded = true;
-      updateNotificationsUI();
+      mergeAndRenderNotifications();
     });
   } catch (e) {
     console.warn('[Report] Notifications setup error:', e);
     notificationsLoaded = true;
     updateNotificationsUI();
+  }
+
+  // 2. Listen to broadcast announcements: notifications where target == 'all_users'
+  try {
+    const bq = query(collection(db, 'notifications'), where('target', '==', 'all_users'));
+    broadcastUnsubscribe = onSnapshot(bq, (snapshot) => {
+      const bNotifs = [];
+      snapshot.forEach(docSnap => {
+        bNotifs.push({
+          id: docSnap.id,
+          ...docSnap.data()
+        });
+      });
+      broadcastNotifsList = bNotifs;
+
+      if (!isInitialBroadcastNotifs) {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const data = change.doc.data();
+            const readBroadcasts = getReadBroadcastIds();
+            if (!data.read && !readBroadcasts.has(change.doc.id)) {
+              dispatchLiveNotificationAlert({ id: change.doc.id, ...data });
+            }
+          }
+        });
+      }
+      isInitialBroadcastNotifs = false;
+
+      mergeAndRenderNotifications();
+    }, (err) => {
+      console.warn('[Report] Broadcast announcements listener warning:', err.message);
+    });
+  } catch (bErr) {
+    console.warn('[Report] Broadcast announcements setup note:', bErr.message);
   }
 }
 
@@ -2166,6 +2326,8 @@ export async function markNotificationAsRead(notifId) {
     }, 400);
   }
 
+  saveReadBroadcastId(notifId);
+
   if (db && auth?.currentUser) {
     try {
       const uid = auth.currentUser.uid;
@@ -2182,7 +2344,10 @@ export async function markAllNotificationsAsRead() {
   const unreads = userNotifications.filter(n => !n.read);
   if (unreads.length === 0) return;
 
-  unreads.forEach(n => { n.read = true; });
+  unreads.forEach(n => {
+    n.read = true;
+    saveReadBroadcastId(n.id);
+  });
   try {
     localStorage.setItem('nexride_user_notifs_cache', JSON.stringify(userNotifications));
   } catch (e) { }
@@ -2207,6 +2372,33 @@ export async function markAllNotificationsAsRead() {
 export function updateNotificationsUI() {
   const unreadCount = userNotifications.filter(n => !n.read).length;
   console.log('[Report] updateNotificationsUI: total =', userNotifications.length, ', unread =', unreadCount, ', loaded =', notificationsLoaded);
+
+  // 0. Manage Push Notification Permission Banner
+  const permBanner = document.getElementById('notif-permission-banner');
+  if (permBanner) {
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+      permBanner.style.display = 'flex';
+      const enableBtn = document.getElementById('enable-push-alerts-btn');
+      if (enableBtn && !enableBtn._bound) {
+        enableBtn._bound = true;
+        enableBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          enableBtn.disabled = true;
+          enableBtn.textContent = 'Enabling...';
+          const granted = await notificationClient.requestPermission();
+          if (granted) {
+            permBanner.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:#15803D;font-weight:600;font-size:13px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Push notifications enabled!</div>`;
+            setTimeout(() => { if (permBanner) permBanner.style.display = 'none'; }, 2500);
+          } else {
+            enableBtn.disabled = false;
+            enableBtn.textContent = 'Enable';
+          }
+        });
+      }
+    } else {
+      permBanner.style.display = 'none';
+    }
+  }
 
   // 1. Home screen badge & content
   const notifCard = document.getElementById('btn-notifications');
@@ -2427,6 +2619,7 @@ export function openNotificationsPage() {
     if (auth?.currentUser?.uid) {
       cleanOrphanedReportNotifications(auth.currentUser.uid);
     }
+    updateNotificationsUI();
     setTimeout(() => {
       notifPage.classList.remove('hidden');
     }, 50);

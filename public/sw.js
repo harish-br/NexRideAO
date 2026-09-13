@@ -115,3 +115,92 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// =============================================================================
+// 5. FIREBASE CLOUD MESSAGING (FCM) BACKGROUND PUSH NOTIFICATIONS
+// =============================================================================
+
+self.addEventListener('push', (event) => {
+  let payload = {
+    title: 'NexRide Update',
+    body: 'You have a new update from NexRide.',
+    data: {}
+  };
+
+  try {
+    if (event.data) {
+      const parsed = event.data.json();
+      payload.title = parsed.notification?.title || parsed.title || payload.title;
+      payload.body = parsed.notification?.body || parsed.body || payload.body;
+      payload.data = parsed.data || {};
+    }
+  } catch (e) {
+    if (event.data) {
+      payload.body = event.data.text();
+    }
+  }
+
+  const notificationOptions = {
+    body: payload.body,
+    icon: '/icon-192.png',
+    badge: '/favicon/favicon-96x96.png',
+    vibrate: [100, 50, 100],
+    data: payload.data,
+    actions: [
+      { action: 'open', title: 'View Details' },
+      { action: 'close', title: 'Dismiss' }
+    ]
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, notificationOptions)
+  );
+});
+
+// Whitelist of valid notification redirect targets to prevent arbitrary navigation
+const ALLOWED_DESTINATIONS = [
+  '/#live',
+  '/#reports',
+  '/#epass',
+  '/#notifications',
+  '/admin/#reports',
+  '/admin/#buses',
+  '/admin/#routes',
+  '/admin/#dashboard',
+  '/admin/#settings'
+];
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  if (event.action === 'close') return;
+
+  const data = event.notification.data || {};
+  let targetUrl = '/#notifications';
+
+  if (data.screen) {
+    const candidate = data.screen.startsWith('/') ? data.screen : `/#${data.screen}`;
+    if (ALLOWED_DESTINATIONS.some(allowed => candidate.startsWith(allowed.split('?')[0]))) {
+      targetUrl = candidate;
+    }
+  } else if (data.url && ALLOWED_DESTINATIONS.includes(data.url)) {
+    targetUrl = data.url;
+  }
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Focus existing tab if open
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.navigate(targetUrl);
+          return client.focus();
+        }
+      }
+      // Otherwise open new window
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+

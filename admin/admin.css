@@ -2848,3 +2848,99 @@ form.modal-content {
     padding: 10px 12px;
   }
 }
+
+/* ==========================================================================
+   NOTIFICATION CENTER MODERN POLISH & ENHANCEMENTS
+   ========================================================================== */
+.notif-cat-tab {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+  user-select: none;
+}
+
+.notif-cat-tab:hover:not(.active) {
+  background: #F9FAFB !important;
+  border-color: #D1D5DB !important;
+  color: #111827 !important;
+  transform: translateY(-1px);
+}
+
+.notif-cat-tab.active {
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25) !important;
+}
+
+.notif-cat-tab:active {
+  transform: scale(0.98);
+}
+
+#notifications-view .stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+#notifications-view .table-search-input:focus {
+  border-color: #2563EB !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+  outline: none;
+}
+
+/* ==========================================================================
+   FOLDER SVG ICONS (Assets from repository)
+   ========================================================================== */
+.folder-svg-icon {
+  display: inline-block;
+  vertical-align: middle;
+  background-color: currentColor;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  flex-shrink: 0;
+}
+
+.icon-notification {
+  -webkit-mask-image: url('/notification.svg');
+  mask-image: url('/notification.svg');
+}
+
+.icon-sms {
+  -webkit-mask-image: url('/sms.svg');
+  mask-image: url('/sms.svg');
+}
+
+.icon-bus {
+  -webkit-mask-image: url('/bus-20.svg');
+  mask-image: url('/bus-20.svg');
+}
+
+.icon-danger {
+  -webkit-mask-image: url('/assets/danger.svg');
+  mask-image: url('/assets/danger.svg');
+}
+
+.icon-card-tick {
+  -webkit-mask-image: url('/card-tick.svg');
+  mask-image: url('/card-tick.svg');
+}
+
+.icon-routing {
+  -webkit-mask-image: url('/routing.svg');
+  mask-image: url('/routing.svg');
+}
+
+.icon-trash {
+  -webkit-mask-image: url('/trash.svg');
+  mask-image: url('/trash.svg');
+}
+
+.icon-send {
+  -webkit-mask-image: url('/send-square.svg');
+  mask-image: url('/send-square.svg');
+}
+
+.icon-document {
+  -webkit-mask-image: url('/document-text.svg');
+  mask-image: url('/document-text.svg');
+}

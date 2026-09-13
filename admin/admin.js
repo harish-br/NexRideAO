@@ -1,6 +1,6 @@
-// admin.js - Complete Production-Ready NexRide Transport Control Dashboard Engine
 import '../js/instrument.js';
 import { auth, firestore } from '../js/firebase-config.js';
+import { notificationClient } from '../js/notifications/notification-service.js';
 import { 
   signInWithEmailAndPassword, signOut, onAuthStateChanged, 
   setPersistence, browserLocalPersistence 
@@ -25,6 +25,7 @@ let timingsCache = [];
 let tripsCache = [];
 let documentsCache = [];
 let auditLogsCache = [];
+let notificationsCache = [];
 
 let currentInspectingBus = null;
 let currentInspectingTicket = null;
@@ -35,6 +36,7 @@ let hasLoadedFirestoreRoutes = false;
 let routesUnsubscribe = null;
 let reportsUnsubscribe = null;
 let usersUnsubscribe = null;
+let notificationsUnsubscribe = null;
 
 // =============================================================================
 // DOM ELEMENTS
@@ -148,6 +150,12 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     showDashboard();
+
+    // Initialize Admin Push Notifications
+    notificationClient.initialize(user, 'admin').catch(err => {
+      console.warn('[Admin Notifications] Initialization error:', err);
+    });
+    setupAdminNotificationUI();
   } else {
     currentAdminUser = null;
     showLogin();
@@ -237,6 +245,9 @@ function switchView(viewId) {
   if (viewId === 'settings-view') {
     loadSystemSettings();
   }
+  if (viewId === 'notifications-view') {
+    renderNotificationsManagementTable();
+  }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -320,12 +331,1470 @@ if (profileLogoutBtn) {
         try { reportsUnsubscribe(); } catch (e) { }
         reportsUnsubscribe = null;
       }
+      try {
+        await notificationClient.unregisterDeviceToken();
+      } catch (e) { }
       await signOut(auth);
     } catch (err) {
       console.error("Sign out error:", err);
     }
     window.location.reload();
   });
+}
+
+// =============================================================================
+// ADMIN PUSH NOTIFICATIONS & BROADCAST CONTROLLER
+// =============================================================================
+let adminNotificationsInitialized = false;
+
+function setupAdminNotificationUI() {
+  if (adminNotificationsInitialized) return;
+  adminNotificationsInitialized = true;
+
+  const notifBtn = document.getElementById('admin-notif-btn');
+  const notifDropdown = document.getElementById('admin-notif-dropdown');
+  const notifList = document.getElementById('admin-notif-list');
+  const markAllBtn = document.getElementById('admin-mark-all-read-btn');
+
+  if (notifBtn && notifDropdown) {
+    notifBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      notifDropdown.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!notifBtn.contains(e.target) && !notifDropdown.contains(e.target)) {
+        notifDropdown.classList.add('hidden');
+      }
+    });
+  }
+
+  if (markAllBtn) {
+    markAllBtn.addEventListener('click', async () => {
+      await notificationClient.markAllAsRead();
+    });
+  }
+
+  // Subscribe to notification client state
+  notificationClient.subscribe(({ notifications, unreadCount }) => {
+    if (!notifList) return;
+
+    if (!notifications || notifications.length === 0) {
+      notifList.innerHTML = `
+        <div style="text-align: center; padding: 28px 16px; color: #9CA3AF; font-size: 13px;">
+          <div style="font-weight: 600; color: #4B5563; margin-bottom: 2px;">No Notifications</div>
+          <span>All administrative updates are caught up.</span>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    notifications.forEach(n => {
+      const isUnread = !n.read;
+      const dateStr = new Date(n.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      html += `
+        <div class="admin-notif-item" data-notif-id="${n.id}" style="padding: 10px 12px; border-radius: 10px; background: ${isUnread ? '#EFF6FF' : '#F9FAFB'}; border: 1px solid ${isUnread ? '#BFDBFE' : '#F3F4F6'}; cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: background 0.15s;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 13px; font-weight: ${isUnread ? '700' : '600'}; color: #111827;">${escapeHtml(n.title)}</span>
+            <span style="font-size: 11px; color: #9CA3AF;">${dateStr}</span>
+          </div>
+          <div style="font-size: 12px; color: #4B5563; line-height: 1.4;">${escapeHtml(n.body)}</div>
+        </div>
+      `;
+    });
+
+    notifList.innerHTML = html;
+
+    notifList.querySelectorAll('.admin-notif-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const id = item.getAttribute('data-notif-id');
+        if (id) notificationClient.markAsRead(id);
+      });
+    });
+  });
+
+  setupAdminBroadcastModal();
+}
+
+function setupAdminBroadcastModal() {
+  const modal = document.getElementById('admin-broadcast-modal');
+  const openBtn = document.getElementById('admin-open-broadcast-modal-btn');
+  const closeBtn = document.getElementById('close-broadcast-modal-btn');
+  const cancelBtn = document.getElementById('cancel-broadcast-btn');
+  const submitBtn = document.getElementById('submit-broadcast-btn');
+
+  const targetSelect = document.getElementById('broadcast-target-select');
+  const specificWrap = document.getElementById('broadcast-specific-user-wrap');
+  const specificUidInput = document.getElementById('broadcast-target-uid');
+  const typeSelect = document.getElementById('broadcast-type-select');
+  const titleInput = document.getElementById('broadcast-title-input');
+  const bodyInput = document.getElementById('broadcast-body-input');
+  const statusMsg = document.getElementById('broadcast-status-msg');
+
+  if (!modal) return;
+
+  if (openBtn) {
+    openBtn.addEventListener('click', () => {
+      document.getElementById('admin-notif-dropdown')?.classList.add('hidden');
+      modal.classList.remove('hidden');
+      if (statusMsg) statusMsg.style.display = 'none';
+    });
+  }
+
+  const viewAllBtn = document.getElementById('admin-view-all-notifs-btn');
+  if (viewAllBtn) {
+    viewAllBtn.addEventListener('click', () => {
+      document.getElementById('admin-notif-dropdown')?.classList.add('hidden');
+      switchView('notifications-view');
+    });
+  }
+
+  const hideModal = () => {
+    modal.classList.add('hidden');
+    if (titleInput) titleInput.value = '';
+    if (bodyInput) bodyInput.value = '';
+    if (specificUidInput) specificUidInput.value = '';
+    if (statusMsg) statusMsg.style.display = 'none';
+  };
+
+  closeBtn?.addEventListener('click', hideModal);
+  cancelBtn?.addEventListener('click', hideModal);
+
+  targetSelect?.addEventListener('change', () => {
+    if (targetSelect.value === 'specific_users') {
+      specificWrap?.classList.remove('hidden');
+    } else {
+      specificWrap?.classList.add('hidden');
+    }
+  });
+
+  if (submitBtn) {
+    submitBtn.addEventListener('click', async () => {
+      const title = titleInput?.value.trim();
+      const body = bodyInput?.value.trim();
+      const target = targetSelect?.value || 'all_users';
+      const type = typeSelect?.value || 'GENERAL_ANNOUNCEMENT';
+      const specificUid = specificUidInput?.value.trim();
+
+      if (!title || !body) {
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = '#FEE2E2';
+          statusMsg.style.color = '#B91C1C';
+          statusMsg.textContent = 'Please provide both title and message body.';
+        }
+        return;
+      }
+
+      if (target === 'specific_users' && !specificUid) {
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = '#FEE2E2';
+          statusMsg.style.color = '#B91C1C';
+          statusMsg.textContent = 'Please enter a target User ID.';
+        }
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Dispatching...';
+
+      try {
+        let targetDocId = specificUid;
+        if (target === 'specific_users' && specificUid) {
+          const cleanQuery = specificUid.trim().toLowerCase();
+          const matched = usersCache.find(u =>
+            (u.docId && u.docId.toLowerCase() === cleanQuery) ||
+            (u.id && String(u.id).toLowerCase() === cleanQuery) ||
+            (u.email && u.email.toLowerCase() === cleanQuery) ||
+            (u.raw?.regno && String(u.raw.regno).toLowerCase() === cleanQuery) ||
+            (u.name && u.name.toLowerCase() === cleanQuery)
+          );
+          if (matched && matched.docId) {
+            targetDocId = matched.docId;
+          }
+        }
+
+        const adminIdentifier = currentAdminUser?.email || currentAdminUser?.uid || 'admin';
+        const category = getCategoryForType(type);
+        const generatedNotifId = generateNotificationId(category);
+        const isTest = isTestNotification({ title, body });
+        const now = new Date();
+        const createdAtIso = now.toISOString();
+        const createdAtFormatted = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+        let recipientDisplay = 'All Students & Users (Broadcast)';
+        if (target === 'admins') {
+          recipientDisplay = 'All Administrators Only';
+        } else if (target === 'specific_users' && targetDocId) {
+          const matched = usersCache.find(u => u.docId === targetDocId || u.id === targetDocId);
+          recipientDisplay = matched ? `Student: ${matched.name} (${matched.id || targetDocId})` : `User ID: ${targetDocId}`;
+        }
+
+        let parentNotifDocId = null;
+
+        // 1. Centralized notifications entry in Firestore
+        try {
+          const centralDoc = await addDoc(collection(firestore, 'notifications'), {
+            notificationId: generatedNotifId,
+            title,
+            body,
+            category,
+            type,
+            target,
+            recipientId: target === 'specific_users' ? targetDocId : (target === 'admins' ? 'ALL_ADMINS' : 'ALL_USERS'),
+            recipientType: target === 'admins' ? 'admin' : 'user',
+            recipientName: recipientDisplay,
+            read: false,
+            isTest: isTest,
+            createdAt: serverTimestamp(),
+            createdAtIso: createdAtIso,
+            createdAtFormatted: createdAtFormatted,
+            createdBy: adminIdentifier,
+            status: 'sent',
+            metadata: {
+              channel: 'fcm_and_inapp',
+              source: 'Admin Quick Broadcast',
+              version: '2.0'
+            }
+          });
+          parentNotifDocId = centralDoc.id;
+        } catch (centralErr) {
+          console.warn('[Admin] Centralized notification write note:', centralErr);
+        }
+
+        // 2. Direct user subcollection delivery (users/{uid}/notifications)
+        if (target === 'all_users') {
+          // Gather all user IDs
+          let targetUsers = [...usersCache];
+          if (targetUsers.length === 0) {
+            try {
+              const usersSnap = await getDocs(collection(firestore, 'users'));
+              usersSnap.forEach(d => targetUsers.push({ docId: d.id, id: d.id, name: d.data()?.name }));
+            } catch (snapErr) {
+              console.warn('[Admin] Fallback users fetch failed:', snapErr);
+            }
+          }
+
+          // Write to all students' notifications subcollections
+          const writes = targetUsers.map(u => {
+            const uid = u.docId || u.id;
+            if (!uid) return Promise.resolve();
+            return addDoc(collection(firestore, 'users', uid, 'notifications'), {
+              parentNotifId: parentNotifDocId,
+              notificationId: generatedNotifId,
+              title,
+              body,
+              category,
+              type,
+              target: 'all_users',
+              recipientId: uid,
+              recipientName: u.name || uid,
+              read: false,
+              isTest: isTest,
+              createdAt: serverTimestamp(),
+              createdAtIso: createdAtIso,
+              createdBy: adminIdentifier
+            }).catch(e => console.warn(`[Admin] Write notif to ${uid} note:`, e));
+          });
+          await Promise.allSettled(writes);
+        } else if (target === 'specific_users' && targetDocId) {
+          try {
+            await addDoc(collection(firestore, 'users', targetDocId, 'notifications'), {
+              parentNotifId: parentNotifDocId,
+              notificationId: generatedNotifId,
+              title,
+              body,
+              category,
+              type,
+              target: 'specific_user',
+              recipientId: targetDocId,
+              recipientName: recipientDisplay,
+              read: false,
+              isTest: isTest,
+              createdAt: serverTimestamp(),
+              createdAtIso: createdAtIso,
+              createdBy: adminIdentifier
+            });
+          } catch (specErr) {
+            console.warn(`[Admin] Write to user ${targetDocId} failed:`, specErr);
+          }
+        }
+
+        // 3. Dispatch via REST API router (triggers FCM push notifications if configured)
+        try {
+          const payload = {
+            target,
+            userIds: target === 'specific_users' ? [targetDocId] : [],
+            title,
+            body,
+            type
+          };
+
+          await fetch('/api/notifications/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': currentAdminUser?.uid || 'admin_super',
+              'x-user-role': 'admin'
+            },
+            body: JSON.stringify(payload)
+          });
+        } catch (apiErr) {
+          console.warn('[Admin] Notification API dispatch note:', apiErr.message);
+        }
+
+        // 4. Record in Audit Logs
+        try {
+          await addDoc(collection(firestore, 'auditLogs'), {
+            action: 'DISPATCH_NOTIFICATION',
+            target,
+            title,
+            admin: adminIdentifier,
+            timestamp: serverTimestamp()
+          });
+        } catch (auditErr) { }
+
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = '#DCFCE7';
+          statusMsg.style.color = '#15803D';
+          statusMsg.textContent = 'Notification sent successfully to users!';
+        }
+
+        setTimeout(hideModal, 1500);
+      } catch (err) {
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = '#FEE2E2';
+          statusMsg.style.color = '#B91C1C';
+          statusMsg.textContent = err.message;
+        }
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Send Notification';
+      }
+    });
+  }
+}
+
+// =============================================================================
+// NOTIFICATION MANAGEMENT SUBSYSTEM (CRUD, SEARCH, RESEND, INSPECT, PURGE)
+// =============================================================================
+
+let activeNotifCategory = 'all';
+
+function getCategoryForType(type) {
+  if (type === 'BUS_DELAYED' || type === 'ROUTE_UPDATED') return 'transit';
+  if (type === 'SAFETY_ALERT') return 'safety';
+  if (type === 'EPASS_ALERT') return 'passes';
+  if (type === 'SYSTEM_ALERT') return 'system';
+  return 'announcement';
+}
+
+function generateNotificationId(category = 'announcement') {
+  const prefixMap = {
+    announcement: 'NTF-ANN',
+    transit: 'NTF-TRN',
+    safety: 'NTF-SAF',
+    passes: 'NTF-PAS',
+    system: 'NTF-SYS'
+  };
+  const prefix = prefixMap[category] || 'NTF-GEN';
+  const now = new Date();
+  const dateStr = now.getFullYear().toString() +
+    String(now.getMonth() + 1).padStart(2, '0') +
+    String(now.getDate()).padStart(2, '0');
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${prefix}-${dateStr}-${rand}`;
+}
+
+function isTestNotification(n) {
+  if (!n) return false;
+  if (n.isTest === true) return true;
+  const testRegex = /\b(test|testing|sample|trial|demo|check)\b/i;
+  if (n.title && testRegex.test(n.title)) return true;
+  if (n.body && testRegex.test(n.body)) return true;
+  return false;
+}
+
+function updateTestNotificationsBadge() {
+  const testItems = notificationsCache.filter(isTestNotification);
+  const badge = document.getElementById('test-notifs-badge');
+  if (badge) {
+    badge.textContent = testItems.length;
+    badge.style.display = testItems.length > 0 ? 'inline-block' : 'none';
+  }
+}
+
+function listenToNotifications() {
+  if (notificationsUnsubscribe) {
+    try { notificationsUnsubscribe(); } catch (e) { }
+    notificationsUnsubscribe = null;
+  }
+
+  const notifsRef = collection(firestore, 'notifications');
+  notificationsUnsubscribe = onSnapshot(notifsRef, (snapshot) => {
+    notificationsCache = [];
+    snapshot.forEach(d => {
+      notificationsCache.push({ id: d.id, ...d.data() });
+    });
+
+    // Sort newest first
+    notificationsCache.sort((a, b) => {
+      const getTime = (val) => {
+        if (!val) return 0;
+        if (typeof val.toMillis === 'function') return val.toMillis();
+        if (typeof val.toDate === 'function') return val.toDate().getTime();
+        if (typeof val.seconds === 'number') return val.seconds * 1000;
+        if (val instanceof Date) return val.getTime();
+        const t = new Date(val).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+      return getTime(b.createdAt || b.sentAt) - getTime(a.createdAt || a.sentAt);
+    });
+
+    updateTestNotificationsBadge();
+    renderNotificationsManagementTable();
+  }, (err) => {
+    console.error("Firestore Notifications listener error:", err);
+  });
+}
+
+function renderNotificationsManagementTable() {
+  const tbody = document.getElementById('notifications-table-body');
+  if (!tbody) return;
+
+  const searchVal = (document.getElementById('notif-search-input')?.value || '').toLowerCase().trim();
+  const typeVal = document.getElementById('notif-type-filter')?.value || 'all';
+  const targetVal = document.getElementById('notif-target-filter')?.value || 'all';
+
+  // Calculate KPIs
+  const total = notificationsCache.length;
+  let broadcasts = 0;
+  let urgent = 0;
+  let targeted = 0;
+
+  notificationsCache.forEach(n => {
+    const isBcast = n.target === 'all_users' || n.recipientId === 'ALL_USERS';
+    const isUrg = n.priority === 'Urgent' || n.type === 'SAFETY_ALERT';
+    const isTarget = n.target === 'specific_users' || (n.recipientId && n.recipientId !== 'ALL_USERS' && n.recipientId !== 'ALL_ADMINS');
+
+    if (isBcast) broadcasts++;
+    if (isUrg) urgent++;
+    if (isTarget) targeted++;
+  });
+
+  const elTotal = document.getElementById('stat-notif-total');
+  const elBroadcasts = document.getElementById('stat-notif-broadcasts');
+  const elUrgent = document.getElementById('stat-notif-urgent');
+  const elTargeted = document.getElementById('stat-notif-targeted');
+
+  if (elTotal) elTotal.textContent = total;
+  if (elBroadcasts) elBroadcasts.textContent = broadcasts;
+  if (elUrgent) elUrgent.textContent = urgent;
+  if (elTargeted) elTargeted.textContent = targeted;
+
+  updateTestNotificationsBadge();
+
+  // Filter items
+  const filtered = notificationsCache.filter(n => {
+    // 1. Category Pill Tab filter
+    if (activeNotifCategory !== 'all') {
+      const cat = n.category || getCategoryForType(n.type);
+      if (cat !== activeNotifCategory) return false;
+    }
+    // 2. Type filter
+    if (typeVal !== 'all' && n.type !== typeVal) return false;
+    // 3. Target filter
+    if (targetVal !== 'all') {
+      if (targetVal === 'all_users' && n.target !== 'all_users' && n.recipientId !== 'ALL_USERS') return false;
+      if (targetVal === 'admins' && n.target !== 'admins' && n.recipientId !== 'ALL_ADMINS') return false;
+      if (targetVal === 'specific_users' && n.target !== 'specific_users' && (n.recipientId === 'ALL_USERS' || n.recipientId === 'ALL_ADMINS')) return false;
+    }
+    // 4. Search query
+    if (searchVal) {
+      const matchTitle = (n.title || '').toLowerCase().includes(searchVal);
+      const matchBody = (n.body || '').toLowerCase().includes(searchVal);
+      const matchAuthor = (n.createdBy || '').toLowerCase().includes(searchVal);
+      const matchRecipient = (n.recipientId || '').toLowerCase().includes(searchVal);
+      const matchRecipName = (n.recipientName || '').toLowerCase().includes(searchVal);
+      const matchCode = (n.notificationId || '').toLowerCase().includes(searchVal);
+      if (!matchTitle && !matchBody && !matchAuthor && !matchRecipient && !matchRecipName && !matchCode) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align: center; padding: 36px 16px; color: var(--text-secondary);">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: #F3F4F6; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px auto;">
+            <span class="folder-svg-icon icon-notification" style="width: 24px; height: 24px; color: #9CA3AF;"></span>
+          </div>
+          <div style="font-weight: 600; font-size: 14px; color: #374151;">No notifications found</div>
+          <div style="font-size: 12.5px; color: #6B7280; margin-top: 4px;">Try selecting another category or adjusting your search filters.</div>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = '';
+  filtered.forEach(n => {
+    const tr = document.createElement('tr');
+
+    // Type styling with folder SVG icons
+    let typeSvg = '<span class="folder-svg-icon icon-sms" style="width: 14px; height: 14px;"></span>';
+    let typeBadgeClass = 'badge-blue';
+    let typeLabel = 'Announcement';
+    let iconBgStyle = 'background: #EFF6FF; color: #2563EB; border: 1px solid #DBEAFE;';
+
+    if (n.type === 'BUS_DELAYED') {
+      typeSvg = '<span class="folder-svg-icon icon-bus" style="width: 14px; height: 14px;"></span>';
+      typeBadgeClass = 'badge-orange';
+      typeLabel = 'Bus Delay';
+      iconBgStyle = 'background: #FFF7ED; color: #EA580C; border: 1px solid #FED7AA;';
+    } else if (n.type === 'ROUTE_UPDATED') {
+      typeSvg = '<span class="folder-svg-icon icon-routing" style="width: 14px; height: 14px;"></span>';
+      typeBadgeClass = 'badge-purple';
+      typeLabel = 'Route Update';
+      iconBgStyle = 'background: #FAF5FF; color: #9333EA; border: 1px solid #E9D5FF;';
+    } else if (n.type === 'SAFETY_ALERT') {
+      typeSvg = '<span class="folder-svg-icon icon-danger" style="width: 14px; height: 14px;"></span>';
+      typeBadgeClass = 'badge-red';
+      typeLabel = 'Safety Alert';
+      iconBgStyle = 'background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA;';
+    } else if (n.type === 'EPASS_ALERT') {
+      typeSvg = '<span class="folder-svg-icon icon-card-tick" style="width: 14px; height: 14px;"></span>';
+      typeBadgeClass = 'badge-green';
+      typeLabel = 'E-Pass Notice';
+      iconBgStyle = 'background: #F0FDF4; color: #16A34A; border: 1px solid #BBF7D0;';
+    } else if (n.type === 'SYSTEM_ALERT') {
+      typeSvg = '<span class="folder-svg-icon icon-routing" style="width: 14px; height: 14px;"></span>';
+      typeBadgeClass = 'badge-gray';
+      typeLabel = 'System Notice';
+      iconBgStyle = 'background: #F3F4F6; color: #4B5563; border: 1px solid #E5E7EB;';
+    }
+
+    const isUrgent = n.priority === 'Urgent';
+    const isTest = isTestNotification(n);
+
+    // Target styling
+    let targetDisplay = n.recipientName || 'All Students (Broadcast)';
+    let targetBadgeStyle = 'background: #EFF6FF; color: #1D4ED8; border: 1px solid #DBEAFE;';
+
+    if (n.target === 'admins' || n.recipientId === 'ALL_ADMINS') {
+      targetDisplay = 'Administrators Only';
+      targetBadgeStyle = 'background: #F3E8FF; color: #6B21A8; border: 1px solid #E9D5FF;';
+    } else if (n.target === 'specific_users' || (n.recipientId && n.recipientId !== 'ALL_USERS' && n.recipientId !== 'ALL_ADMINS')) {
+      if (!n.recipientName) {
+        const matched = usersCache.find(u => u.docId === n.recipientId || u.id === n.recipientId || (u.raw && u.raw.regno === n.recipientId));
+        const studentName = matched ? matched.name : n.recipientId;
+        targetDisplay = `Student: ${escapeHtml(studentName)}`;
+      }
+      targetBadgeStyle = 'background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0;';
+    }
+
+    // Date formatting
+    const getTime = (val) => {
+      if (!val) return null;
+      if (typeof val.toDate === 'function') return val.toDate();
+      if (typeof val.toMillis === 'function') return new Date(val.toMillis());
+      if (val instanceof Date) return val;
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const createdDate = getTime(n.createdAt || n.sentAt);
+    const dateStr = createdDate
+      ? createdDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      : (n.createdAtFormatted || '--');
+
+    const author = n.createdBy || 'Admin';
+    const codeDisplay = n.notificationId || n.id.slice(0, 8).toUpperCase();
+
+    tr.innerHTML = `
+      <td>
+        <div style="font-weight: 700; font-size: 13.5px; color: #111827; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; ${iconBgStyle}">${typeSvg}</span>
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px;" title="${escapeHtml(n.title)}">${escapeHtml(n.title || 'Untitled')}</span>
+        </div>
+        <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-left: 32px;">
+          <span style="font-size: 10.5px; padding: 2px 7px; border-radius: 9999px; font-weight: 600; ${typeBadgeClass === 'badge-red' ? 'background: #FEE2E2; color: #B91C1C;' : (typeBadgeClass === 'badge-orange' ? 'background: #FFEDD5; color: #C2410C;' : (typeBadgeClass === 'badge-green' ? 'background: #DCFCE7; color: #15803D;' : (typeBadgeClass === 'badge-purple' ? 'background: #FAF5FF; color: #9333EA;' : 'background: #EFF6FF; color: #1D4ED8;')))}">${typeLabel}</span>
+          <span style="font-size: 10px; font-family: monospace; color: #6B7280; background: #F3F4F6; padding: 1px 5px; border-radius: 4px;">${codeDisplay}</span>
+          ${isUrgent ? '<span style="font-size: 10px; padding: 1px 5px; border-radius: 9999px; font-weight: 700; background: #DC2626; color: #FFFFFF;">URGENT</span>' : ''}
+          ${isTest ? '<span style="font-size: 10px; padding: 1px 5px; border-radius: 9999px; font-weight: 700; background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D;">TEST</span>' : ''}
+        </div>
+      </td>
+      <td>
+        <span style="display: inline-block; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 8px; ${targetBadgeStyle} max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${targetDisplay}">${targetDisplay}</span>
+      </td>
+      <td>
+        <div style="font-size: 13px; color: #4B5563; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer;" onclick="window.adminInspectNotification('${n.id}')" title="${escapeHtml(n.body)}">
+          ${escapeHtml(n.body || '')}
+        </div>
+        ${n.route ? `<div style="font-size: 11px; color: #2563EB; margin-top: 3px; font-weight: 500;">Link: ${escapeHtml(n.route)}</div>` : ''}
+      </td>
+      <td>
+        <div style="font-size: 12.5px; color: #1F2937; font-weight: 500;">${dateStr}</div>
+        <div style="font-size: 11.5px; color: #6B7280; margin-top: 2px;">by ${escapeHtml(author)}</div>
+      </td>
+      <td>
+        <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 600; color: #15803D; background: #DCFCE7; padding: 3px 8px; border-radius: 9999px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #16A34A;"></span>
+          <span>Delivered</span>
+        </span>
+      </td>
+      <td style="text-align: right;">
+        <div class="action-btn-group" style="justify-content: flex-end; display: flex; gap: 6px;">
+          <button class="btn-action-icon btn-action-primary" onclick="window.adminInspectNotification('${n.id}')" title="View Details">Inspect</button>
+          <button class="btn-action-icon" onclick="window.adminEditNotification('${n.id}')" title="Edit Notification">Edit</button>
+          <button class="btn-action-icon" onclick="window.adminResendNotification('${n.id}')" title="Re-dispatch to devices">Resend</button>
+          <button class="btn-action-icon" style="color: #DC2626; border-color: #FCA5A5;" onclick="window.adminDeleteNotification('${n.id}')" title="Delete Notification">Delete</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function openCreateNotificationModal() {
+  const modal = document.getElementById('notification-manage-modal');
+  const titleHeader = document.getElementById('notif-manage-modal-title');
+  const submitBtn = document.getElementById('submit-notif-manage-btn');
+  const idInput = document.getElementById('notif-manage-id');
+  const form = document.getElementById('notification-manage-form');
+  const statusMsg = document.getElementById('notif-manage-status-msg');
+  const targetWrap = document.getElementById('notif-manage-specific-user-wrap');
+  const catSelect = document.getElementById('notif-manage-category');
+  const isTestCheck = document.getElementById('notif-manage-is-test');
+
+  populateStudentDatalist();
+
+  if (form) form.reset();
+  if (idInput) idInput.value = '';
+  if (titleHeader) titleHeader.textContent = 'Create Notification';
+  if (catSelect) catSelect.value = 'announcement';
+  if (isTestCheck) isTestCheck.checked = false;
+  if (submitBtn) {
+    submitBtn.textContent = 'Send Notification';
+    submitBtn.disabled = false;
+  }
+  if (statusMsg) statusMsg.style.display = 'none';
+  if (targetWrap) targetWrap.classList.add('hidden');
+
+  modal?.classList.remove('hidden');
+}
+
+function openEditNotificationModal(notifId) {
+  const n = notificationsCache.find(item => item.id === notifId);
+  if (!n) return;
+
+  const modal = document.getElementById('notification-manage-modal');
+  const titleHeader = document.getElementById('notif-manage-modal-title');
+  const submitBtn = document.getElementById('submit-notif-manage-btn');
+  const idInput = document.getElementById('notif-manage-id');
+  const titleInput = document.getElementById('notif-manage-title');
+  const bodyInput = document.getElementById('notif-manage-body');
+  const catSelect = document.getElementById('notif-manage-category');
+  const typeSelect = document.getElementById('notif-manage-type');
+  const targetSelect = document.getElementById('notif-manage-target');
+  const targetUidInput = document.getElementById('notif-manage-target-uid');
+  const prioritySelect = document.getElementById('notif-manage-priority');
+  const routeSelect = document.getElementById('notif-manage-route');
+  const isTestCheck = document.getElementById('notif-manage-is-test');
+  const statusMsg = document.getElementById('notif-manage-status-msg');
+  const targetWrap = document.getElementById('notif-manage-specific-user-wrap');
+
+  populateStudentDatalist();
+
+  if (idInput) idInput.value = n.id;
+  if (titleHeader) titleHeader.textContent = 'Edit Notification';
+  if (submitBtn) {
+    submitBtn.textContent = 'Save Changes';
+    submitBtn.disabled = false;
+  }
+  if (titleInput) titleInput.value = n.title || '';
+  if (bodyInput) bodyInput.value = n.body || '';
+  if (catSelect) catSelect.value = n.category || getCategoryForType(n.type);
+  if (typeSelect) typeSelect.value = n.type || 'GENERAL_ANNOUNCEMENT';
+  if (isTestCheck) isTestCheck.checked = n.isTest === true || isTestNotification(n);
+
+  const targetVal = n.target || (n.recipientId === 'ALL_USERS' ? 'all_users' : (n.recipientId === 'ALL_ADMINS' ? 'admins' : 'specific_users'));
+  if (targetSelect) targetSelect.value = targetVal;
+
+  if (targetVal === 'specific_users') {
+    targetWrap?.classList.remove('hidden');
+    if (targetUidInput) targetUidInput.value = n.recipientId || '';
+  } else {
+    targetWrap?.classList.add('hidden');
+    if (targetUidInput) targetUidInput.value = '';
+  }
+
+  if (prioritySelect) prioritySelect.value = n.priority || 'Normal';
+  if (routeSelect) routeSelect.value = n.route || n.data?.route || '';
+  if (statusMsg) statusMsg.style.display = 'none';
+
+  modal?.classList.remove('hidden');
+}
+
+function openInspectNotificationModal(notifId) {
+  const n = notificationsCache.find(item => item.id === notifId);
+  if (!n) return;
+
+  const modal = document.getElementById('notification-inspect-modal');
+  const bodyEl = document.getElementById('notif-inspect-modal-body');
+  const deleteBtn = document.getElementById('notif-inspect-delete-btn');
+  const resendBtn = document.getElementById('notif-inspect-resend-btn');
+  const editBtn = document.getElementById('notif-inspect-edit-btn');
+
+  if (!modal || !bodyEl) return;
+
+  const getTime = (val) => {
+    if (!val) return null;
+    if (typeof val.toDate === 'function') return val.toDate();
+    if (typeof val.toMillis === 'function') return new Date(val.toMillis());
+    if (val instanceof Date) return val;
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const createdDate = getTime(n.createdAt || n.sentAt);
+  const dateStr = createdDate
+    ? createdDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) + ' at ' + createdDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : (n.createdAtFormatted || 'Unknown date');
+
+  let targetDisplay = n.recipientName || 'All Students (Broadcast)';
+  if (n.target === 'admins' || n.recipientId === 'ALL_ADMINS') {
+    targetDisplay = 'All Administrators Only';
+  } else if (n.target === 'specific_users' || (n.recipientId && n.recipientId !== 'ALL_USERS' && n.recipientId !== 'ALL_ADMINS')) {
+    if (!n.recipientName) {
+      const matched = usersCache.find(u => u.docId === n.recipientId || u.id === n.recipientId || (u.raw && u.raw.regno === n.recipientId));
+      targetDisplay = matched ? `${matched.name} (${matched.id || n.recipientId})` : `User ID: ${n.recipientId}`;
+    }
+  }
+
+  const categoryName = (n.category || getCategoryForType(n.type)).toUpperCase();
+  const codeId = n.notificationId || n.id;
+  const isTest = isTestNotification(n);
+
+  bodyEl.innerHTML = `
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap;">
+      <span style="font-size: 11.5px; padding: 3px 8px; border-radius: 9999px; font-weight: 700; background: #EFF6FF; color: #1D4ED8;">${escapeHtml(n.type || 'NOTIFICATION')}</span>
+      <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 8px; border-radius: 9999px; font-weight: 600; background: #F3F4F6; color: #374151;">
+        <span class="folder-svg-icon icon-document" style="width: 12px; height: 12px;"></span>
+        ${escapeHtml(categoryName)}
+      </span>
+      <span style="font-size: 11px; font-family: monospace; padding: 2px 6px; border-radius: 4px; background: #E5E7EB; color: #1F2937;">ID: ${escapeHtml(codeId)}</span>
+      ${n.priority === 'Urgent' ? '<span style="font-size: 11.5px; padding: 3px 8px; border-radius: 9999px; font-weight: 700; background: #FEE2E2; color: #B91C1C;">URGENT</span>' : ''}
+      ${isTest ? '<span style="font-size: 11.5px; padding: 3px 8px; border-radius: 9999px; font-weight: 700; background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D;">TEST MESSAGE</span>' : ''}
+    </div>
+    <h3 style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 10px; line-height: 1.35;">${escapeHtml(n.title || 'Untitled Notification')}</h3>
+    <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 12px; padding: 14px 16px; font-size: 14px; color: #374151; line-height: 1.55; white-space: pre-wrap; margin-bottom: 16px;">${escapeHtml(n.body || '')}</div>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12.5px; border-top: 1px solid #F3F4F6; padding-top: 14px;">
+      <div>
+        <div style="color: #6B7280; margin-bottom: 2px;">Target Audience</div>
+        <div style="font-weight: 600; color: #1F2937;">${escapeHtml(targetDisplay)}</div>
+      </div>
+      <div>
+        <div style="color: #6B7280; margin-bottom: 2px;">Sent Timestamp</div>
+        <div style="font-weight: 600; color: #1F2937;">${dateStr}</div>
+      </div>
+      <div>
+        <div style="color: #6B7280; margin-bottom: 2px;">Dispatched By</div>
+        <div style="font-weight: 600; color: #1F2937;">${escapeHtml(n.createdBy || 'Admin')}</div>
+      </div>
+      <div>
+        <div style="color: #6B7280; margin-bottom: 2px;">Deep Link Screen</div>
+        <div style="font-weight: 600; color: #2563EB;">${escapeHtml(n.route || 'Notification Center')}</div>
+      </div>
+      ${n.createdAtIso ? `
+      <div style="grid-column: 1 / -1; font-size: 11.5px; color: #6B7280; background: #F3F4F6; padding: 6px 10px; border-radius: 6px;">
+        <span style="font-weight: 600;">ISO 8601 (Firebase Console):</span> <code>${escapeHtml(n.createdAtIso)}</code>
+      </div>` : ''}
+    </div>
+  `;
+
+  if (deleteBtn) {
+    deleteBtn.onclick = () => {
+      modal.classList.add('hidden');
+      confirmDeleteNotification(n.id);
+    };
+  }
+  if (resendBtn) {
+    resendBtn.onclick = () => {
+      modal.classList.add('hidden');
+      resendNotification(n.id);
+    };
+  }
+  if (editBtn) {
+    editBtn.onclick = () => {
+      modal.classList.add('hidden');
+      openEditNotificationModal(n.id);
+    };
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function confirmDeleteNotification(notifId) {
+  const n = notificationsCache.find(item => item.id === notifId);
+  if (!n) return;
+
+  const modal = document.getElementById('notification-delete-modal');
+  const titleDisplay = document.getElementById('delete-notif-title-display');
+  const idHolder = document.getElementById('delete-notif-id-holder');
+  const confirmBtn = document.getElementById('confirm-delete-notif-btn');
+
+  if (titleDisplay) titleDisplay.textContent = `"${n.title || 'Untitled'}"`;
+  if (idHolder) idHolder.value = notifId;
+
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Delete';
+    confirmBtn.onclick = async () => {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Deleting...';
+      try {
+        // 1. Delete parent document in notifications
+        await deleteDoc(doc(firestore, 'notifications', notifId));
+
+        // 2. Cascade delete from student subcollections (users/{uid}/notifications)
+        let targetUsers = [...usersCache];
+        if (targetUsers.length === 0) {
+          try {
+            const snap = await getDocs(collection(firestore, 'users'));
+            snap.forEach(d => targetUsers.push({ docId: d.id, id: d.id }));
+          } catch (e) { }
+        }
+
+        const subDeletes = targetUsers.map(async u => {
+          const uid = u.docId || u.id;
+          if (!uid) return;
+          try {
+            const subSnap = await getDocs(collection(firestore, 'users', uid, 'notifications'));
+            for (const d of subSnap.docs) {
+              const data = d.data();
+              if (data.parentNotifId === notifId || (data.title === n.title && data.body === n.body)) {
+                await deleteDoc(doc(firestore, 'users', uid, 'notifications', d.id)).catch(() => {});
+              }
+            }
+          } catch (e) { }
+        });
+        await Promise.allSettled(subDeletes);
+
+        // 3. Clear local storage cache
+        try {
+          localStorage.removeItem('nexride_user_notifs_cache');
+        } catch (e) { }
+
+        // 4. Record in audit log
+        try {
+          await addDoc(collection(firestore, 'auditLogs'), {
+            action: 'DELETE_NOTIFICATION',
+            target: n.target || 'notification',
+            title: n.title || '',
+            notifId: notifId,
+            admin: currentAdminUser?.email || currentAdminUser?.uid || 'admin',
+            timestamp: serverTimestamp()
+          });
+        } catch (e) { }
+
+        modal?.classList.add('hidden');
+      } catch (err) {
+        alert('Could not delete notification: ' + err.message);
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Delete';
+      }
+    };
+  }
+
+  modal?.classList.remove('hidden');
+}
+
+async function purgeTestNotifications() {
+  const modal = document.getElementById('notification-purge-modal');
+  const confirmBtn = document.getElementById('confirm-purge-test-notifs-btn');
+  const cancelBtn = document.getElementById('cancel-purge-test-notifs-btn');
+  const feedback = document.getElementById('purge-status-feedback');
+  const countSpan = document.getElementById('purge-detected-count');
+
+  // Count current test notifications
+  const testItems = notificationsCache.filter(isTestNotification);
+  if (countSpan) countSpan.textContent = testItems.length;
+
+  if (feedback) feedback.style.display = 'none';
+  if (modal) modal.classList.remove('hidden');
+
+  if (cancelBtn) {
+    cancelBtn.onclick = () => modal?.classList.add('hidden');
+  }
+
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'Purge From Firebase DB';
+    confirmBtn.onclick = async () => {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Purging...';
+      if (feedback) {
+        feedback.style.display = 'block';
+        feedback.style.background = '#EFF6FF';
+        feedback.style.color = '#1D4ED8';
+        feedback.textContent = 'Scanning and deleting test documents across Firebase DB...';
+      }
+
+      try {
+        let purgedCentralCount = 0;
+        let purgedSubCount = 0;
+        const testParentIds = new Set();
+
+        // 1. Delete matching test items from centralized 'notifications' collection
+        let centralSnap;
+        try {
+          centralSnap = await getDocs(collection(firestore, 'notifications'));
+        } catch (err) {
+          console.warn('[Purge] Fetch central notifications note:', err);
+        }
+
+        if (centralSnap) {
+          for (const docSnap of centralSnap.docs) {
+            const data = docSnap.data();
+            if (isTestNotification({ id: docSnap.id, ...data })) {
+              testParentIds.add(docSnap.id);
+              try {
+                await deleteDoc(doc(firestore, 'notifications', docSnap.id));
+                purgedCentralCount++;
+              } catch (delErr) {
+                console.warn('[Purge] Central delete note:', delErr);
+              }
+            }
+          }
+        }
+
+        // Add test items from cache
+        testItems.forEach(t => testParentIds.add(t.id));
+
+        // 2. Cascade delete from student subcollections: users/{uid}/notifications
+        let targetUsers = [...usersCache];
+        if (targetUsers.length === 0) {
+          try {
+            const usersSnap = await getDocs(collection(firestore, 'users'));
+            usersSnap.forEach(d => targetUsers.push({ docId: d.id, id: d.id }));
+          } catch (uErr) {
+            console.warn('[Purge] Fetch users note:', uErr);
+          }
+        }
+
+        for (const u of targetUsers) {
+          const uid = u.docId || u.id;
+          if (!uid) continue;
+          try {
+            const subSnap = await getDocs(collection(firestore, 'users', uid, 'notifications'));
+            for (const subDoc of subSnap.docs) {
+              const data = subDoc.data();
+              const matchesParent = data.parentNotifId && testParentIds.has(data.parentNotifId);
+              const matchesTest = isTestNotification({ id: subDoc.id, ...data });
+              if (matchesParent || matchesTest) {
+                try {
+                  await deleteDoc(doc(firestore, 'users', uid, 'notifications', subDoc.id));
+                  purgedSubCount++;
+                } catch (subDelErr) {
+                  console.warn(`[Purge] Delete user ${uid} notif note:`, subDelErr);
+                }
+              }
+            }
+          } catch (subErr) { }
+        }
+
+        // 3. Clear local caches and broadcast trackers
+        try {
+          localStorage.removeItem('nexride_user_notifs_cache');
+          localStorage.removeItem('nexride_read_broadcast_ids');
+        } catch (e) { }
+
+        // 4. Update memory cache and UI
+        notificationsCache = notificationsCache.filter(n => !testParentIds.has(n.id) && !isTestNotification(n));
+        updateTestNotificationsBadge();
+        renderNotificationsManagementTable();
+
+        // 5. Record in Audit Logs
+        try {
+          await addDoc(collection(firestore, 'auditLogs'), {
+            action: 'PURGE_TEST_NOTIFICATIONS',
+            centralCount: purgedCentralCount,
+            subcollectionCount: purgedSubCount,
+            admin: currentAdminUser?.email || currentAdminUser?.uid || 'admin',
+            timestamp: serverTimestamp()
+          });
+        } catch (e) { }
+
+        if (feedback) {
+          feedback.style.background = '#DCFCE7';
+          feedback.style.color = '#15803D';
+          feedback.textContent = `Cleaned ${purgedCentralCount} central and ${purgedSubCount} user test notifications!`;
+        }
+
+        setTimeout(() => {
+          modal?.classList.add('hidden');
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Purge From Firebase DB';
+        }, 1500);
+
+      } catch (err) {
+        if (feedback) {
+          feedback.style.background = '#FEE2E2';
+          feedback.style.color = '#B91C1C';
+          feedback.textContent = 'Error purging test notifications: ' + err.message;
+        }
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Purge From Firebase DB';
+      }
+    };
+  }
+}
+
+async function resendNotification(notifId) {
+  const n = notificationsCache.find(item => item.id === notifId);
+  if (!n) return;
+
+  const confirmed = window.confirm(`Re-dispatch notification "${n.title}" to users?`);
+  if (!confirmed) return;
+
+  try {
+    const adminIdentifier = currentAdminUser?.email || currentAdminUser?.uid || 'admin';
+
+    // 1. Update timestamp in centralized notifications
+    await updateDoc(doc(firestore, 'notifications', notifId), {
+      sentAt: serverTimestamp(),
+      resentAt: serverTimestamp(),
+      resentBy: adminIdentifier
+    });
+
+    // 2. Re-dispatch to individual students if broadcast
+    if (n.target === 'all_users' || n.recipientId === 'ALL_USERS') {
+      let targetUsers = [...usersCache];
+      if (targetUsers.length === 0) {
+        try {
+          const snap = await getDocs(collection(firestore, 'users'));
+          snap.forEach(d => targetUsers.push({ docId: d.id, id: d.id }));
+        } catch (e) { }
+      }
+
+      const writes = targetUsers.map(u => {
+        const uid = u.docId || u.id;
+        if (!uid) return Promise.resolve();
+        return addDoc(collection(firestore, 'users', uid, 'notifications'), {
+          title: n.title,
+          body: n.body,
+          type: n.type || 'GENERAL_ANNOUNCEMENT',
+          target: 'all_users',
+          recipientId: uid,
+          read: false,
+          createdAt: serverTimestamp(),
+          createdBy: adminIdentifier
+        }).catch(() => {});
+      });
+      await Promise.allSettled(writes);
+    } else if (n.recipientId && n.recipientId !== 'ALL_ADMINS') {
+      await addDoc(collection(firestore, 'users', n.recipientId, 'notifications'), {
+        title: n.title,
+        body: n.body,
+        type: n.type || 'GENERAL_ANNOUNCEMENT',
+        target: 'specific_user',
+        recipientId: n.recipientId,
+        read: false,
+        createdAt: serverTimestamp(),
+        createdBy: adminIdentifier
+      }).catch(() => {});
+    }
+
+    // 3. Dispatch via FCM API Router
+    try {
+      await fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentAdminUser?.uid || 'admin_super',
+          'x-user-role': 'admin'
+        },
+        body: JSON.stringify({
+          target: n.target || 'all_users',
+          userIds: n.recipientId && n.recipientId !== 'ALL_USERS' && n.recipientId !== 'ALL_ADMINS' ? [n.recipientId] : [],
+          title: n.title,
+          body: n.body,
+          type: n.type
+        })
+      });
+    } catch (e) { }
+
+    // 4. Record in audit log
+    try {
+      await addDoc(collection(firestore, 'auditLogs'), {
+        action: 'RESEND_NOTIFICATION',
+        title: n.title,
+        notifId: notifId,
+        admin: adminIdentifier,
+        timestamp: serverTimestamp()
+      });
+    } catch (e) { }
+
+    alert('Notification re-dispatched to devices successfully!');
+  } catch (err) {
+    alert('Failed to re-dispatch notification: ' + err.message);
+  }
+}
+
+function populateStudentDatalist() {
+  const datalist = document.getElementById('notif-student-datalist');
+  if (!datalist) return;
+  datalist.innerHTML = '';
+  usersCache.slice(0, 50).forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = u.docId || u.id;
+    opt.textContent = `${u.name} (${u.id || u.docId}) - ${u.department || 'Student'}`;
+    datalist.appendChild(opt);
+  });
+}
+
+function setupNotificationManagement() {
+  // 1. Create & Purge Notification buttons
+  const createBtn = document.getElementById('admin-create-notif-btn');
+  createBtn?.addEventListener('click', openCreateNotificationModal);
+
+  const purgeBtn = document.getElementById('admin-purge-test-notifs-btn');
+  purgeBtn?.addEventListener('click', () => purgeTestNotifications());
+
+  // 2. Category Pill Tabs
+  const catPills = document.querySelectorAll('.notif-cat-tab');
+  catPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      catPills.forEach(p => {
+        p.classList.remove('active');
+        p.style.background = '#FFFFFF';
+        p.style.color = '#4B5563';
+        p.style.borderColor = '#E5E7EB';
+        p.style.boxShadow = 'none';
+      });
+      pill.classList.add('active');
+      pill.style.background = '#2563EB';
+      pill.style.color = '#FFFFFF';
+      pill.style.borderColor = '#2563EB';
+      pill.style.boxShadow = '0 2px 6px rgba(37, 99, 235, 0.25)';
+
+      activeNotifCategory = pill.getAttribute('data-cat') || 'all';
+      renderNotificationsManagementTable();
+    });
+  });
+
+  // 3. Search & filter inputs
+  const searchInput = document.getElementById('notif-search-input');
+  const typeFilter = document.getElementById('notif-type-filter');
+  const targetFilter = document.getElementById('notif-target-filter');
+
+  searchInput?.addEventListener('input', () => renderNotificationsManagementTable());
+  typeFilter?.addEventListener('change', () => renderNotificationsManagementTable());
+  targetFilter?.addEventListener('change', () => renderNotificationsManagementTable());
+
+  // 4. Modal close buttons
+  const manageModal = document.getElementById('notification-manage-modal');
+  const closeManageBtn = document.getElementById('close-notif-manage-modal-btn');
+  const cancelManageBtn = document.getElementById('cancel-notif-manage-btn');
+
+  closeManageBtn?.addEventListener('click', () => manageModal?.classList.add('hidden'));
+  cancelManageBtn?.addEventListener('click', () => manageModal?.classList.add('hidden'));
+
+  const inspectModal = document.getElementById('notification-inspect-modal');
+  const closeInspectBtn = document.getElementById('close-notif-inspect-modal-btn');
+  closeInspectBtn?.addEventListener('click', () => inspectModal?.classList.add('hidden'));
+
+  const deleteModal = document.getElementById('notification-delete-modal');
+  const cancelDeleteBtn = document.getElementById('cancel-delete-notif-btn');
+  cancelDeleteBtn?.addEventListener('click', () => deleteModal?.classList.add('hidden'));
+
+  const purgeModal = document.getElementById('notification-purge-modal');
+  const cancelPurgeBtn = document.getElementById('cancel-purge-test-notifs-btn');
+  cancelPurgeBtn?.addEventListener('click', () => purgeModal?.classList.add('hidden'));
+
+  // 5. Dynamic form fields (Target audience and Type <-> Category sync)
+  const targetSelect = document.getElementById('notif-manage-target');
+  const specificWrap = document.getElementById('notif-manage-specific-user-wrap');
+  const typeSelect = document.getElementById('notif-manage-type');
+  const catSelect = document.getElementById('notif-manage-category');
+
+  targetSelect?.addEventListener('change', () => {
+    if (targetSelect.value === 'specific_users') {
+      specificWrap?.classList.remove('hidden');
+    } else {
+      specificWrap?.classList.add('hidden');
+    }
+  });
+
+  typeSelect?.addEventListener('change', () => {
+    if (catSelect) {
+      catSelect.value = getCategoryForType(typeSelect.value);
+    }
+  });
+
+  // 6. Submit Handler for Create / Edit Form
+  const form = document.getElementById('notification-manage-form');
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const notifId = document.getElementById('notif-manage-id')?.value.trim();
+    const title = document.getElementById('notif-manage-title')?.value.trim();
+    const body = document.getElementById('notif-manage-body')?.value.trim();
+    const category = document.getElementById('notif-manage-category')?.value || getCategoryForType(typeSelect?.value);
+    const type = document.getElementById('notif-manage-type')?.value || 'GENERAL_ANNOUNCEMENT';
+    const target = document.getElementById('notif-manage-target')?.value || 'all_users';
+    const specificUid = document.getElementById('notif-manage-target-uid')?.value.trim();
+    const priority = document.getElementById('notif-manage-priority')?.value || 'Normal';
+    const route = document.getElementById('notif-manage-route')?.value || '';
+    const dispatchPush = document.getElementById('notif-manage-dispatch-push')?.checked ?? true;
+    const isTest = document.getElementById('notif-manage-is-test')?.checked || isTestNotification({ title, body });
+
+    const statusMsg = document.getElementById('notif-manage-status-msg');
+    const submitBtn = document.getElementById('submit-notif-manage-btn');
+
+    if (!title || !body) {
+      if (statusMsg) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = '#FEE2E2';
+        statusMsg.style.color = '#B91C1C';
+        statusMsg.textContent = 'Please fill out both Title and Message Body.';
+      }
+      return;
+    }
+
+    if (target === 'specific_users' && !specificUid) {
+      if (statusMsg) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = '#FEE2E2';
+        statusMsg.style.color = '#B91C1C';
+        statusMsg.textContent = 'Please enter or select a target Student / User ID.';
+      }
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = notifId ? 'Saving Changes...' : 'Dispatching...';
+
+    try {
+      const adminIdentifier = currentAdminUser?.email || currentAdminUser?.uid || 'admin';
+
+      let targetDocId = specificUid;
+      let recipientDisplay = 'All Students & Users (Broadcast)';
+      if (target === 'admins') {
+        recipientDisplay = 'All Administrators Only';
+      } else if (target === 'specific_users' && specificUid) {
+        const cleanQuery = specificUid.trim().toLowerCase();
+        const matched = usersCache.find(u =>
+          (u.docId && u.docId.toLowerCase() === cleanQuery) ||
+          (u.id && String(u.id).toLowerCase() === cleanQuery) ||
+          (u.email && u.email.toLowerCase() === cleanQuery) ||
+          (u.raw?.regno && String(u.raw.regno).toLowerCase() === cleanQuery) ||
+          (u.name && u.name.toLowerCase() === cleanQuery)
+        );
+        if (matched && matched.docId) {
+          targetDocId = matched.docId;
+          recipientDisplay = `Student: ${matched.name} (${matched.id || matched.docId})`;
+        } else {
+          recipientDisplay = `User ID: ${specificUid}`;
+        }
+      }
+
+      const now = new Date();
+      const createdAtIso = now.toISOString();
+      const createdAtFormatted = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      const generatedNotifId = generateNotificationId(category);
+
+      if (notifId) {
+        // === EDIT EXISTING NOTIFICATION ===
+        await updateDoc(doc(firestore, 'notifications', notifId), {
+          title,
+          body,
+          category,
+          type,
+          target,
+          recipientId: target === 'specific_users' ? targetDocId : (target === 'admins' ? 'ALL_ADMINS' : 'ALL_USERS'),
+          recipientType: target === 'admins' ? 'admin' : 'user',
+          recipientName: recipientDisplay,
+          priority,
+          route,
+          isTest,
+          updatedAt: serverTimestamp(),
+          updatedAtIso: createdAtIso,
+          updatedBy: adminIdentifier
+        });
+
+        // Record in audit logs
+        try {
+          await addDoc(collection(firestore, 'auditLogs'), {
+            action: 'UPDATE_NOTIFICATION',
+            notifId: notifId,
+            title,
+            target,
+            admin: adminIdentifier,
+            timestamp: serverTimestamp()
+          });
+        } catch (e) { }
+
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = '#DCFCE7';
+          statusMsg.style.color = '#15803D';
+          statusMsg.textContent = 'Notification updated successfully!';
+        }
+      } else {
+        // === CREATE NEW NOTIFICATION (ORGANIZED SCHEMA) ===
+        // 1. Centralized notifications entry
+        const centralDocRef = await addDoc(collection(firestore, 'notifications'), {
+          notificationId: generatedNotifId,
+          title,
+          body,
+          category,
+          type,
+          target,
+          recipientId: target === 'specific_users' ? targetDocId : (target === 'admins' ? 'ALL_ADMINS' : 'ALL_USERS'),
+          recipientType: target === 'admins' ? 'admin' : 'user',
+          recipientName: recipientDisplay,
+          priority,
+          route,
+          read: false,
+          isTest: isTest,
+          createdAt: serverTimestamp(),
+          createdAtIso: createdAtIso,
+          createdAtFormatted: createdAtFormatted,
+          createdBy: adminIdentifier,
+          status: 'sent',
+          metadata: {
+            channel: dispatchPush ? 'fcm_and_inapp' : 'inapp',
+            source: 'Admin Web Panel',
+            version: '2.0'
+          }
+        });
+
+        const parentNotifDocId = centralDocRef.id;
+
+        // 2. Direct user subcollection deliveries
+        if (target === 'all_users') {
+          let targetUsers = [...usersCache];
+          if (targetUsers.length === 0) {
+            try {
+              const usersSnap = await getDocs(collection(firestore, 'users'));
+              usersSnap.forEach(d => targetUsers.push({ docId: d.id, id: d.id, name: d.data()?.name }));
+            } catch (e) { }
+          }
+
+          const writes = targetUsers.map(u => {
+            const uid = u.docId || u.id;
+            if (!uid) return Promise.resolve();
+            return addDoc(collection(firestore, 'users', uid, 'notifications'), {
+              parentNotifId: parentNotifDocId,
+              notificationId: generatedNotifId,
+              title,
+              body,
+              category,
+              type,
+              target: 'all_users',
+              recipientId: uid,
+              recipientName: u.name || uid,
+              priority,
+              route,
+              read: false,
+              isTest: isTest,
+              createdAt: serverTimestamp(),
+              createdAtIso: createdAtIso,
+              createdBy: adminIdentifier
+            }).catch(() => {});
+          });
+          await Promise.allSettled(writes);
+        } else if (target === 'specific_users' && targetDocId) {
+          await addDoc(collection(firestore, 'users', targetDocId, 'notifications'), {
+            parentNotifId: parentNotifDocId,
+            notificationId: generatedNotifId,
+            title,
+            body,
+            category,
+            type,
+            target: 'specific_user',
+            recipientId: targetDocId,
+            recipientName: recipientDisplay,
+            priority,
+            route,
+            read: false,
+            isTest: isTest,
+            createdAt: serverTimestamp(),
+            createdAtIso: createdAtIso,
+            createdBy: adminIdentifier
+          }).catch(() => {});
+        }
+
+        // 3. Dispatch via FCM push if selected
+        if (dispatchPush) {
+          try {
+            await fetch('/api/notifications/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-user-id': currentAdminUser?.uid || 'admin_super',
+                'x-user-role': 'admin'
+              },
+              body: JSON.stringify({
+                target,
+                userIds: target === 'specific_users' ? [targetDocId] : [],
+                title,
+                body,
+                type
+              })
+            });
+          } catch (e) { }
+        }
+
+        // 4. Record in audit logs
+        try {
+          await addDoc(collection(firestore, 'auditLogs'), {
+            action: 'CREATE_NOTIFICATION',
+            title,
+            target,
+            notifId: generatedNotifId,
+            admin: adminIdentifier,
+            timestamp: serverTimestamp()
+          });
+        } catch (e) { }
+
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = '#DCFCE7';
+          statusMsg.style.color = '#15803D';
+          statusMsg.textContent = 'Notification created and dispatched successfully!';
+        }
+      }
+
+      setTimeout(() => {
+        manageModal?.classList.add('hidden');
+      }, 1200);
+    } catch (err) {
+      if (statusMsg) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = '#FEE2E2';
+        statusMsg.style.color = '#B91C1C';
+        statusMsg.textContent = err.message;
+      }
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = notifId ? 'Save Changes' : 'Send Notification';
+    }
+  });
+
+  // Global window exposure for inline onclick handlers
+  window.adminInspectNotification = (id) => openInspectNotificationModal(id);
+  window.adminEditNotification = (id) => openEditNotificationModal(id);
+  window.adminDeleteNotification = (id) => confirmDeleteNotification(id);
+  window.adminResendNotification = (id) => resendNotification(id);
+  window.purgeTestNotifications = () => purgeTestNotifications();
 }
 
 // =============================================================================
@@ -339,9 +1808,11 @@ function initRealtimeEngine() {
   listenToReports();
   listenToApprovals();
   listenToAuditLogs();
+  listenToNotifications();
   setupGlobalSearch();
   setupModalListeners();
   setupFilterListeners();
+  setupNotificationManagement();
 
   // Export Log button → PPTX
   document.getElementById('export-audit-btn')?.addEventListener('click', () => exportAuditLogPPTX());

@@ -31,8 +31,9 @@ service cloud.firestore {
     // 1. User Profiles & Subcollections
     // ==========================================
     match /users/{userId} {
-      // Allows reading and writing to the main user profile
-      allow read, write: if isOwner(userId) || isAdmin();
+      // Allows reading for authenticated users, writing to the main user profile
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin();
       
       // 1a. E-Pass & Barcode Subcollections
       match /epass/{document=**} {
@@ -54,8 +55,7 @@ service cloud.firestore {
 
       // 1d. User Notifications Subcollection
       match /notifications/{notifId} {
-        allow read, update, delete: if isOwner(userId) || isAdmin();
-        allow create: if isAuthenticated();
+        allow read, write: if isAuthenticated();
       }
     }
     
@@ -193,6 +193,20 @@ service cloud.firestore {
     match /systemConfig/{document=**} {
       allow read: if true;
       allow write: if isAuthenticated();
+    }
+
+    // ==========================================
+    // 10. Notification Devices (FCM tokens)
+    // ==========================================
+    match /notification_devices/{deviceId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ==========================================
+    // 11. Centralized Notifications History
+    // ==========================================
+    match /notifications/{notifId} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

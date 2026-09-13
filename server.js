@@ -19,6 +19,17 @@ const ROOT_DIR = path.resolve(__dirname || '.');
 
 const server = http.createServer((req, res) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+
+  // Handle /api/notifications endpoints
+  if (req.url.startsWith('/api/notifications')) {
+    import('./backend/api-router.js')
+      .then(m => m.handleNotificationApi(req, res))
+      .catch(err => {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      });
+    return;
+  }
   
   // Basic routing & path sanitization to prevent directory traversal
   let reqPath = req.url.split('?')[0];

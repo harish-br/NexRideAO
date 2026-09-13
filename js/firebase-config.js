@@ -41,4 +41,4 @@ if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
     console.warn("Firebase config is using placeholder values. Real-time database connection is disabled.");
 }
 
-export { db, auth, firestore, storage };
+export { app, db, auth, firestore, storage };
