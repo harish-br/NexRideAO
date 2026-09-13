@@ -94,4 +94,16 @@ test('OFFLINE-FIRST ARCHITECTURE: Core Infrastructure & Resilience Verification'
     assert.match(swContent, /firestore\.googleapis\.com/, 'Must bypass Firestore API calls');
     assert.match(swContent, /identitytoolkit\.googleapis\.com/, 'Must bypass Firebase Auth API calls');
   });
+
+  await t.test('8. Returns header color to default after user is online', () => {
+    // Check styles: banner-default provides clean white / default header styling
+    assert.match(bannerCssContent, /\.banner-default/, 'Must style default header color on banner');
+    assert.match(bannerCssContent, /#nexride-offline-banner[\s\S]*background-color:\s*#FFFFFF/, 'Default header background must be #FFFFFF');
+
+    // Check controller: resets theme color and restores default header
+    assert.match(bannerContent, /showDefaultHeaderAndDismiss/, 'Must provide showDefaultHeaderAndDismiss method');
+    assert.match(bannerContent, /resetHeaderToDefault/, 'Must provide resetHeaderToDefault method');
+    assert.match(bannerContent, /resetThemeColorToDefault/, 'Must restore browser theme-color to default');
+    assert.match(bannerContent, /banner-default/, 'Must apply banner-default before dismissal');
+  });
 });

@@ -16,15 +16,21 @@
   align-items: center;
   justify-content: space-between;
   border-radius: 0 0 20px 20px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
-  transform: translateY(-120%);
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+  box-shadow: none;
+  transform: translateY(-160%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.35s ease, color 0.3s ease, box-shadow 0.35s ease;
   font-family: inherit;
-  pointer-events: auto;
+  pointer-events: none;
+  visibility: hidden;
+  background-color: #FFFFFF;
+  color: #111827;
 }
 
 #nexride-offline-banner.visible {
   transform: translateY(0);
+  pointer-events: auto;
+  visibility: visible;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12);
 }
 
 /* 1. Offline Mode: Warm Golden Amber */
@@ -37,6 +43,12 @@
 #nexride-offline-banner.banner-online {
   background-color: #22C55E;
   color: #FFFFFF;
+}
+
+/* 3. Online Restored / Dismissed: Return Header Color to Default */
+#nexride-offline-banner.banner-default {
+  background-color: #FFFFFF;
+  color: #111827;
 }
 
 /* Left Content Area */

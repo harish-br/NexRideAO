@@ -36,7 +36,9 @@ class OfflineBannerController {
     this.refreshIcon = null;
     this.hasBeenOffline = false;
     this.dismissTimer = null;
+    this.cleanupTimer = null;
     this.isRefreshing = false;
+    this.defaultThemeColor = null;
 
     if (typeof document !== 'undefined') {
       if (document.readyState === 'loading') {
@@ -49,8 +51,32 @@ class OfflineBannerController {
 
   init() {
     if (this.bannerEl) return;
+    this.captureDefaultThemeColor();
     this.createDOM();
     this.bindEvents();
+  }
+
+  captureDefaultThemeColor() {
+    if (typeof document !== 'undefined') {
+      const meta = document.querySelector('meta[name="theme-color"]');
+      this.defaultThemeColor = meta ? (meta.getAttribute('content') || '#0044CC') : '#0044CC';
+    }
+  }
+
+  setThemeColor(color) {
+    if (typeof document !== 'undefined') {
+      let meta = document.querySelector('meta[name="theme-color"]');
+      if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = 'theme-color';
+        document.head.appendChild(meta);
+      }
+      meta.setAttribute('content', color);
+    }
+  }
+
+  resetThemeColorToDefault() {
+    this.setThemeColor(this.defaultThemeColor || '#0044CC');
   }
 
   createDOM() {
@@ -60,6 +86,7 @@ class OfflineBannerController {
       el.id = 'nexride-offline-banner';
       el.setAttribute('role', 'alert');
       el.setAttribute('aria-live', 'polite');
+      el.style.display = 'none';
 
       el.innerHTML = `
         <div class="nr-banner-left">
@@ -99,9 +126,14 @@ class OfflineBannerController {
     if (!state.isServerReachable) {
       this.hasBeenOffline = true;
       clearTimeout(this.dismissTimer);
+      clearTimeout(this.cleanupTimer);
 
-      this.bannerEl.classList.remove('banner-online');
+      this.bannerEl.style.display = 'flex';
+      void this.bannerEl.offsetHeight; // force reflow for smooth enter animation
+
+      this.bannerEl.classList.remove('banner-online', 'banner-default');
       this.bannerEl.classList.add('banner-offline', 'visible');
+      this.setThemeColor('#F6BE48');
 
       this.iconEl.innerHTML = WIFI_OFF_SVG;
       this.actionBtn.style.display = 'inline-flex';
@@ -119,24 +151,59 @@ class OfflineBannerController {
 
       if (this.hasBeenOffline) {
         // Show the green "Back Online" banner
-        this.bannerEl.classList.remove('banner-offline');
+        this.bannerEl.style.display = 'flex';
+        void this.bannerEl.offsetHeight;
+
+        this.bannerEl.classList.remove('banner-offline', 'banner-default');
         this.bannerEl.classList.add('banner-online', 'visible');
+        this.setThemeColor('#22C55E');
 
         this.iconEl.innerHTML = WIFI_ON_SVG;
         this.textEl.textContent = 'Back Online';
         this.actionBtn.style.display = 'none';
 
-        // Auto-dismiss after 2.5 seconds
+        // Auto-dismiss after 2.2 seconds: show default header color and slide up
         clearTimeout(this.dismissTimer);
         this.dismissTimer = setTimeout(() => {
-          this.bannerEl.classList.remove('visible');
-          this.hasBeenOffline = false;
-        }, 2500);
+          this.showDefaultHeaderAndDismiss();
+        }, 2200);
       } else {
-        // Initial online launch: keep banner hidden
-        this.bannerEl.classList.remove('visible');
+        // Initial online launch or normal online state: ensure header is at default
+        this.resetHeaderToDefault();
       }
     }
+  }
+
+  showDefaultHeaderAndDismiss() {
+    if (!this.bannerEl) return;
+
+    // 1. Transition header color to default styling
+    this.bannerEl.classList.remove('banner-online', 'banner-offline');
+    this.bannerEl.classList.add('banner-default');
+    this.resetThemeColorToDefault();
+
+    // 2. Slide out of viewport
+    this.bannerEl.classList.remove('visible');
+    this.hasBeenOffline = false;
+
+    // 3. Once the 350ms slide transition finishes, fully hide to avoid overscroll peek
+    clearTimeout(this.cleanupTimer);
+    this.cleanupTimer = setTimeout(() => {
+      if (!this.bannerEl.classList.contains('visible')) {
+        this.bannerEl.classList.remove('banner-default');
+        this.bannerEl.style.display = 'none';
+      }
+    }, 400);
+  }
+
+  resetHeaderToDefault() {
+    if (!this.bannerEl) return;
+    clearTimeout(this.dismissTimer);
+    clearTimeout(this.cleanupTimer);
+    this.bannerEl.classList.remove('visible', 'banner-online', 'banner-offline', 'banner-default');
+    this.bannerEl.style.display = 'none';
+    this.hasBeenOffline = false;
+    this.resetThemeColorToDefault();
   }
 
   async onRefreshClick() {
