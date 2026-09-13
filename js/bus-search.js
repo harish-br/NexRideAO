@@ -1,5 +1,7 @@
 import { firestore as db } from './firebase-config.js';
 import { collection, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { repository } from './offline/repository.js';
+import { cacheSet } from './offline/db.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const busSearchBtn = document.getElementById('bus-search-btn');
@@ -58,6 +60,15 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastSyncTimestamp = 0;
   const SYNC_INTERVAL_MS = 15000; // 15 seconds heartbeat for reliable continuous updates
 
+  // Immediately initialize from offline repository/IndexedDB cache
+  repository.getBuses().then(res => {
+    if (res && res.data && (!cachedBusesData || cachedBusesData.length === 0)) {
+      console.log(`[BusSearch] Initialized ${res.data.length} buses from local IndexedDB cache`);
+      cachedBusesData = res.data;
+      renderSmartSuggestions();
+    }
+  }).catch(e => console.warn('[BusSearch] Cache init error:', e));
+
   function processBusesData(snapshotDocs) {
     const updated = [];
     snapshotDocs.forEach(doc => {
@@ -68,6 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
     cachedBusesData = updated;
     lastSyncTimestamp = Date.now();
     console.log(`[BusSearch] Live sync completed with ${cachedBusesData.length} buses from Firestore at ${new Date().toLocaleTimeString()}`);
+
+    // Persist to IndexedDB offline cache
+    cacheSet('buses', updated).catch(e => console.warn('[BusSearch] Failed to persist buses to IndexedDB:', e));
 
     // If modal is open and user is actively searching, update results live in place
     const query = searchInput ? searchInput.value.trim() : '';
@@ -111,7 +125,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const busesSnapshot = await getDocs(collection(db, 'buses'));
       processBusesData(busesSnapshot.docs);
     } catch (error) {
-      console.error('[BusSearch] Database sync error:', error);
+      console.error('[BusSearch] Database sync error, falling back to offline cache:', error);
+      if (!cachedBusesData) {
+        const cached = await repository.getBuses();
+        if (cached && cached.data) {
+          cachedBusesData = cached.data;
+          renderSmartSuggestions();
+        }
+      }
     } finally {
       isBusesLoading = false;
     }

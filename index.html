@@ -11,22 +11,16 @@
   <link rel="stylesheet" href="./css/epass.css?v=5" />
   <link rel="stylesheet" href="./css/bus-search.css?v=5" />
   <link rel="stylesheet" href="./css/report.css?v=8" />
+  <link rel="stylesheet" href="./css/offline-banner.css?v=1" />
 
-  <!-- Cache Clearing & SW Management -->
+  <!-- Offline Service Worker Registration -->
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        for (let registration of registrations) {
-          registration.unregister();
-        }
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('[PWA] Service Worker active with scope:', reg.scope))
+          .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
       });
-      if ('caches' in window) {
-        caches.keys().then(names => {
-          for (let name of names) {
-            caches.delete(name);
-          }
-        });
-      }
     }
   </script>
 
@@ -1507,6 +1501,7 @@
   </div>
 
 
+  <script type="module" src="./js/offline/banner.js"></script>
   <script type="module" src="./js/auth-ui.js?v=6"></script>
   <script type="module" src="./js/main.js?v=5"></script>
   <script type="module" src="./js/live-tracking.js?v=5"></script>

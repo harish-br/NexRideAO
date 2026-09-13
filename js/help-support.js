@@ -11,6 +11,7 @@
 
 import { auth, firestore } from './firebase-config.js';
 import { doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { outboxAdd } from './offline/db.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA / SERVICE LAYER
@@ -303,6 +304,12 @@ async function createSupportRequest(data) {
       console.log('[HelpSupport] Ticket synced to Firestore reports:', id);
     } catch (fsErr) {
       console.warn('[HelpSupport] Firestore report sync notice (cached locally):', fsErr.message);
+      try {
+        await outboxAdd({ id: id, type: 'CREATE_SUPPORT_TICKET', payload: reportPayload });
+        console.log('[HelpSupport] Ticket added to offline outbox queue:', id);
+      } catch (oErr) {
+        console.warn('[HelpSupport] Outbox queue notice:', oErr);
+      }
     }
   }
 

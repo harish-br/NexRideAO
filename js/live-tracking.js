@@ -1,11 +1,12 @@
 import { firestore } from './firebase-config.js';
 import { doc, getDoc, collection, onSnapshot, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
+import { cacheGet, cacheSet } from './offline/db.js';
 
 // Fetch stops from Firestore (checks route_bus_<busNum>, routes where assignedBus == busNum, or bus_<busNum>)
 async function fetchRouteStops(busNum) {
+    const busStr = String(busNum).trim();
     try {
-        const busStr = String(busNum).trim();
         // 1. Check routes/route_bus_<busNum>
         const routeDocId = `route_bus_${busStr}`;
         const routeSnap = await getDoc(doc(firestore, 'routes', routeDocId));
@@ -13,6 +14,7 @@ async function fetchRouteStops(busNum) {
             const routeData = routeSnap.data();
             if (Array.isArray(routeData.stops) && routeData.stops.length > 0) {
                 console.log('[LiveTracking] Stops loaded from routes collection:', routeDocId);
+                cacheSet('stops_' + busStr, routeData.stops).catch(() => {});
                 return routeData.stops;
             }
         }
@@ -25,6 +27,7 @@ async function fetchRouteStops(busNum) {
                 const rData = qSnap.docs[0].data();
                 if (Array.isArray(rData.stops) && rData.stops.length > 0) {
                     console.log('[LiveTracking] Stops loaded from routes query for bus:', busStr);
+                    cacheSet('stops_' + busStr, rData.stops).catch(() => {});
                     return rData.stops;
                 }
             }
@@ -39,6 +42,7 @@ async function fetchRouteStops(busNum) {
                 const bData = busSnap.data();
                 if (Array.isArray(bData.stops) && bData.stops.length > 0) {
                     console.log('[LiveTracking] Stops loaded from bus doc:', busStr);
+                    cacheSet('stops_' + busStr, bData.stops).catch(() => {});
                     return bData.stops;
                 }
             }
@@ -46,8 +50,16 @@ async function fetchRouteStops(busNum) {
             console.warn('[LiveTracking] bus doc error:', e);
         }
     } catch (err) {
-        console.warn('[LiveTracking] Could not fetch route stops:', err);
+        console.warn('[LiveTracking] Could not fetch route stops, falling back to local cache:', err);
     }
+
+    // Offline fallback from local IndexedDB cache
+    const cached = await cacheGet('stops_' + busStr);
+    if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
+        console.log('[LiveTracking] Loaded stops from local IndexedDB cache:', busStr);
+        return cached.data;
+    }
+
     return null;
 }
 

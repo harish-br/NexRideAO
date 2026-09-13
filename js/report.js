@@ -23,6 +23,7 @@ import {
 import {
   ref, uploadString, getDownloadURL
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
+import { outboxAdd } from './offline/db.js';
 
 // =============================================================================
 // CATEGORIES CONFIGURATION (11 Categories)
@@ -1774,8 +1775,42 @@ export async function handleReportSubmission() {
     showSuccessScreen(reportId);
 
   } catch (err) {
-    // 4. STATE: ERROR (Keep form inputs intact, re-enable button, alert error)
     console.error('[Report] Error submitting report to Firestore:', err);
+
+    // OFFLINE RESILIENCE: If device is offline or network request failed, queue for background sync
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const isNetworkErr = err.code === 'unavailable' || (err.message && (err.message.includes('network') || err.message.includes('offline') || err.message.includes('fetch failed') || err.message.includes('Failed to get document')));
+
+    if (isOffline || isNetworkErr) {
+      console.log('[Report] Network offline, saving report to offline outbox queue...');
+      const safePayload = {
+        id: reportId,
+        ...reportPayload,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        pendingSync: true
+      };
+
+      try {
+        await outboxAdd({
+          id: reportId,
+          type: 'CREATE_REPORT',
+          payload: safePayload
+        });
+
+        myReportsCache.unshift(safePayload);
+        try {
+          localStorage.setItem('nexride_my_reports_cache', JSON.stringify(myReportsCache));
+        } catch (e) {}
+
+        resetReportForm();
+        showSuccessScreen(reportId);
+        return;
+      } catch (queueErr) {
+        console.warn('[Report] Outbox queue error:', queueErr);
+      }
+    }
+
     isSubmitting = false;
     if (submitBtn) {
       submitBtn.disabled = false;

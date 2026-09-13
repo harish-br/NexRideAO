@@ -23,7 +23,12 @@ let map;
 let userMarker;
 
 async function initMap() {
-  const { Map } = await google.maps.importLibrary("maps");
+  try {
+    if (typeof google === 'undefined' || !google.maps || !google.maps.importLibrary) {
+      console.warn('[Map] Google Maps SDK unavailable (offline).');
+      return;
+    }
+    const { Map } = await google.maps.importLibrary("maps");
 
   // Center on San Francisco for a placeholder initially
   map = new Map(document.getElementById("map"), {
@@ -126,6 +131,9 @@ async function initMap() {
         );
       }
     });
+  }
+  } catch (mapErr) {
+    console.warn('[Map] Google Maps failed to load offline:', mapErr);
   }
 }
 
