@@ -78,12 +78,101 @@ class NotificationClientService {
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         await this.registerDeviceToken();
+        await this.showSystemNotification({
+          title: 'NexRide Transit System',
+          body: 'Notifications enabled! Real-time bus alerts & tracking active on your device.'
+        });
         return true;
       }
     } catch (err) {
       console.warn('[FCM Client] Error requesting permission:', err);
     }
     return false;
+  }
+
+  /**
+   * Triggers a genuine Operating System UI notification (macOS / Windows / Android).
+   * Rendered natively by the OS notification system outside the app's DOM.
+   */
+  async showSystemNotification(notification = {}) {
+    if (!this.isSupported || typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+      return false;
+    }
+
+    const title = notification.title || 'NexRide Transit';
+    const options = {
+      body: notification.body || 'Live bus tracking, route alerts, and transit updates active.',
+      icon: '/icon-192.png',
+      badge: '/favicon/favicon-96x96.png',
+      tag: notification.tag || `nexride_${Date.now()}`,
+      data: notification.data || { screen: 'live' },
+      renotify: true
+    };
+
+    // 1. Try Service Worker showNotification (standard for PWA / background push)
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        if (reg && reg.showNotification) {
+          await reg.showNotification(title, options);
+          return true;
+        }
+      }
+    } catch (swErr) {
+      console.warn('[FCM Client] ServiceWorker showNotification note:', swErr.message);
+    }
+
+    // 2. Fallback to standard Window Notification API
+    try {
+      const nativeNotif = new Notification(title, options);
+      nativeNotif.onclick = () => {
+        window.focus();
+        if (notification.data?.screen) {
+          window.location.hash = notification.data.screen.replace(/^\/#?/, '');
+        }
+      };
+      return true;
+    } catch (err) {
+      console.warn('[FCM Client] Native Notification constructor note:', err.message);
+    }
+    return false;
+  }
+
+  /**
+   * Prompts the native system OS / browser permission dialog immediately when the user enters the app.
+   * Does not display in-app notification banners.
+   */
+  triggerSystemPromptOnAppEntry() {
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+
+    if (Notification.permission !== 'default') return;
+
+    let hasRequested = false;
+
+    const askPermission = async () => {
+      if (hasRequested || Notification.permission !== 'default') return;
+      hasRequested = true;
+
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          await this.registerDeviceToken();
+        }
+      } catch (err) {
+        console.warn('[FCM Client] System entry notification prompt note:', err.message);
+      }
+    };
+
+    // 1. Prompt immediately on entry
+    askPermission();
+
+    // 2. Also bind to first interaction if browser strictly requires a user gesture
+    const gestureEvents = ['pointerdown', 'touchstart', 'click', 'keydown'];
+    const handleGesture = () => {
+      askPermission();
+      gestureEvents.forEach(evt => window.removeEventListener(evt, handleGesture));
+    };
+    gestureEvents.forEach(evt => window.addEventListener(evt, handleGesture, { once: true, passive: true }));
   }
 
   /**
@@ -100,9 +189,9 @@ class NotificationClientService {
         serviceWorkerRegistration: swRegistration
       };
 
-      const vapidKey = import.meta.env?.VITE_FIREBASE_VAPID_KEY;
+      let vapidKey = import.meta.env?.VITE_FIREBASE_VAPID_KEY;
       if (vapidKey) {
-        tokenOptions.vapidKey = vapidKey;
+        tokenOptions.vapidKey = String(vapidKey).replace(/^["']|["']$/g, '').trim();
       }
 
       const token = await getToken(this.messaging, tokenOptions);
@@ -354,8 +443,47 @@ class NotificationClientService {
   /**
    * Displays an elegant in-app toast when a foreground notification is received.
    */
-  showInAppToast(notification) {
+  showInAppToast(notification, isManualTest = false) {
     if (typeof document === 'undefined') return;
+
+    // Filter by user preferences
+    if (!isManualTest) {
+      try {
+        const cached = JSON.parse(localStorage.getItem('nexride_user_profile') || '{}');
+        const prefs = cached.preferences;
+        if (prefs) {
+          if (prefs.notificationsEnabled === false) return;
+          const type = String(notification?.type || '').toUpperCase();
+          if ((type.includes('BUS') || type.includes('ARRIVAL') || type.includes('PROXIMITY')) && prefs.busAlerts === false) return;
+          if ((type.includes('DELAY') || type.includes('SCHEDULE') || type.includes('DETOUR')) && prefs.delayAlerts === false) return;
+          if ((type.includes('ANNOUNCEMENT') || type.includes('BROADCAST') || type.includes('CAMPUS')) && prefs.announcements === false) return;
+          if ((type.includes('SAFETY') || type.includes('EMERGENCY')) && prefs.safetyAlerts === false) return;
+        }
+      } catch (e) {}
+    }
+
+    // Play subtle audio chime if sound preference is enabled
+    try {
+      const cached = JSON.parse(localStorage.getItem('nexride_user_profile') || '{}');
+      const prefs = cached.preferences || {};
+      if (prefs.sound !== false && typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.08); // A5
+        gain.gain.setValueAtTime(0.06, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.25);
+      }
+      if (prefs.hapticFeedback !== false && typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate([25, 30, 25]);
+      }
+    } catch (e) {}
 
     let container = document.getElementById('nr-toast-container');
     if (!container) {

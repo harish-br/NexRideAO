@@ -6,7 +6,7 @@
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
   <title>NexRide</title>
-  <link rel="stylesheet" href="./css/style.css?v=5" />
+  <link rel="stylesheet" href="./css/style.css?v=7" />
   <link rel="stylesheet" href="./css/safety.css?v=5" />
   <link rel="stylesheet" href="./css/epass.css?v=5" />
   <link rel="stylesheet" href="./css/bus-search.css?v=5" />
@@ -384,6 +384,17 @@
           </div>
         </div>
 
+        <!-- 2. Preferences -->
+        <div class="profile-list-item" id="btn-preferences" style="cursor: pointer;" onclick="if(window.openPreferences){window.openPreferences();}else{var p=document.getElementById('preferences-page');if(p)p.classList.remove('hidden');}">
+          <div class="pli-icon" style="background: none !important; -webkit-mask: none !important; mask: none !important;">
+            <img src="./assets/setting.svg" alt="Preferences" style="display: block !important; width: 24px !important; height: 24px !important; object-fit: contain !important;">
+          </div>
+          <div class="pli-content">
+            <span class="pli-title">Preferences</span>
+            <span class="pli-subtitle">Notifications, alerts &amp; communication settings</span>
+          </div>
+        </div>
+
         <!-- 2. Help & Support -->
         <div class="profile-list-item" id="help-support-btn" style="cursor: pointer;">
           <div class="pli-icon">
@@ -532,6 +543,172 @@
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preferences Page Overlay -->
+    <div id="preferences-page" class="page-overlay push-overlay hidden"
+      style="background-color: #FFFFFF; overflow-y: auto; height: 100dvh; z-index: 3500; position: fixed; top: 0; left: 0; width: 100%;">
+      <div class="pi-header">
+        <button id="pref-back-btn" class="pi-back-btn" aria-label="Back"
+          onclick="if(window.closePreferences){window.closePreferences();}else{var p=document.getElementById('preferences-page');if(p)p.classList.add('hidden');}">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#111111" stroke-width="2.5"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <div class="pi-content" style="padding-bottom: 50px;">
+        <h1 class="pi-title" style="margin-bottom: 6px;">Preferences</h1>
+        <p style="font-size: 14px; color: #6B7280; margin-bottom: 20px;">Customize notifications, transit features, and app experience.</p>
+
+        <!-- SECTION 1: NOTIFICATIONS & ALERTS -->
+        <div class="pref-section-title">Notifications &amp; Alerts</div>
+        <div class="pref-card" style="margin-bottom: 20px;">
+          <!-- Master Notification Toggle -->
+          <div class="pref-item-row" style="padding-bottom: 16px; border-bottom: 1px solid #E5E7EB;">
+            <div style="flex: 1;">
+              <div style="font-weight: 700; font-size: 15.5px; color: #111827; margin-bottom: 3px;">Push Notifications</div>
+              <div style="font-size: 13px; color: #6B7280; line-height: 1.4;">Master switch for all notifications on this device &amp; account.</div>
+            </div>
+            <label class="pref-toggle-switch">
+              <input type="checkbox" id="pref-toggle-notifications" checked />
+              <span class="pref-toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Sub-Preferences (Active when master toggle is ON) -->
+          <div id="pref-sub-options" style="display: flex; flex-direction: column;">
+            <!-- Bus Arrival & Proximity Alerts -->
+            <div class="pref-item-row">
+              <div style="flex: 1;">
+                <div class="pref-item-title">Bus Arrival &amp; Proximity Alerts</div>
+                <div class="pref-item-desc">Notify when your bus is 5 minutes or 1 stop away from your pickup point.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-bus-alerts" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Delays & Route Divergences -->
+            <div class="pref-item-row">
+              <div style="flex: 1;">
+                <div class="pref-item-title">Delays &amp; Route Divergence Alerts</div>
+                <div class="pref-item-desc">Get instant alerts if your route encounters road delays or detour changes.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-delay-alerts" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Campus Announcements -->
+            <div class="pref-item-row">
+              <div style="flex: 1;">
+                <div class="pref-item-title">Campus &amp; Transit Announcements</div>
+                <div class="pref-item-desc">Schedule adjustments, holiday services, and college transport updates.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-announcements" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Safety & Emergency Alerts -->
+            <div class="pref-item-row">
+              <div style="flex: 1;">
+                <div class="pref-item-title">Safety &amp; Emergency Advisories</div>
+                <div class="pref-item-desc">High-priority security updates, SOS broadcasts, and incident advisories.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-safety-alerts" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
+            </div>
+
+            <!-- Sound & Vibration -->
+            <div class="pref-item-row" style="border-bottom: none;">
+              <div style="flex: 1;">
+                <div class="pref-item-title">Sound &amp; Audio Chimes</div>
+                <div class="pref-item-desc">Play audible alerts and haptic vibration for incoming notifications.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-sound" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 2: TRANSIT & COMMUTE EXPERIENCE -->
+        <div class="pref-section-title">Transit &amp; Travel Experience</div>
+        <div class="pref-card" style="margin-bottom: 20px;">
+          <!-- Live ETA Auto-Refresh -->
+          <div class="pref-item-row">
+            <div style="flex: 1;">
+              <div class="pref-item-title">Live ETA Auto-Refresh</div>
+              <div class="pref-item-desc">Continuously sync real-time GPS telemetry and estimated arrival times.</div>
+            </div>
+            <label class="pref-toggle-switch">
+              <input type="checkbox" id="pref-toggle-live-eta" checked />
+              <span class="pref-toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Offline Timetable Cache -->
+          <div class="pref-item-row">
+            <div style="flex: 1;">
+              <div class="pref-item-title">Auto-Cache Offline Routes</div>
+              <div class="pref-item-desc">Store stops, schedules, and route maps for zero-connectivity access.</div>
+            </div>
+            <label class="pref-toggle-switch">
+              <input type="checkbox" id="pref-toggle-offline-cache" checked />
+              <span class="pref-toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Low Data Mode -->
+          <div class="pref-item-row" style="border-bottom: none;">
+            <div style="flex: 1;">
+              <div class="pref-item-title">Low Data / Battery Saver Mode</div>
+              <div class="pref-item-desc">Reduce telemetry polling frequency and map animations over mobile data.</div>
+            </div>
+            <label class="pref-toggle-switch">
+              <input type="checkbox" id="pref-toggle-data-saver" />
+              <span class="pref-toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- SECTION 3: APP & ACCESSIBILITY -->
+        <div class="pref-section-title">App &amp; Accessibility</div>
+        <div class="pref-card" style="margin-bottom: 20px;">
+          <!-- High Contrast Pass Display -->
+          <div class="pref-item-row">
+            <div style="flex: 1;">
+              <div class="pref-item-title">High-Contrast E-Pass Display</div>
+              <div class="pref-item-desc">Maximizes screen contrast and brightness when presenting pass for barcode scans.</div>
+            </div>
+            <label class="pref-toggle-switch">
+              <input type="checkbox" id="pref-toggle-high-contrast" />
+              <span class="pref-toggle-slider"></span>
+            </label>
+          </div>
+
+          <!-- Haptic Button Feedback -->
+          <div class="pref-item-row" style="border-bottom: none;">
+            <div style="flex: 1;">
+              <div class="pref-item-title">Haptic Vibration on Actions</div>
+              <div class="pref-item-desc">Provide physical tactile feedback on navigation taps, SOS toggles, and pass checks.</div>
+            </div>
+            <label class="pref-toggle-switch">
+              <input type="checkbox" id="pref-toggle-haptics" checked />
+              <span class="pref-toggle-slider"></span>
+            </label>
           </div>
         </div>
       </div>
@@ -1521,8 +1698,8 @@
   <script type="module" src="./js/auth-ui.js?v=6"></script>
   <script type="module" src="./js/main.js?v=5"></script>
   <script type="module" src="./js/live-tracking.js?v=5"></script>
-  <script type="module" src="./js/sheet.js?v=5"></script>
-  <script type="module" src="./js/profile.js?v=5"></script>
+  <script type="module" src="./js/sheet.js?v=6"></script>
+  <script type="module" src="./js/profile.js?v=6"></script>
   <script type="module" src="./js/safety.js?v=5"></script>
   <script type="module" src="./js/help-support.js?v=5"></script>
   <script type="module" src="./js/report.js?v=20260907-2015"></script>

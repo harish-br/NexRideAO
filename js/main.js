@@ -1,4 +1,8 @@
 import "./instrument.js";
+import { notificationClient } from "./notifications/notification-service.js";
+
+// Automatically trigger system OS permission and OS notification popup on app entry
+notificationClient.triggerSystemPromptOnAppEntry();
 
 // Globally prevent unwanted interactions
 window.addEventListener("contextmenu", (e) => {

@@ -213,6 +213,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Preferences overlay logic
+  const btnPreferences = document.getElementById('btn-preferences');
+  const preferencesPage = document.getElementById('preferences-page');
+  const prefBackBtn = document.getElementById('pref-back-btn');
+
+  if (btnPreferences && preferencesPage) {
+    btnPreferences.addEventListener('click', () => {
+      preferencesPage.classList.remove('hidden');
+      if (window.updateBrowserPermStatus) {
+        window.updateBrowserPermStatus();
+      }
+    });
+
+    if (prefBackBtn) {
+      prefBackBtn.addEventListener('click', () => {
+        preferencesPage.classList.add('hidden');
+      });
+    }
+  }
+
 
 
 

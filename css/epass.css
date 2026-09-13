@@ -358,3 +358,18 @@
     transform: translate3d(-30px, -30px, 0);
   }
 }
+
+/* High-Contrast E-Pass Accessibility Display */
+.epass-card.high-contrast-mode {
+  filter: contrast(135%) brightness(105%);
+  box-shadow: 0 0 0 3px #000000, 0 10px 25px rgba(0, 0, 0, 0.25) !important;
+}
+
+.epass-card.high-contrast-mode .epass-barcode-container {
+  background: #FFFFFF !important;
+  color: #000000 !important;
+}
+
+.epass-card.high-contrast-mode #epass-barcode {
+  filter: contrast(200%);
+}

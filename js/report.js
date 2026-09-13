@@ -513,6 +513,17 @@ function saveReadBroadcastId(id) {
 function dispatchLiveNotificationAlert(notif) {
   if (!notif || notif.read) return;
 
+  // Respect user Preferences if notifications were turned off
+  try {
+    const cachedProfile = localStorage.getItem('nexride_user_profile');
+    if (cachedProfile) {
+      const parsed = JSON.parse(cachedProfile);
+      if (parsed.preferences && parsed.preferences.notificationsEnabled === false) {
+        return; // Notifications turned OFF by user in Preferences
+      }
+    }
+  } catch (e) { }
+
   // 1. Display non-intrusive floating in-app toast
   try {
     notificationClient.showInAppToast(notif);
@@ -542,7 +553,9 @@ function dispatchLiveNotificationAlert(notif) {
 
   // 3. Audio / vibration feedback
   try {
-    if (navigator.vibrate) navigator.vibrate([150, 75, 150]);
+    const cachedProfile = localStorage.getItem('nexride_user_profile');
+    const allowSound = !cachedProfile || JSON.parse(cachedProfile)?.preferences?.sound !== false;
+    if (allowSound && navigator.vibrate) navigator.vibrate([150, 75, 150]);
   } catch (e) { }
 }
 
@@ -2373,31 +2386,10 @@ export function updateNotificationsUI() {
   const unreadCount = userNotifications.filter(n => !n.read).length;
   console.log('[Report] updateNotificationsUI: total =', userNotifications.length, ', unread =', unreadCount, ', loaded =', notificationsLoaded);
 
-  // 0. Manage Push Notification Permission Banner
+  // 0. Manage Push Notification Permission Banner (Handled via system OS prompt on entry, hidden inside notifications UI)
   const permBanner = document.getElementById('notif-permission-banner');
   if (permBanner) {
-    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
-      permBanner.style.display = 'flex';
-      const enableBtn = document.getElementById('enable-push-alerts-btn');
-      if (enableBtn && !enableBtn._bound) {
-        enableBtn._bound = true;
-        enableBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          enableBtn.disabled = true;
-          enableBtn.textContent = 'Enabling...';
-          const granted = await notificationClient.requestPermission();
-          if (granted) {
-            permBanner.innerHTML = `<div style="display:flex;align-items:center;gap:8px;color:#15803D;font-weight:600;font-size:13px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Push notifications enabled!</div>`;
-            setTimeout(() => { if (permBanner) permBanner.style.display = 'none'; }, 2500);
-          } else {
-            enableBtn.disabled = false;
-            enableBtn.textContent = 'Enable';
-          }
-        });
-      }
-    } else {
-      permBanner.style.display = 'none';
-    }
+    permBanner.style.display = 'none';
   }
 
   // 1. Home screen badge & content

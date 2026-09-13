@@ -2,6 +2,7 @@ import { auth, firestore, storage } from './firebase-config.js';
 import { onAuthStateChanged, updateProfile } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
+import { notificationClient } from './notifications/notification-service.js';
 
 let currentUser = null;
 let processedPhoto = null; // { dataUrl: string, blob: Blob }
@@ -41,6 +42,146 @@ const upDefaultSvg = document.getElementById('up-default-svg');
 const rowName = document.getElementById('row-name');
 const rowGender = document.getElementById('row-gender');
 const rowEmail = document.getElementById('row-email');
+
+// =============================================================================
+// PREFERENCES DOM, DEFAULTS & GLOBAL HANDLERS (Hoisted for zero-delay UI)
+// =============================================================================
+export const DEFAULT_PREFERENCES = {
+    notificationsEnabled: true,
+    busAlerts: true,
+    delayAlerts: true,
+    announcements: true,
+    safetyAlerts: true,
+    sound: true,
+    liveEtaRefresh: true,
+    offlineCache: true,
+    dataSaver: false,
+    highContrastPass: false,
+    hapticFeedback: true
+};
+
+export let currentPreferences = { ...DEFAULT_PREFERENCES };
+
+const btnPreferences = document.getElementById('btn-preferences');
+const preferencesPage = document.getElementById('preferences-page');
+const prefBackBtn = document.getElementById('pref-back-btn');
+
+// Notification toggles
+const prefToggleNotifications = document.getElementById('pref-toggle-notifications');
+const prefSubOptions = document.getElementById('pref-sub-options');
+const prefToggleBusAlerts = document.getElementById('pref-toggle-bus-alerts');
+const prefToggleDelayAlerts = document.getElementById('pref-toggle-delay-alerts');
+const prefToggleAnnouncements = document.getElementById('pref-toggle-announcements');
+const prefToggleSafetyAlerts = document.getElementById('pref-toggle-safety-alerts');
+const prefToggleSound = document.getElementById('pref-toggle-sound');
+
+// Transit & Commute toggles
+const prefToggleLiveEta = document.getElementById('pref-toggle-live-eta');
+const prefToggleOfflineCache = document.getElementById('pref-toggle-offline-cache');
+const prefToggleDataSaver = document.getElementById('pref-toggle-data-saver');
+
+// App & Accessibility toggles
+const prefToggleHighContrast = document.getElementById('pref-toggle-high-contrast');
+const prefToggleHaptics = document.getElementById('pref-toggle-haptics');
+
+export function updateBrowserPermStatus() {
+    // Kept for backward compatibility
+}
+
+export function applyHighContrastPass(enabled) {
+    const card = document.getElementById('epass-card-element') || document.querySelector('.epass-card');
+    if (card) {
+        card.classList.toggle('high-contrast-mode', !!enabled);
+    }
+}
+
+export function applyPreferencesToUI(prefs) {
+    if (!prefs) return;
+    currentPreferences = { ...DEFAULT_PREFERENCES, ...currentPreferences, ...prefs };
+
+    const isNotificationsMasterOn = currentPreferences.notificationsEnabled !== false;
+
+    // Master notification toggle
+    if (prefToggleNotifications) {
+        prefToggleNotifications.checked = isNotificationsMasterOn;
+    }
+    if (prefSubOptions) {
+        prefSubOptions.style.opacity = isNotificationsMasterOn ? '1' : '0.4';
+        prefSubOptions.style.pointerEvents = isNotificationsMasterOn ? 'auto' : 'none';
+    }
+
+    // Sub-notification toggles
+    if (prefToggleBusAlerts) {
+        prefToggleBusAlerts.checked = currentPreferences.busAlerts !== false;
+        prefToggleBusAlerts.disabled = !isNotificationsMasterOn;
+    }
+    if (prefToggleDelayAlerts) {
+        prefToggleDelayAlerts.checked = currentPreferences.delayAlerts !== false;
+        prefToggleDelayAlerts.disabled = !isNotificationsMasterOn;
+    }
+    if (prefToggleAnnouncements) {
+        prefToggleAnnouncements.checked = currentPreferences.announcements !== false;
+        prefToggleAnnouncements.disabled = !isNotificationsMasterOn;
+    }
+    if (prefToggleSafetyAlerts) {
+        prefToggleSafetyAlerts.checked = currentPreferences.safetyAlerts !== false;
+        prefToggleSafetyAlerts.disabled = !isNotificationsMasterOn;
+    }
+    if (prefToggleSound) {
+        prefToggleSound.checked = currentPreferences.sound !== false;
+        prefToggleSound.disabled = !isNotificationsMasterOn;
+    }
+
+    // Transit toggles
+    if (prefToggleLiveEta) {
+        prefToggleLiveEta.checked = currentPreferences.liveEtaRefresh !== false;
+    }
+    if (prefToggleOfflineCache) {
+        prefToggleOfflineCache.checked = currentPreferences.offlineCache !== false;
+    }
+    if (prefToggleDataSaver) {
+        prefToggleDataSaver.checked = !!currentPreferences.dataSaver;
+    }
+
+    // Accessibility toggles
+    if (prefToggleHighContrast) {
+        prefToggleHighContrast.checked = !!currentPreferences.highContrastPass;
+        applyHighContrastPass(!!currentPreferences.highContrastPass);
+    }
+    if (prefToggleHaptics) {
+        prefToggleHaptics.checked = currentPreferences.hapticFeedback !== false;
+    }
+}
+
+export function openPreferences() {
+    const page = preferencesPage || document.getElementById('preferences-page');
+    if (page) {
+        page.classList.remove('hidden');
+        updateBrowserPermStatus();
+    }
+}
+
+export function closePreferences() {
+    const page = preferencesPage || document.getElementById('preferences-page');
+    if (page) {
+        page.classList.add('hidden');
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.openPreferences = openPreferences;
+    window.closePreferences = closePreferences;
+    window.updateBrowserPermStatus = updateBrowserPermStatus;
+}
+
+if (btnPreferences) {
+    btnPreferences.addEventListener('click', openPreferences);
+}
+
+if (prefBackBtn) {
+    prefBackBtn.addEventListener('click', closePreferences);
+}
+
 
 // Initial cached load for instantaneous zero-flicker UI
 try {
@@ -161,6 +302,10 @@ function applyProfileData(data) {
     if (photo) {
         updateAllProfileImages(photo);
     }
+
+    if (data.preferences || data.notificationPreferences) {
+        applyPreferencesToUI(data.preferences || data.notificationPreferences);
+    }
 }
 
 function resetToDefault() {
@@ -178,6 +323,14 @@ function resetToDefault() {
 
     updateAllProfileImages(null);
     processedPhoto = null;
+
+    applyPreferencesToUI({
+        notificationsEnabled: true,
+        busAlerts: true,
+        announcements: true,
+        safetyAlerts: true,
+        sound: true
+    });
 }
 
 async function fetchUserProfile(uid) {
@@ -532,3 +685,87 @@ function showError(msg, focusEl = null) {
         }, 120);
     }
 }
+
+// =============================================================================
+// PREFERENCES FIRESTORE PERSISTENCE & TOGGLE LISTENERS
+// =============================================================================
+
+export async function savePreferencesToFirestore() {
+    // 1. Silently update localStorage for instant offline access & zero-latency UI
+    try {
+        const cached = JSON.parse(localStorage.getItem('nexride_user_profile') || '{}');
+        cached.preferences = currentPreferences;
+        localStorage.setItem('nexride_user_profile', JSON.stringify(cached));
+    } catch (e) {
+        console.warn('[Profile] Error saving preferences to cache:', e);
+    }
+
+    // 2. If authenticated and online, silently sync to Cloud Firestore in background
+    if (!currentUser || !firestore) {
+        return;
+    }
+
+    try {
+        const userDocRef = doc(firestore, 'users', currentUser.uid);
+        await setDoc(userDocRef, {
+            preferences: currentPreferences,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+    } catch (err) {
+        console.warn('[Profile] Error syncing preferences to Firestore:', err);
+    }
+}
+
+// Master Notifications Toggle Handler
+if (prefToggleNotifications) {
+    prefToggleNotifications.addEventListener('change', async () => {
+        const isEnabled = prefToggleNotifications.checked;
+        currentPreferences.notificationsEnabled = isEnabled;
+        applyPreferencesToUI(currentPreferences);
+
+        if (isEnabled) {
+            await notificationClient.requestPermission();
+        } else {
+            await notificationClient.unregisterDeviceToken();
+        }
+
+        if (currentPreferences.hapticFeedback && navigator.vibrate) {
+            navigator.vibrate(25);
+        }
+
+        await savePreferencesToFirestore();
+    });
+}
+
+// Sub-toggles handlers list
+const allToggleMappings = [
+    { el: prefToggleBusAlerts, key: 'busAlerts' },
+    { el: prefToggleDelayAlerts, key: 'delayAlerts' },
+    { el: prefToggleAnnouncements, key: 'announcements' },
+    { el: prefToggleSafetyAlerts, key: 'safetyAlerts' },
+    { el: prefToggleSound, key: 'sound' },
+    { el: prefToggleLiveEta, key: 'liveEtaRefresh' },
+    { el: prefToggleOfflineCache, key: 'offlineCache' },
+    { el: prefToggleDataSaver, key: 'dataSaver' },
+    { el: prefToggleHighContrast, key: 'highContrastPass' },
+    { el: prefToggleHaptics, key: 'hapticFeedback' }
+];
+
+allToggleMappings.forEach(({ el, key }) => {
+    if (el) {
+        el.addEventListener('change', async () => {
+            currentPreferences[key] = el.checked;
+
+            if (key === 'highContrastPass') {
+                applyHighContrastPass(el.checked);
+            }
+
+            if (currentPreferences.hapticFeedback && navigator.vibrate) {
+                navigator.vibrate(20);
+            }
+
+            await savePreferencesToFirestore();
+        });
+    }
+});
+
