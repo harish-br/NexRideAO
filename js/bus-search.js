@@ -2,6 +2,7 @@ import { firestore as db } from './firebase-config.js';
 import { collection, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { repository } from './offline/repository.js';
 import { cacheSet } from './offline/db.js';
+import { navigationService } from './navigation/navigation-service.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const busSearchBtn = document.getElementById('bus-search-btn');
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // --- Modal Toggle ---
   function openModal() {
     busSearchPage.classList.remove('hidden');
+    navigationService.push('bus-search-page', closeModal);
     syncBusesFromDB();
     renderSmartSuggestions();
     detectLocation();
@@ -51,7 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (busSearchBtn) busSearchBtn.addEventListener('click', openModal);
-  if (backBtn) backBtn.addEventListener('click', closeModal);
+  if (backBtn) backBtn.addEventListener('click', () => navigationService.goBack());
+
 
   // --- Live Real-Time & Frequent Database Synchronization ---
   let cachedBusesData = null;

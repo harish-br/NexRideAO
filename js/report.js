@@ -17,6 +17,7 @@
 
 import { firestore as db, auth, storage } from './firebase-config.js';
 import { notificationClient } from './notifications/notification-service.js';
+import { navigationService } from './navigation/navigation-service.js';
 import {
   collection, doc, setDoc, addDoc, getDoc, getDocs, updateDoc, deleteDoc,
   query, where, orderBy, onSnapshot, serverTimestamp
@@ -747,7 +748,7 @@ function bindNavigation() {
   const backMyReportsBtn = document.getElementById('back-my-reports');
   if (backMyReportsBtn) {
     backMyReportsBtn.addEventListener('click', () => {
-      closePage('my-reports-page');
+      navigationService.goBack();
     });
   }
 
@@ -756,7 +757,7 @@ function bindNavigation() {
   if (backReportDetailsBtn) {
     backReportDetailsBtn.addEventListener('click', () => {
       activeReportDetailId = null;
-      closePage('report-details-page');
+      navigationService.goBack();
     });
   }
 
@@ -783,18 +784,31 @@ function bindNavigation() {
       hideModal('report-discard-modal');
       resetReportForm();
       closePage('report-issue-page');
+      navigationService.pop();
     });
   }
+
+  // Register unsaved report form interceptor with central BackHandler
+  navigationService.registerInterceptor('report-unsaved', () => {
+    const repPage = document.getElementById('report-issue-page');
+    if (repPage && !repPage.classList.contains('hidden') && repPage.style.display !== 'none') {
+      if (hasUnsavedData()) {
+        showModal('report-discard-modal');
+        return true;
+      }
+    }
+    return false;
+  }, 90);
 
   // Image Lightbox Close
   const lightboxClose = document.getElementById('report-lightbox-close');
   const lightbox = document.getElementById('report-image-lightbox');
   if (lightboxClose && lightbox) {
     lightboxClose.addEventListener('click', () => {
-      lightbox.classList.remove('active');
+      hideModal('report-image-lightbox');
     });
     lightbox.addEventListener('click', (e) => {
-      if (e.target === lightbox) lightbox.classList.remove('active');
+      if (e.target === lightbox) hideModal('report-image-lightbox');
     });
   }
 }
@@ -804,6 +818,10 @@ export function openReportIssuePage() {
   if (page) {
     page.style.display = 'flex';
     page.classList.remove('hidden');
+
+    navigationService.push('report-issue-page', () => {
+      forceCloseReportIssuePage();
+    });
 
     // Reset dirty state on fresh open
     isFormDirty = false;
@@ -836,6 +854,10 @@ export function openMyReportsPage() {
     page.style.visibility = 'visible';
     page.style.pointerEvents = 'auto';
 
+    navigationService.push('my-reports-page', () => {
+      closePage('my-reports-page');
+    });
+
     if (auth?.currentUser?.uid) {
       cleanOrphanedReportNotifications(auth.currentUser.uid);
     }
@@ -856,13 +878,24 @@ function closePage(pageId) {
 
 function showModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) modal.classList.add('active');
+  if (modal) {
+    modal.classList.add('active');
+    navigationService.pushModal(modalId, () => {
+      modal.classList.remove('active');
+      if (modalId === 'report-discard-modal') modal.style.display = 'none';
+    });
+  }
 }
 
 function hideModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) modal.classList.remove('active');
+  if (modal) {
+    modal.classList.remove('active');
+    if (modalId === 'report-discard-modal') modal.style.display = 'none';
+    navigationService.dismissModal(modalId);
+  }
 }
+
 
 export function hasUnsavedData() {
   const busNum = document.getElementById('rep-field-bus-number');
@@ -2223,7 +2256,12 @@ export function openReportDetails(report) {
   }
 
   page.classList.remove('hidden');
+  navigationService.push('report-details-page', () => {
+    activeReportDetailId = null;
+    closePage('report-details-page');
+  });
 }
+
 
 function renderStatusTimeline(container, report) {
   const steps = [

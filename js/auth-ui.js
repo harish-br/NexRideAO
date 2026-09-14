@@ -9,6 +9,7 @@ import {
   setPersistence
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { navigationService } from './navigation/navigation-service.js';
 
 // --- GLOBAL ERROR CAPTURE ---
 window.onerror = (msg, src, line, col, err) => {
@@ -289,30 +290,41 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (authTermsLink) {
     authTermsLink.addEventListener('click', (e) => {
       e.preventDefault();
-      if (verificationTermsPage) verificationTermsPage.classList.remove('hidden');
+      if (verificationTermsPage) {
+        verificationTermsPage.classList.remove('hidden');
+        navigationService.push('verification-terms-page', () => {
+          verificationTermsPage.classList.add('hidden');
+        });
+      }
     });
   }
 
   if (authPrivacyLink) {
     authPrivacyLink.addEventListener('click', (e) => {
       e.preventDefault();
-      if (verificationPrivacyPage) verificationPrivacyPage.classList.remove('hidden');
+      if (verificationPrivacyPage) {
+        verificationPrivacyPage.classList.remove('hidden');
+        navigationService.push('verification-privacy-page', () => {
+          verificationPrivacyPage.classList.add('hidden');
+        });
+      }
     });
   }
 
   if (backVerificationTerms) {
     backVerificationTerms.addEventListener('click', (e) => {
       e.preventDefault();
-      if (verificationTermsPage) verificationTermsPage.classList.add('hidden');
+      navigationService.goBack();
     });
   }
 
   if (backVerificationPrivacy) {
     backVerificationPrivacy.addEventListener('click', (e) => {
       e.preventDefault();
-      if (verificationPrivacyPage) verificationPrivacyPage.classList.add('hidden');
+      navigationService.goBack();
     });
   }
+
 
   // --- OTP PAGE LOGIC ---
   const startResendCountdown = () => {
@@ -427,6 +439,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         authPage.classList.add('hidden');
         otpPage.classList.remove('hidden');
 
+        navigationService.push('otp-page', async () => {
+          if (countdownTimer) {
+            clearInterval(countdownTimer);
+            countdownTimer = null;
+          }
+          otpPage.classList.add('hidden');
+          authPage.classList.remove('hidden');
+          await initVisibleRecaptcha();
+          validateMobileForm();
+        });
+
         console.log("[DEBUG] OTP sent successfully to", phoneNumber);
 
         startResendCountdown();
@@ -452,20 +475,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- BACK BUTTON LOGIC ---
   if (backToAuthBtn) {
-    backToAuthBtn.addEventListener('click', async () => {
+    backToAuthBtn.addEventListener('click', () => {
       console.log("[DEBUG] Back to auth requested");
-      if (countdownTimer) {
-        clearInterval(countdownTimer);
-        countdownTimer = null;
-      }
-      otpPage.classList.add('hidden');
-      authPage.classList.remove('hidden');
-
-      // Create a fresh reCAPTCHA for the new login attempt
-      await initVisibleRecaptcha();
-      validateMobileForm();
+      navigationService.goBack();
     });
   }
+
 
   // --- RESEND OTP FLOW ---
   if (resendBtn) {
@@ -619,6 +634,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         otpPage.classList.add('hidden');
         if (appContainer) appContainer.style.display = 'flex';
 
+        // Initialize root navigation state for authenticated session
+        navigationService.screenStack = [];
+        navigationService.currentTab = 'home';
+        if (typeof window !== 'undefined' && window.history) {
+          window.history.replaceState({ screen: 'root', tab: 'home', depth: 0 }, '', window.location.pathname);
+        }
+
       } catch (error) {
         console.error("[Firebase Auth Error] Verification error:", error);
         otpInputs.forEach(input => input.classList.add('error'));
@@ -638,6 +660,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       console.log("[DEBUG] --- Logging Out ---");
+      navigationService.resetToAuth();
       resetAuthState();
       if (auth) {
         try {
@@ -651,6 +674,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
+
 
   // --- KEYBOARD AVOIDANCE LOGIC ---
   if (window.visualViewport) {
