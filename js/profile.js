@@ -3,7 +3,6 @@ import { onAuthStateChanged, updateProfile } from 'https://www.gstatic.com/fireb
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
 import { notificationClient } from './notifications/notification-service.js';
-import { navigationService } from './navigation/navigation-service.js';
 
 let currentUser = null;
 let processedPhoto = null; // { dataUrl: string, blob: Blob }
@@ -473,7 +472,7 @@ if (upPhotoContainer && upInputPhoto) {
 }
 
 if (upBackBtn) {
-    upBackBtn.addEventListener('click', () => navigationService.goBack());
+    upBackBtn.addEventListener('click', closeUpdateProfile);
 }
 
 function openUpdateProfile(force = false) {
@@ -511,10 +510,8 @@ function openUpdateProfile(force = false) {
 
     if (updateProfilePage) {
         updateProfilePage.classList.remove('hidden');
-        navigationService.push('update-profile-page', closeUpdateProfile);
     }
 }
-
 
 function closeUpdateProfile() {
     if (updateProfilePage) {
@@ -661,7 +658,6 @@ if (upContinueBtn) {
             }));
 
             closeUpdateProfile();
-            navigationService.pop();
         } catch (err) {
             console.error("[Profile] Error saving profile:", err);
             showError("Error: " + (err.message || "Failed to save profile."));

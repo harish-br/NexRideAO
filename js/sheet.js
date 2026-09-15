@@ -1,6 +1,5 @@
 import { firestore as db, auth } from './firebase-config.js';
 import { doc, getDoc, updateDoc, setDoc, collection, addDoc, serverTimestamp, getDocs, deleteDoc } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
-import { navigationService } from './navigation/navigation-service.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const container = document.getElementById('content-container');
@@ -207,13 +206,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPersonalInfo && personalInfoPage && piBackBtn) {
     btnPersonalInfo.addEventListener('click', () => {
       personalInfoPage.classList.remove('hidden');
-      navigationService.push('personal-info-page', () => {
-        personalInfoPage.classList.add('hidden');
-      });
     });
 
     piBackBtn.addEventListener('click', () => {
-      navigationService.goBack();
+      personalInfoPage.classList.add('hidden');
     });
   }
 
@@ -225,9 +221,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPreferences && preferencesPage) {
     btnPreferences.addEventListener('click', () => {
       preferencesPage.classList.remove('hidden');
-      navigationService.push('preferences-page', () => {
-        preferencesPage.classList.add('hidden');
-      });
       if (window.updateBrowserPermStatus) {
         window.updateBrowserPermStatus();
       }
@@ -235,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (prefBackBtn) {
       prefBackBtn.addEventListener('click', () => {
-        navigationService.goBack();
+        preferencesPage.classList.add('hidden');
       });
     }
   }
@@ -352,32 +345,30 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   if (addContactBtn && contactList) {
+    addContactBtn.addEventListener('click', () => {
+      const addContactPage = document.getElementById('add-contact-page');
+      if (addContactPage) {
+        addContactPage.classList.remove('hidden');
+        document.getElementById('new-contact-name').focus();
+      }
+    });
+
     const addContactPage = document.getElementById('add-contact-page');
     const backAddContactBtn = document.getElementById('back-add-contact');
     const newContactName = document.getElementById('new-contact-name');
     const newContactPhone = document.getElementById('new-contact-phone');
     const saveNewContactBtn = document.getElementById('save-new-contact-btn');
 
-    const closeAddContactPage = () => {
-      if (addContactPage) addContactPage.classList.add('hidden');
-      if (newContactName) newContactName.value = '';
-      if (newContactPhone) newContactPhone.value = '';
-      validateForm();
-    };
-
-    addContactBtn.addEventListener('click', () => {
-      if (addContactPage) {
-        addContactPage.classList.remove('hidden');
-        navigationService.push('add-contact-page', closeAddContactPage);
-        const nameInput = document.getElementById('new-contact-name');
-        if (nameInput) nameInput.focus();
-      }
-    });
-
     if (addContactPage && backAddContactBtn && newContactName && newContactPhone && saveNewContactBtn) {
-      backAddContactBtn.addEventListener('click', () => {
-        navigationService.goBack();
-      });
+
+      const closeAddContactPage = () => {
+        addContactPage.classList.add('hidden');
+        newContactName.value = '';
+        newContactPhone.value = '';
+        validateForm();
+      };
+
+      backAddContactBtn.addEventListener('click', closeAddContactPage);
 
       const validateForm = () => {
         const nameValid = newContactName.value.trim().length > 0;
@@ -518,17 +509,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const tcDoneBtn = document.getElementById('done-trusted-contacts');
 
   if (btnTrustedContacts && tcPage && tcBackBtn && tcDoneBtn) {
+    btnTrustedContacts.addEventListener('click', () => {
+      tcPage.classList.remove('hidden');
+    });
+
     const closeTcPage = () => {
       tcPage.classList.add('hidden');
     };
 
-    btnTrustedContacts.addEventListener('click', () => {
-      tcPage.classList.remove('hidden');
-      navigationService.push('trusted-contacts-page', closeTcPage);
-    });
-
-    tcBackBtn.addEventListener('click', () => navigationService.goBack());
-    tcDoneBtn.addEventListener('click', () => navigationService.goBack());
+    tcBackBtn.addEventListener('click', closeTcPage);
+    tcDoneBtn.addEventListener('click', closeTcPage);
   }
 
   // Safety Check-ins overlay logic
@@ -538,17 +528,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const scDoneBtn = document.getElementById('done-safety-checkin');
 
   if (btnSafetyCheckin && scPage && scBackBtn && scDoneBtn) {
+    btnSafetyCheckin.addEventListener('click', () => {
+      scPage.classList.remove('hidden');
+    });
+
     const closeScPage = () => {
       scPage.classList.add('hidden');
     };
 
-    btnSafetyCheckin.addEventListener('click', () => {
-      scPage.classList.remove('hidden');
-      navigationService.push('safety-checkin-page', closeScPage);
-    });
-
-    scBackBtn.addEventListener('click', () => navigationService.goBack());
-    scDoneBtn.addEventListener('click', () => navigationService.goBack());
+    scBackBtn.addEventListener('click', closeScPage);
+    scDoneBtn.addEventListener('click', closeScPage);
   }
 
   // Safety overlay logic
@@ -559,13 +548,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnSafety && safetyPage && safetyBackBtn) {
     btnSafety.addEventListener('click', () => {
       safetyPage.classList.remove('hidden');
-      navigationService.push('safety-page', () => {
-        safetyPage.classList.add('hidden');
-      });
     });
 
     safetyBackBtn.addEventListener('click', () => {
-      navigationService.goBack();
+      safetyPage.classList.add('hidden');
     });
   }
 
@@ -577,13 +563,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnEpass && epassPage && epassBackBtn) {
     btnEpass.addEventListener('click', () => {
       epassPage.classList.remove('hidden');
-      navigationService.push('epass-page', () => {
-        epassPage.classList.add('hidden');
-      });
     });
 
     epassBackBtn.addEventListener('click', () => {
-      navigationService.goBack();
+      epassPage.classList.add('hidden');
     });
   }
 
@@ -599,10 +582,6 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (reportPage) {
         reportPage.style.display = 'flex';
         reportPage.classList.remove('hidden');
-        navigationService.push('report-issue-page', () => {
-          reportPage.classList.add('hidden');
-          reportPage.style.display = 'none';
-        });
       }
     });
   }
@@ -612,7 +591,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.closeReportIssuePage) {
         window.closeReportIssuePage();
       } else {
-        navigationService.goBack();
+        reportPage.classList.add('hidden');
+        reportPage.style.display = 'none';
       }
     });
   }
@@ -626,20 +606,17 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnFees && feesPage) {
     btnFees.addEventListener('click', () => {
       feesPage.classList.remove('hidden');
-      navigationService.push('fees-page', () => {
-        feesPage.classList.add('hidden');
-      });
     });
 
     if (feesBackBtn) {
       feesBackBtn.addEventListener('click', () => {
-        navigationService.goBack();
+        feesPage.classList.add('hidden');
       });
     }
 
     if (feesPageBackBtn) {
       feesPageBackBtn.addEventListener('click', () => {
-        navigationService.goBack();
+        feesPage.classList.add('hidden');
       });
     }
   }
@@ -652,13 +629,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnAboutUs && aboutUsPage && aboutUsBackBtn) {
     btnAboutUs.addEventListener('click', () => {
       aboutUsPage.classList.remove('hidden');
-      navigationService.push('about-us-page', () => {
-        aboutUsPage.classList.add('hidden');
-      });
     });
 
     aboutUsBackBtn.addEventListener('click', () => {
-      navigationService.goBack();
+      aboutUsPage.classList.add('hidden');
     });
   }
 
@@ -670,13 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnTerms && termsPage && termsBackBtn) {
     btnTerms.addEventListener('click', () => {
       termsPage.classList.remove('hidden');
-      navigationService.push('terms-page', () => {
-        termsPage.classList.add('hidden');
-      });
     });
 
     termsBackBtn.addEventListener('click', () => {
-      navigationService.goBack();
+      termsPage.classList.add('hidden');
     });
   }
 
@@ -688,13 +659,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPrivacy && privacyPage && privacyBackBtn) {
     btnPrivacy.addEventListener('click', () => {
       privacyPage.classList.remove('hidden');
-      navigationService.push('privacy-page', () => {
-        privacyPage.classList.add('hidden');
-      });
     });
 
     privacyBackBtn.addEventListener('click', () => {
-      navigationService.goBack();
+      privacyPage.classList.add('hidden');
     });
   }
 
@@ -724,15 +692,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const notificationsBackBtn = document.getElementById('back-notifications');
 
   window.openNotificationsPage = () => {
-    if (notificationsPage) {
-      notificationsPage.classList.remove('hidden');
-      navigationService.push('notifications-page', () => {
-        notificationsPage.classList.add('hidden');
-      });
-    }
+    if (notificationsPage) notificationsPage.classList.remove('hidden');
   };
   window.closeNotificationsPage = () => {
-    navigationService.goBack();
+    if (notificationsPage) notificationsPage.classList.add('hidden');
   };
 
   if (btnNotifications && notificationsPage && notificationsBackBtn) {
@@ -740,17 +703,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.target.closest('.home-notif-item') || e.target.closest('#btn-view-all-notifs')) {
         return;
       }
-      window.openNotificationsPage();
+      notificationsPage.classList.remove('hidden');
     });
 
     notificationsBackBtn.addEventListener('click', () => {
-      navigationService.goBack();
+      notificationsPage.classList.add('hidden');
     });
   }
 
   if (navHome && navLive && navProfile && livePage && profilePage) {
     const goHome = () => {
-      navigationService.setTab('home');
       navHome.classList.add('active');
       navLive.classList.remove('active');
       navProfile.classList.remove('active');
@@ -760,10 +722,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     navHome.addEventListener('click', goHome);
 
-    if (profileBackBtn) profileBackBtn.addEventListener('click', () => navigationService.goBack());
+    if (profileBackBtn) profileBackBtn.addEventListener('click', goHome);
 
     navLive.addEventListener('click', () => {
-      navigationService.setTab('live');
       navLive.classList.add('active');
       navHome.classList.remove('active');
       navProfile.classList.remove('active');
@@ -772,7 +733,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     navProfile.addEventListener('click', () => {
-      navigationService.setTab('profile');
       navProfile.classList.add('active');
       navHome.classList.remove('active');
       navLive.classList.remove('active');
@@ -787,4 +747,3 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 });
-

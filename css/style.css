@@ -65,8 +65,8 @@ body {
   left: 0;
   width: 100vw;
   height: 100dvh;
-  /* Stop iOS body scrolling/bouncing and native navigation conflicts */
-  overscroll-behavior: none;
+  /* Stop iOS body scrolling/bouncing */
+  overscroll-behavior-y: none;
 }
 
 /* ── Global typography consistency ──────────────────────────────────────────
@@ -683,8 +683,6 @@ header h1 {
   height: calc(100dvh - 86px - env(safe-area-inset-bottom));
   background: white;
   z-index: 50;
-  overscroll-behavior-x: none;
-  touch-action: pan-y;
 }
 
 .page-overlay.hidden {
@@ -2342,32 +2340,4 @@ input:-webkit-autofill:active {
   transform: scale(0.9);
   background-color: #EAEEF5 !important;
   transition: transform 0.15s, background-color 0.15s;
-}
-
-/* Centralized Double-Back Exit Toast */
-.nr-nav-toast {
-  position: fixed;
-  bottom: 84px;
-  left: 50%;
-  transform: translateX(-50%) translateY(20px) scale(0.95);
-  background: rgba(15, 23, 42, 0.92);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: #FFFFFF;
-  padding: 11px 22px;
-  border-radius: 9999px;
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25), 0 2px 6px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  z-index: 99999;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.nr-nav-toast.visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0) scale(1);
 }

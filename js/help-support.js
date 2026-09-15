@@ -12,7 +12,6 @@
 import { auth, firestore } from './firebase-config.js';
 import { doc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { outboxAdd } from './offline/db.js';
-import { navigationService } from './navigation/navigation-service.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA / SERVICE LAYER
@@ -417,22 +416,12 @@ function openPage(page) {
   if (!page) return;
   page.classList.remove('hidden');
   page.scrollTop = 0;
-  if (page.id) {
-    navigationService.push(page.id, () => {
-      page.classList.add('hidden');
-    });
-  }
 }
 
 function closePage(page) {
   if (!page) return;
-  if (navigationService.isNavigatingBack) {
-    page.classList.add('hidden');
-  } else {
-    navigationService.goBack();
-  }
+  page.classList.add('hidden');
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RENDER: FAQ ACCORDION ITEM
