@@ -1,5 +1,6 @@
 import "./instrument.js";
 import { notificationClient } from "./notifications/notification-service.js";
+import { submitSOSIncident } from "./sos-service.js";
 
 // Automatically trigger system OS permission and OS notification popup on app entry
 notificationClient.triggerSystemPromptOnAppEntry();
@@ -164,10 +165,16 @@ const closeIconSVG = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none
 let sliderTimeout;
 let autoCloseTimeout;
 let isCloseState = false;
+let isSOSInProgress = false;
 
 const resetSlider = () => {
   clearTimeout(sliderTimeout);
   clearTimeout(autoCloseTimeout);
+  isSOSInProgress = false;
+
+  const existingStatus = document.getElementById('sos-status-display');
+  if (existingStatus) existingStatus.remove();
+
   if (sosThumb) {
     sosThumb.style.transform = `translateX(0px)`;
     sosThumb.style.display = 'none';
@@ -182,13 +189,109 @@ const resetSlider = () => {
   }
 };
 
+const renderSOSState = (state, incidentId = '', errorMsg = '') => {
+  let statusDisplay = document.getElementById('sos-status-display');
+  if (!statusDisplay) {
+    statusDisplay = document.createElement('div');
+    statusDisplay.id = 'sos-status-display';
+    statusDisplay.style.cssText = 'display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%; height: 100%; color: #ffffff; text-align: center; padding: 2px 6px; z-index: 5; pointer-events: auto;';
+    sosSlider.appendChild(statusDisplay);
+  }
+
+  if (state === 'TRANSMITTING') {
+    statusDisplay.onclick = null;
+    statusDisplay.innerHTML = `
+      <div style="display:flex; align-items:center; gap:8px; font-weight:700; font-size:13px; color:#ffffff;">
+        <span style="display:inline-block; width:13px; height:13px; border:2px solid #ffffff; border-top-color:transparent; border-radius:50%; animation:spin 0.8s linear infinite;"></span>
+        Transmitting SOS Alert...
+      </div>
+      <div style="font-size:11px; opacity:0.9; margin-top:2px;">Acquiring live GPS & user coordinates</div>
+    `;
+  } else if (state === 'SENT') {
+    statusDisplay.onclick = null;
+    statusDisplay.innerHTML = `
+      <div style="font-weight: 800; font-size: 13px; letter-spacing: 0.3px; color: #FFFFFF; display: flex; align-items: center; gap: 5px;">
+        <span style="font-size: 15px;">🚨</span> SOS Alert Sent
+      </div>
+      <div style="font-size: 11px; opacity: 0.95; margin-top: 1px; font-weight: 600;">
+        Authority will reach you within 1 minute.
+      </div>
+      <div style="font-size: 10px; opacity: 0.85; font-family: monospace; margin-top: 2px;">
+        ${incidentId}
+      </div>
+    `;
+  } else if (state === 'ACKNOWLEDGED') {
+    statusDisplay.onclick = null;
+    statusDisplay.innerHTML = `
+      <div style="font-weight: 800; font-size: 12.5px; letter-spacing: 0.3px; color: #FEF08A; display: flex; align-items: center; gap: 4px;">
+        <span>⚠️</span> Emergency alert acknowledged by authority.
+      </div>
+      <div style="font-size: 11px; opacity: 0.95; margin-top: 1px; font-weight: 600;">
+        Assistance is en route to your location.
+      </div>
+      <div style="font-size: 10px; opacity: 0.85; font-family: monospace; margin-top: 1px;">
+        ${incidentId}
+      </div>
+    `;
+  } else if (state === 'RESOLVED') {
+    statusDisplay.onclick = null;
+    statusDisplay.innerHTML = `
+      <div style="font-weight: 800; font-size: 13px; letter-spacing: 0.3px; color: #86EFAC; display: flex; align-items: center; gap: 6px;">
+        <span>✅</span> SOS incident resolved.
+      </div>
+      <div style="font-size: 11px; opacity: 0.95; margin-top: 1px;">
+        Stay safe! Returning to home...
+      </div>
+    `;
+  } else if (state === 'ERROR') {
+    statusDisplay.innerHTML = `
+      <div style="font-weight: 700; font-size: 12px; color: #FECACA; display: flex; align-items: center; gap: 4px;">
+        <span>⚠️</span> ${errorMsg || 'Failed to trigger SOS alert.'}
+      </div>
+      <div style="font-size: 11px; text-decoration: underline; margin-top: 2px; font-weight: 700; cursor: pointer; color: #FFFFFF;">
+        Tap to retry
+      </div>
+    `;
+    statusDisplay.onclick = (e) => {
+      e.stopPropagation();
+      executeSOSSubmission();
+    };
+  }
+};
+
+const executeSOSSubmission = async () => {
+  renderSOSState('TRANSMITTING');
+  try {
+    const result = await submitSOSIncident({
+      onStatusChange: (update) => {
+        if (update.status === 'ACKNOWLEDGED') {
+          renderSOSState('ACKNOWLEDGED', update.incidentId);
+        } else if (update.status === 'RESOLVED') {
+          renderSOSState('RESOLVED', update.incidentId);
+          setTimeout(() => {
+            resetSlider();
+          }, 4000);
+        }
+      },
+      onError: (err) => {
+        renderSOSState('ERROR', null, err.message);
+      }
+    });
+
+    renderSOSState('SENT', result.incidentId);
+  } catch (err) {
+    console.error('[SOS] Submission error:', err);
+    renderSOSState('ERROR', null, err.message);
+  }
+};
+
 if (sosSlider && sosThumb) {
   let isDragging = false;
   let startX = 0;
   let maxTranslate = 0;
 
   const onDragStart = (e) => {
-    if (isCloseState) return;
+    if (isCloseState || isSOSInProgress) return;
     clearTimeout(sliderTimeout);
     clearTimeout(autoCloseTimeout);
     sosThumb.classList.remove('hint-bounce');
@@ -199,7 +302,7 @@ if (sosSlider && sosThumb) {
   };
 
   const onDragMove = (e) => {
-    if (!isDragging) return;
+    if (!isDragging || isSOSInProgress) return;
     let currentX = e.type.includes('mouse') ? e.clientX : e.touches[0].clientX;
     let translate = currentX - startX;
 
@@ -210,7 +313,7 @@ if (sosSlider && sosThumb) {
   };
 
   const onDragEnd = (e) => {
-    if (!isDragging) return;
+    if (!isDragging || isSOSInProgress) return;
     isDragging = false;
     sosThumb.style.transition = 'transform 0.3s ease';
 
@@ -218,11 +321,15 @@ if (sosSlider && sosThumb) {
     let translate = currentX - startX;
 
     if (translate > maxTranslate * 0.8) {
+      isSOSInProgress = true;
+      clearTimeout(sliderTimeout);
+      clearTimeout(autoCloseTimeout);
       sosThumb.style.transform = `translateX(${maxTranslate}px)`;
-      setTimeout(() => {
-        alert('SOS Activated! Sending location to emergency contacts and authorities.');
-        resetSlider();
-      }, 300);
+      sosThumb.style.display = 'none';
+      if (slideHintText) slideHintText.style.display = 'none';
+      if (restText) restText.style.display = 'none';
+
+      executeSOSSubmission();
     } else {
       sosThumb.style.transform = `translateX(0px)`;
       // Restart timeout if they let go without triggering
@@ -261,7 +368,7 @@ if (blueCard && sosThumb) {
   let tapTimer;
 
   const handleTap = (e) => {
-    if (e.target.closest('#sos-thumb')) return;
+    if (e.target.closest('#sos-thumb') || isSOSInProgress || document.getElementById('sos-status-display')) return;
 
     tapCount++;
     clearTimeout(tapTimer);
@@ -303,3 +410,4 @@ if (blueCard && sosThumb) {
 
   blueCard.addEventListener('click', handleTap);
 }
+

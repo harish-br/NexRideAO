@@ -54,6 +54,7 @@
         <ul class="nav-links">
           <li><a href="#dashboard" class="nav-item active" data-view="dashboard-view">Dashboard</a></li>
           <li><a href="#reports" class="nav-item" data-view="issues-view">Reports</a></li>
+          <li><a href="#sos" class="nav-item" data-view="sos-view" id="nav-sos-link" style="display: inline-flex; align-items: center; gap: 6px;">SOS <span id="admin-sos-nav-badge" style="display: none; background: #EF4444; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 9999px; line-height: 1.2; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); animation: pulse 2s infinite;">0</span></a></li>
           <li><a href="#routes" class="nav-item" data-view="routes-view">Routes</a></li>
           <li><a href="#buses" class="nav-item" data-view="buses-view">Buses</a></li>
           <li><a href="#notifications" class="nav-item" data-view="notifications-view">Notifications</a></li>
@@ -219,28 +220,28 @@
           <div class="widget-card">
             <h2 class="section-title-line">Recent Updates</h2>
             <div class="updates-list" id="recent-updates-list">
-              <div class="update-item">
-                <div class="update-marker"></div>
-                <div>
-                  <div class="update-title">APPROVE BUS REQUEST</div>
-                  <div class="update-desc">Approved bus timing for Erode to Mettur</div>
-                  <div class="update-meta">25/6/2026, 12:41:17 PM • by teamnexride@gmail.com</div>
+              <div class="skeleton-activity-item">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 10px; height: 10px; margin-top: 5px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 55%; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 80%; height: 12px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 35%; height: 10px;"></div>
                 </div>
               </div>
-              <div class="update-item">
-                <div class="update-marker"></div>
-                <div>
-                  <div class="update-title">ADD TIMING</div>
-                  <div class="update-desc">Added 19:26 to route erode_mettur</div>
-                  <div class="update-meta">25/6/2026, 12:41:16 PM • by teamnexride@gmail.com</div>
+              <div class="skeleton-activity-item">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 10px; height: 10px; margin-top: 5px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 45%; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 70%; height: 12px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 40%; height: 10px;"></div>
                 </div>
               </div>
-              <div class="update-item">
-                <div class="update-marker"></div>
-                <div>
-                  <div class="update-title">ADD ROUTE</div>
-                  <div class="update-desc">Added route: Erode to Mettur</div>
-                  <div class="update-meta">25/6/2026, 12:41:15 PM • by teamnexride@gmail.com</div>
+              <div class="skeleton-activity-item">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 10px; height: 10px; margin-top: 5px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 60%; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 65%; height: 12px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 30%; height: 10px;"></div>
                 </div>
               </div>
             </div>
@@ -251,19 +252,19 @@
             <h2 class="section-title-plain">System Status</h2>
 
             <div class="status-row">
-              <span class="status-label">Database Sync:</span>
-              <span class="status-badge badge-green" id="sys-connection">Real-time Active</span>
-            </div>
-
-            <div class="status-row">
               <span class="status-label">Data Model:</span>
               <span class="status-badge badge-green">100% Compatible</span>
             </div>
 
-            <p class="system-status-desc">
-              The dashboard is natively synced with Firestore. Any changes made here are instantly reflected in the live
-              NexRide application without needing a manual refresh.
-            </p>
+            <div class="status-row">
+              <span class="status-label">Engine Latency:</span>
+              <span class="status-badge badge-green">Low (&lt; 20ms)</span>
+            </div>
+
+            <div class="status-row">
+              <span class="status-label">Pending Queues:</span>
+              <span class="status-badge badge-blue" id="sys-queue">0 Pending</span>
+            </div>
           </div>
         </div>
       </section>
@@ -318,8 +319,30 @@
             </div>
 
             <div class="live-bus-list-items" id="live-bus-items-container">
-              <div style="text-align: center; padding: 24px; color: var(--text-secondary); font-size: 13px;">Loading
-                active buses...</div>
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 50%; height: 13px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 75%; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 45px; height: 18px; flex-shrink: 0;"></div>
+              </div>
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 40%; height: 13px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 65%; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 45px; height: 18px; flex-shrink: 0;"></div>
+              </div>
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 55%; height: 13px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 70%; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 45px; height: 18px; flex-shrink: 0;"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -371,9 +394,32 @@
               </tr>
             </thead>
             <tbody id="buses-table-body">
-              <tr>
-                <td colspan="7" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading fleet
-                  records...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 70px; height: 14px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 125px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 115px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 150px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 65px; height: 14px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -402,9 +448,35 @@
               </tr>
             </thead>
             <tbody id="timings-table-body">
-              <tr>
-                <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading bus
-                  timing schedules...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 75px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 75px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 70px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 70px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 135px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -474,9 +546,32 @@
               </tr>
             </thead>
             <tbody id="drivers-table-body">
-              <tr>
-                <td colspan="7" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading driver
-                  records...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 105px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 115px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 115px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -528,9 +623,35 @@
               </tr>
             </thead>
             <tbody id="students-table-body">
-              <tr>
-                <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading student
-                  transport data...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 125px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 70px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 70px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 125px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 70px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -572,9 +693,35 @@
               </tr>
             </thead>
             <tbody id="routes-table-body">
-              <tr>
-                <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading
-                  routes...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 60px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 60px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 125px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 155px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 60px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -609,9 +756,35 @@
               </tr>
             </thead>
             <tbody id="standalone-timings-table-body">
-              <tr>
-                <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading bus
-                  timing schedules...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 75px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 75px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 70px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 70px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 135px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -648,12 +821,142 @@
               </tr>
             </thead>
             <tbody id="trips-table-body">
-              <tr>
-                <td colspan="10" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading live
-                  trip feeds...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 60px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 50px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 65px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 55px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 60px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 50px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 105px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 65px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 55px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- =============================================
+           SOS EMERGENCY RESPONSE CENTER VIEW
+           ============================================= -->
+      <section id="sos-view" class="admin-view hidden">
+        <div class="section-header-row">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <h1 style="display: flex; align-items: center; gap: 8px;">
+                <span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #EF4444; box-shadow: 0 0 12px #EF4444; animation: pulse 1.5s infinite;"></span>
+                SOS Emergency Response Center
+              </h1>
+              <span id="sos-active-badge-top" class="status-badge badge-red" style="font-size: 13px; font-weight: 800;">0 ACTIVE</span>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">
+              Live incoming emergency beacons, real-time user GPS tracking, and rapid response authority control.
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button id="sos-refresh-btn" class="secondary-btn" style="display: flex; align-items: center; gap: 6px;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              <span>Refresh Telemetry</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- STATS CARDS -->
+        <div class="stats-grid mb-6">
+          <div class="stat-card" style="border-left: 4px solid #EF4444;">
+            <div class="stat-title">Active Emergencies</div>
+            <div class="stat-value text-red" id="stat-sos-active">0</div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Awaiting immediate response</div>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #F59E0B;">
+            <div class="stat-title">Acknowledged En Route</div>
+            <div class="stat-value text-orange" id="stat-sos-acknowledged">0</div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Authorities dispatched & en route</div>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #10B981;">
+            <div class="stat-title">Resolved Incidents</div>
+            <div class="stat-value text-green" id="stat-sos-resolved">0</div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Total cleared emergencies</div>
+          </div>
+          <div class="stat-card" style="border-left: 4px solid #3B82F6;">
+            <div class="stat-title">Response SLA</div>
+            <div class="stat-value" id="stat-sos-sla">&lt; 1 min</div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Target campus dispatch time</div>
+          </div>
+        </div>
+
+        <!-- MAIN LAYOUT: MAP CANVAS & INCIDENT FEED -->
+        <div class="live-tracking-layout mt-4">
+          <!-- LEFT: EMERGENCY RADAR CANVAS -->
+          <div class="map-container-card">
+            <div style="padding: 12px 18px; border-bottom: 1px solid var(--border-color); background: #FFFFFF; display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 13.5px; font-weight: 700; color: var(--text-primary);">Emergency Radar Telemetry Canvas</span>
+                <span style="font-size: 11px; color: var(--text-secondary);">• Real-time Beacon Plot</span>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <span class="status-badge badge-red" id="sos-map-active-count">0 Beacons</span>
+              </div>
+            </div>
+
+            <div class="map-canvas-area" id="sos-map-canvas" style="position: relative; min-height: 480px; overflow: hidden; background: radial-gradient(circle at center, #1E293B 0%, #0F172A 100%);">
+              <div class="sos-radar-grid"></div>
+              <div class="sos-radar-sweeper"></div>
+              <div id="sos-radar-markers-layer" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: auto;"></div>
+              <div id="sos-empty-radar-msg" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: rgba(255,255,255,0.7); pointer-events: none;">
+                <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="#10B981" stroke-width="1.5" style="margin-bottom: 8px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                <div style="font-size: 15px; font-weight: 700; color: #FFFFFF;">Campus Perimeter Secure</div>
+                <div style="font-size: 12px; opacity: 0.8; margin-top: 2px;">No active emergency SOS distress signals detected.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: LIVE INCIDENT LIST -->
+          <div class="live-bus-list-sidebar" style="width: 420px; display: flex; flex-direction: column;">
+            <div class="live-bus-list-header" style="padding: 12px; border-bottom: 1px solid var(--border-color); background: #FAFBFD;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 13.5px; font-weight: 700; color: var(--text-primary);">Emergency Incidents</span>
+                <div style="display: flex; gap: 4px;">
+                  <button id="sos-filter-active-btn" class="sos-tab-btn active" type="button">Active</button>
+                  <button id="sos-filter-all-btn" class="sos-tab-btn" type="button">All</button>
+                </div>
+              </div>
+              <input type="text" id="sos-incident-search" placeholder="Search by student, ID, phone..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 12.5px;" />
+            </div>
+
+            <div class="live-bus-list-items" id="sos-incident-items-container" style="padding: 10px; overflow-y: auto; max-height: calc(100vh - 280px); display: flex; flex-direction: column; gap: 10px;">
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 60%; height: 13px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 80%; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
+              </div>
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 45%; height: 13px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 70%; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -743,9 +1046,35 @@
               </tr>
             </thead>
             <tbody id="admin-reports-table-body">
-              <tr>
-                <td colspan="8" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading
-                  reports...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 75px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 75px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 105px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 125px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 75px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 135px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 155px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -812,9 +1141,32 @@
               </tr>
             </thead>
             <tbody id="documents-table-body">
-              <tr>
-                <td colspan="7" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading
-                  compliance documents...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 115px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -846,9 +1198,29 @@
               </tr>
             </thead>
             <tbody id="approvals-table-body">
-              <tr>
-                <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading
-                  approval requests...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 70px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 70px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 70px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 125px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 70px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 70px; height: 18px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 150px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 70px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -970,8 +1342,44 @@
               </tr>
             </thead>
             <tbody id="notifications-table-body">
-              <tr>
-                <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading notifications...</td>
+              <tr class="skeleton-table-row">
+                <td>
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div>
+                    <div class="admin-skeleton admin-skeleton-line" style="width: 200px; height: 11px;"></div>
+                  </div>
+                </td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 80px; height: 20px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 90px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 13px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 70px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td>
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div class="admin-skeleton admin-skeleton-line" style="width: 160px; height: 14px;"></div>
+                    <div class="admin-skeleton admin-skeleton-line" style="width: 180px; height: 11px;"></div>
+                  </div>
+                </td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 75px; height: 20px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 85px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 13px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 70px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td>
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div>
+                    <div class="admin-skeleton admin-skeleton-line" style="width: 160px; height: 11px;"></div>
+                  </div>
+                </td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 85px; height: 20px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 95px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 13px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 70px; height: 22px;"></div></td>
+                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -1004,9 +1412,29 @@
               </tr>
             </thead>
             <tbody id="audit-logs-table-body">
-              <tr>
-                <td colspan="6" style="text-align: center; padding: 32px; color: var(--text-secondary);">Loading audit
-                  logs...</td>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 85px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 13px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 180px; height: 14px;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 105px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 13px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 220px; height: 14px;"></div></td>
+              </tr>
+              <tr class="skeleton-table-row">
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 90px; height: 22px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 75px; height: 13px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-line" style="width: 160px; height: 14px;"></div></td>
               </tr>
             </tbody>
           </table>
@@ -2120,7 +2548,22 @@
           <div id="tab-bus-students" class="inspect-panel hidden">
             <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 14px;">Students Assigned to this Bus</h3>
             <div id="inspect-bus-students-list" style="display: flex; flex-direction: column; gap: 8px;">
-              <div style="color: var(--text-secondary); font-size: 13.5px;">Loading assigned students...</div>
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 180px; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
+              </div>
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 160px; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
+              </div>
             </div>
           </div>
 
@@ -2144,7 +2587,22 @@
           <div id="tab-bus-docs" class="inspect-panel hidden">
             <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 14px;">Compliance Documents &amp; Expiry</h3>
             <div id="inspect-bus-docs-list" style="display: flex; flex-direction: column; gap: 8px;">
-              <div style="color: var(--text-secondary); font-size: 13.5px;">Loading documents...</div>
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-badge" style="width: 60px; height: 18px; flex-shrink: 0;"></div>
+              </div>
+              <div class="skeleton-list-card">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 11px;"></div>
+                </div>
+                <div class="admin-skeleton admin-skeleton-badge" style="width: 60px; height: 18px; flex-shrink: 0;"></div>
+              </div>
             </div>
           </div>
 
@@ -2804,10 +3262,20 @@
 
         <!-- Dynamic Stops Builder Section -->
         <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
             <div>
-              <h3 style="font-size: 15px; font-weight: 700; color: var(--text-primary);">Route Stops &amp; Timings</h3>
-              <span id="route-stops-count-badge" style="font-size: 12.5px; color: var(--text-secondary);">0 stops defined</span>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <h3 style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 0;">Route Stops &amp; Timings</h3>
+                <span class="status-badge badge-blue" style="font-size: 11px; padding: 2px 7px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600;">
+                  <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                    <circle cx="5" cy="3" r="1.5"/><circle cx="11" cy="3" r="1.5"/>
+                    <circle cx="5" cy="8" r="1.5"/><circle cx="11" cy="8" r="1.5"/>
+                    <circle cx="5" cy="13" r="1.5"/><circle cx="11" cy="13" r="1.5"/>
+                  </svg>
+                  Pick &amp; Drag to Arrange
+                </span>
+              </div>
+              <span id="route-stops-count-badge" style="font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; display: block;">0 stops defined &bull; Grab the handle to reorder stops</span>
             </div>
             <button type="button" id="add-stop-row-btn" class="secondary-btn" style="padding: 6px 14px; font-size: 13px; font-weight: 600;">+ Add Stop</button>
           </div>

@@ -208,5 +208,26 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read, write: if isAuthenticated();
     }
+
+    // ==========================================
+    // 12. SOS Emergency Incidents
+    // ==========================================
+    match /sosIncidents/{incidentId} {
+      // Users can read only their own SOS incident; Admins can read all SOS incidents
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Users can create SOS incidents only for their own userId with status 'ACTIVE'
+      allow create: if isAuthenticated() && (
+        (request.resource.data.userId == request.auth.uid && request.resource.data.status == 'ACTIVE') ||
+        isAdmin()
+      );
+
+      // Only authenticated admins can update status to 'ACKNOWLEDGED' or 'RESOLVED'
+      // Normal users cannot modify another user's SOS or change status to ACKNOWLEDGED/RESOLVED
+      allow update: if isAdmin();
+
+      // Only admins can delete SOS incidents
+      allow delete: if isAdmin();
+    }
   }
 }

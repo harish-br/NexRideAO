@@ -26,6 +26,20 @@ let tripsCache = [];
 let documentsCache = [];
 let auditLogsCache = [];
 let notificationsCache = [];
+let sosIncidentsCache = [];
+let sosUnsubscribe = null;
+let currentSOSTab = 'active';
+let currentSOSSearch = '';
+
+// Collection loaded flags for skeleton loading states
+let busesLoaded = false;
+let usersLoaded = false;
+let routesLoaded = false;
+let reportsLoaded = false;
+let approvalsLoaded = false;
+let auditLogsLoaded = false;
+let notificationsLoaded = false;
+let sosLoaded = false;
 
 let currentInspectingBus = null;
 let currentInspectingTicket = null;
@@ -202,6 +216,10 @@ if (logoutBtn) {
         try { reportsUnsubscribe(); } catch (e) { }
         reportsUnsubscribe = null;
       }
+      if (sosUnsubscribe) {
+        try { sosUnsubscribe(); } catch (e) { }
+        sosUnsubscribe = null;
+      }
       await signOut(auth);
     } catch (err) {
       console.error("Logout Error:", err);
@@ -229,8 +247,15 @@ function switchView(viewId) {
     }
   });
 
+  if (viewId === 'dashboard-view') {
+    renderDashboardStats();
+    renderRecentActivity();
+  }
   if (viewId === 'issues-view') {
     renderIssuesTable();
+  }
+  if (viewId === 'sos-view') {
+    renderSOSView();
   }
   if (viewId === 'routes-view') {
     renderRoutesTable();
@@ -239,14 +264,32 @@ function switchView(viewId) {
     renderBusesTable();
     renderTimingsTable();
   }
+  if (viewId === 'drivers-view') {
+    renderDriversTable();
+  }
+  if (viewId === 'students-view') {
+    renderStudentsTable();
+  }
   if (viewId === 'timings-view') {
     renderTimingsTable();
   }
-  if (viewId === 'settings-view') {
-    loadSystemSettings();
+  if (viewId === 'trips-view') {
+    renderTripsTable();
+  }
+  if (viewId === 'documents-view') {
+    renderDocumentsTable();
+  }
+  if (viewId === 'approvals-view') {
+    renderApprovalsTable();
   }
   if (viewId === 'notifications-view') {
     renderNotificationsManagementTable();
+  }
+  if (viewId === 'audit-logs-view') {
+    renderAuditLogsTable();
+  }
+  if (viewId === 'settings-view') {
+    loadSystemSettings();
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -757,8 +800,10 @@ function listenToNotifications() {
       return getTime(b.createdAt || b.sentAt) - getTime(a.createdAt || a.sentAt);
     });
 
+    notificationsLoaded = true;
     updateTestNotificationsBadge();
     renderNotificationsManagementTable();
+    renderRecentActivity();
   }, (err) => {
     console.error("Firestore Notifications listener error:", err);
   });
@@ -767,6 +812,11 @@ function listenToNotifications() {
 function renderNotificationsManagementTable() {
   const tbody = document.getElementById('notifications-table-body');
   if (!tbody) return;
+
+  if (!notificationsLoaded && notificationsCache.length === 0) {
+    renderTableSkeleton(tbody, 6, 4);
+    return;
+  }
 
   const searchVal = (document.getElementById('notif-search-input')?.value || '').toLowerCase().trim();
   const typeVal = document.getElementById('notif-type-filter')?.value || 'all';
@@ -1806,6 +1856,7 @@ function initRealtimeEngine() {
   listenToUsers();
   listenToRoutes();
   listenToReports();
+  listenToSOSIncidents();
   listenToApprovals();
   listenToAuditLogs();
   listenToNotifications();
@@ -1813,6 +1864,7 @@ function initRealtimeEngine() {
   setupModalListeners();
   setupFilterListeners();
   setupNotificationManagement();
+  setupSOSControls();
 
   // Export Log button → PPTX
   document.getElementById('export-audit-btn')?.addEventListener('click', () => exportAuditLogPPTX());
@@ -2603,6 +2655,7 @@ function listenToUsers() {
     });
 
     // Re-derive state and refresh dependent views
+    usersLoaded = true;
     deriveDerivedState();
     renderStudentsTable();
     renderBusesTable();
@@ -2650,6 +2703,7 @@ function listenToBuses() {
     });
 
     // Derive Drivers, Routes, Documents, Timings from normalized/fleet data
+    busesLoaded = true;
     deriveDerivedState();
     
     // Refresh all dependent views
@@ -2662,6 +2716,7 @@ function listenToBuses() {
     renderTimingsTable();
     renderTripsTable();
     renderDocumentsTable();
+    renderRecentActivity();
   }, (err) => {
     console.error("Firestore Buses listener error:", err);
   });
@@ -2677,6 +2732,7 @@ function listenToRoutes() {
   const routesRef = collection(firestore, 'routes');
   routesUnsubscribe = onSnapshot(routesRef, (snapshot) => {
     hasLoadedFirestoreRoutes = true;
+    routesLoaded = true;
     const loadedRoutes = [];
     snapshot.forEach(docSnap => {
       loadedRoutes.push({ id: docSnap.id, ...docSnap.data() });
@@ -2689,6 +2745,7 @@ function listenToRoutes() {
     renderRoutesTable();
     renderDashboardStats();
     renderBusesTable();
+    renderRecentActivity();
 
     // If bus inspector modal is currently open, refresh it live with updated route data
     if (currentInspectingBus) {
@@ -2743,8 +2800,10 @@ function listenToReports() {
       return getTime(b.createdAt) - getTime(a.createdAt);
     });
 
+    reportsLoaded = true;
     renderDashboardStats();
     renderIssuesTable();
+    renderRecentActivity();
   };
 
   try {
@@ -2755,13 +2814,404 @@ function listenToReports() {
       console.error("Firestore Reports listener error:", err);
       renderDashboardStats();
       renderIssuesTable();
+      renderRecentActivity();
     });
   } catch (err) {
     console.error("Setup reports listener error:", err);
     renderDashboardStats();
     renderIssuesTable();
+    renderRecentActivity();
   }
 }
+
+// =============================================================================
+// SOS EMERGENCY RESPONSE CENTER CONTROLLER
+// =============================================================================
+
+function listenToSOSIncidents() {
+  if (sosUnsubscribe) {
+    try { sosUnsubscribe(); } catch (e) { }
+    sosUnsubscribe = null;
+  }
+
+  const sosRef = collection(firestore, 'sosIncidents');
+
+  sosUnsubscribe = onSnapshot(sosRef, (snapshot) => {
+    sosIncidentsCache = [];
+    snapshot.forEach(d => {
+      sosIncidentsCache.push({ id: d.id, ...d.data() });
+    });
+
+    // Sort newest first
+    sosIncidentsCache.sort((a, b) => {
+      const getTime = (val) => {
+        if (!val) return 0;
+        if (typeof val.toMillis === 'function') return val.toMillis();
+        if (typeof val.toDate === 'function') return val.toDate().getTime();
+        if (typeof val.seconds === 'number') return val.seconds * 1000;
+        if (val instanceof Date) return val.getTime();
+        const t = new Date(val).getTime();
+        return isNaN(t) ? 0 : t;
+      };
+      return getTime(b.activatedAt || b.createdAt) - getTime(a.activatedAt || a.createdAt);
+    });
+
+    sosLoaded = true;
+    updateSOSMetricsAndBadge();
+    renderSOSView();
+  }, (err) => {
+    console.warn("[SOS] Admin listener error:", err);
+  });
+}
+
+function updateSOSMetricsAndBadge() {
+  let activeCount = 0;
+  let ackCount = 0;
+  let resolvedCount = 0;
+
+  sosIncidentsCache.forEach(inc => {
+    const s = (inc.status || 'ACTIVE').toUpperCase();
+    if (s === 'ACTIVE') activeCount++;
+    else if (s === 'ACKNOWLEDGED') ackCount++;
+    else if (s === 'RESOLVED') resolvedCount++;
+  });
+
+  const totalOpen = activeCount + ackCount;
+
+  // Navigation badge
+  const sosBadge = document.getElementById('admin-sos-nav-badge');
+  if (sosBadge) {
+    if (totalOpen > 0) {
+      sosBadge.textContent = totalOpen;
+      sosBadge.style.display = 'inline-flex';
+    } else {
+      sosBadge.style.display = 'none';
+    }
+  }
+
+  // Dashboard / section metrics
+  const statActive = document.getElementById('stat-sos-active');
+  const statAck = document.getElementById('stat-sos-acknowledged');
+  const statResolved = document.getElementById('stat-sos-resolved');
+  const badgeTop = document.getElementById('sos-active-badge-top');
+  const mapActiveCount = document.getElementById('sos-map-active-count');
+
+  if (statActive) statActive.textContent = activeCount;
+  if (statAck) statAck.textContent = ackCount;
+  if (statResolved) statResolved.textContent = resolvedCount;
+  if (badgeTop) {
+    badgeTop.textContent = `${activeCount} ACTIVE`;
+    badgeTop.className = `status-badge ${activeCount > 0 ? 'badge-red' : 'badge-green'}`;
+  }
+  if (mapActiveCount) mapActiveCount.textContent = `${totalOpen} Beacons`;
+}
+
+function setupSOSControls() {
+  const refreshBtn = document.getElementById('sos-refresh-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      renderSOSView();
+    });
+  }
+
+  const activeBtn = document.getElementById('sos-filter-active-btn');
+  const allBtn = document.getElementById('sos-filter-all-btn');
+
+  if (activeBtn) {
+    activeBtn.addEventListener('click', () => {
+      currentSOSTab = 'active';
+      activeBtn.classList.add('active');
+      if (allBtn) allBtn.classList.remove('active');
+      renderSOSView();
+    });
+  }
+
+  if (allBtn) {
+    allBtn.addEventListener('click', () => {
+      currentSOSTab = 'all';
+      allBtn.classList.add('active');
+      if (activeBtn) activeBtn.classList.remove('active');
+      renderSOSView();
+    });
+  }
+
+  const searchInput = document.getElementById('sos-incident-search');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      currentSOSSearch = e.target.value.trim().toLowerCase();
+      renderSOSView();
+    });
+  }
+}
+
+function renderSOSView() {
+  const container = document.getElementById('sos-incident-items-container');
+  const radarLayer = document.getElementById('sos-radar-markers-layer');
+  const emptyRadarMsg = document.getElementById('sos-empty-radar-msg');
+
+  if (!container) return;
+
+  if (!sosLoaded && sosIncidentsCache.length === 0) {
+    renderListSkeleton(container, 2);
+    return;
+  }
+
+  // 1. Filter incidents
+  let filtered = sosIncidentsCache;
+  if (currentSOSTab === 'active') {
+    filtered = filtered.filter(inc => {
+      const s = (inc.status || 'ACTIVE').toUpperCase();
+      return s === 'ACTIVE' || s === 'ACKNOWLEDGED';
+    });
+  }
+
+  if (currentSOSSearch) {
+    filtered = filtered.filter(inc => {
+      const name = (inc.userName || '').toLowerCase();
+      const phone = (inc.phoneNumber || '').toLowerCase();
+      const id = (inc.incidentId || inc.id || '').toLowerCase();
+      const addr = (inc.location?.address || '').toLowerCase();
+      return name.includes(currentSOSSearch) || phone.includes(currentSOSSearch) || id.includes(currentSOSSearch) || addr.includes(currentSOSSearch);
+    });
+  }
+
+  // 2. Render Incident Cards
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 40px 16px; color: var(--text-secondary);">
+        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#10B981" stroke-width="1.5" style="margin-bottom: 8px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        <div style="font-size: 14px; font-weight: 700; color: var(--text-primary);">No ${currentSOSTab === 'active' ? 'Active' : ''} Emergencies</div>
+        <div style="font-size: 12px; margin-top: 4px;">All student SOS distress channels are currently clear.</div>
+      </div>
+    `;
+  } else {
+    container.innerHTML = '';
+    filtered.forEach(inc => {
+      const card = createSOSIncidentCard(inc);
+      container.appendChild(card);
+    });
+  }
+
+  // 3. Render Radar Canvas Markers
+  if (radarLayer) {
+    radarLayer.innerHTML = '';
+    const activeIncidents = sosIncidentsCache.filter(inc => {
+      const s = (inc.status || 'ACTIVE').toUpperCase();
+      return s === 'ACTIVE' || s === 'ACKNOWLEDGED';
+    });
+
+    if (emptyRadarMsg) {
+      emptyRadarMsg.style.display = activeIncidents.length === 0 ? 'block' : 'none';
+    }
+
+    activeIncidents.forEach((inc, index) => {
+      const marker = document.createElement('div');
+      marker.className = 'radar-sos-marker';
+      marker.id = `radar-marker-${inc.incidentId || inc.id}`;
+
+      // Distribute pseudo-realistically or based on coordinates on canvas
+      const top = 20 + ((index * 29) % 60);
+      const left = 15 + ((index * 37) % 70);
+      marker.style.top = `${top}%`;
+      marker.style.left = `${left}%`;
+
+      const status = (inc.status || 'ACTIVE').toUpperCase();
+      const beaconColor = status === 'ACKNOWLEDGED' ? '#F59E0B' : '#EF4444';
+
+      marker.innerHTML = `
+        <div class="radar-sos-beacon" style="background: ${beaconColor}; box-shadow: 0 0 16px ${beaconColor};">
+          🚨
+        </div>
+        <div class="radar-sos-label">
+          <span>${escapeHtml(inc.userName || 'Student')}</span>
+          <span style="font-size: 9.5px; opacity: 0.8; margin-left: 4px;">${escapeHtml(inc.incidentId || inc.id)}</span>
+        </div>
+      `;
+
+      marker.onclick = () => {
+        const targetCard = document.getElementById(`sos-card-${inc.incidentId || inc.id}`);
+        if (targetCard) {
+          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          targetCard.style.boxShadow = '0 0 0 3px #EF4444';
+          setTimeout(() => {
+            targetCard.style.boxShadow = '';
+          }, 2000);
+        }
+      };
+
+      radarLayer.appendChild(marker);
+    });
+  }
+}
+
+function createSOSIncidentCard(inc) {
+  const card = document.createElement('div');
+  const status = (inc.status || 'ACTIVE').toUpperCase();
+  card.className = `sos-incident-card ${status.toLowerCase()}`;
+  card.id = `sos-card-${inc.incidentId || inc.id}`;
+
+  const lat = inc.location?.latitude || 0;
+  const lng = inc.location?.longitude || 0;
+  const accuracy = inc.location?.accuracy || 0;
+  const address = inc.location?.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  const platform = inc.platform || 'Web';
+  const network = inc.networkStatus || 'ONLINE';
+
+  // Format activation timestamp
+  let timeStr = 'Just now';
+  if (inc.activatedAt || inc.createdAt) {
+    const rawTime = inc.activatedAt || inc.createdAt;
+    const dateObj = rawTime.toDate ? rawTime.toDate() : new Date(rawTime);
+    if (!isNaN(dateObj.getTime())) {
+      const diffMins = Math.round((Date.now() - dateObj.getTime()) / 60000);
+      timeStr = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`;
+    }
+  }
+
+  let statusBadgeClass = 'badge-red';
+  let statusText = 'ACTIVE';
+  if (status === 'ACKNOWLEDGED') {
+    statusBadgeClass = 'badge-orange';
+    statusText = 'ACKNOWLEDGED';
+  } else if (status === 'RESOLVED') {
+    statusBadgeClass = 'badge-green';
+    statusText = 'RESOLVED';
+  }
+
+  card.innerHTML = `
+    <div class="sos-card-header">
+      <div>
+        <div class="sos-card-id">${escapeHtml(inc.incidentId || inc.id)}</div>
+        <div class="sos-card-user" style="margin-top: 4px;">
+          <span>${escapeHtml(inc.userName || 'Student')}</span>
+          <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">(${escapeHtml(platform)})</span>
+        </div>
+      </div>
+      <div style="text-align: right;">
+        <span class="status-badge ${statusBadgeClass}">${statusText}</span>
+        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 3px;">${timeStr}</div>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 12px; font-size: 12px; align-items: center;">
+      <a href="tel:${escapeHtml(inc.phoneNumber || '')}" class="sos-card-phone">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+        <span>${escapeHtml(inc.phoneNumber || 'No phone')}</span>
+      </a>
+      <span style="font-size: 11px; color: ${network === 'ONLINE' ? '#10B981' : '#EF4444'}; font-weight: 600;">• ${escapeHtml(network)}</span>
+      <span style="font-size: 11px; color: var(--text-secondary);">±${accuracy}m acc</span>
+    </div>
+
+    <div class="sos-card-location">
+      <strong>Location:</strong> ${escapeHtml(address)}
+      <div style="font-family: monospace; font-size: 11px; margin-top: 2px; opacity: 0.85;">Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}</div>
+    </div>
+
+    ${inc.acknowledgedBy ? `
+      <div style="font-size: 11px; color: #D97706; background: #FEF3C7; padding: 4px 8px; border-radius: 4px; font-weight: 600;">
+        ⚠️ Acknowledged by ${escapeHtml(inc.acknowledgedBy)}
+      </div>
+    ` : ''}
+
+    ${inc.resolvedBy ? `
+      <div style="font-size: 11px; color: #059669; background: #D1FAE5; padding: 4px 8px; border-radius: 4px; font-weight: 600;">
+        ✅ Resolved by ${escapeHtml(inc.resolvedBy)}
+      </div>
+    ` : ''}
+
+    <div class="sos-card-actions">
+      ${status === 'ACTIVE' ? `
+        <button class="btn-sos-ack" onclick="window.adminAcknowledgeSOS('${inc.incidentId || inc.id}')">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span>Acknowledge</span>
+        </button>
+      ` : ''}
+
+      ${(status === 'ACTIVE' || status === 'ACKNOWLEDGED') ? `
+        <button class="btn-sos-resolve" onclick="window.adminResolveSOS('${inc.incidentId || inc.id}')">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          <span>Resolve SOS</span>
+        </button>
+      ` : ''}
+
+      <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener" class="btn-sos-map">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+        <span>View on Map</span>
+      </a>
+    </div>
+  `;
+
+  return card;
+}
+
+async function adminAcknowledgeSOS(incidentId) {
+  if (!incidentId) return;
+  const adminEmail = auth.currentUser?.email || currentAdminUser?.email || 'Transport Authority';
+  try {
+    const docRef = doc(firestore, 'sosIncidents', incidentId);
+    await updateDoc(docRef, {
+      status: 'ACKNOWLEDGED',
+      acknowledgedAt: serverTimestamp(),
+      acknowledgedBy: adminEmail,
+      updatedAt: serverTimestamp()
+    });
+
+    if (typeof logAuditEvent === 'function') {
+      await logAuditEvent('SOS_ACKNOWLEDGED', 'sosIncidents', incidentId, {
+        acknowledgedBy: adminEmail
+      });
+    }
+  } catch (err) {
+    console.error("[SOS] Failed to acknowledge SOS incident:", err);
+    alert("Failed to acknowledge SOS incident: " + err.message);
+  }
+}
+
+async function adminResolveSOS(incidentId) {
+  if (!incidentId) return;
+  const adminEmail = auth.currentUser?.email || currentAdminUser?.email || 'Transport Authority';
+  const confirmResolve = confirm(`Are you sure you want to resolve SOS incident ${incidentId}?`);
+  if (!confirmResolve) return;
+
+  try {
+    const docRef = doc(firestore, 'sosIncidents', incidentId);
+    await updateDoc(docRef, {
+      status: 'RESOLVED',
+      resolvedAt: serverTimestamp(),
+      resolvedBy: adminEmail,
+      updatedAt: serverTimestamp()
+    });
+
+    if (typeof logAuditEvent === 'function') {
+      await logAuditEvent('SOS_RESOLVED', 'sosIncidents', incidentId, {
+        resolvedBy: adminEmail
+      });
+    }
+  } catch (err) {
+    console.error("[SOS] Failed to resolve SOS incident:", err);
+    alert("Failed to resolve SOS incident: " + err.message);
+  }
+}
+
+// Window exposures
+window.adminAcknowledgeSOS = adminAcknowledgeSOS;
+window.adminResolveSOS = adminResolveSOS;
+window.renderSOSView = renderSOSView;
+window.setSOSTabFilter = (tab) => {
+  currentSOSTab = tab;
+  const activeBtn = document.getElementById('sos-filter-active-btn');
+  const allBtn = document.getElementById('sos-filter-all-btn');
+  if (activeBtn && allBtn) {
+    if (tab === 'active') {
+      activeBtn.classList.add('active');
+      allBtn.classList.remove('active');
+    } else {
+      allBtn.classList.add('active');
+      activeBtn.classList.remove('active');
+    }
+  }
+  renderSOSView();
+};
 
 // 3. Listen to Pending Approvals
 function listenToApprovals() {
@@ -2776,6 +3226,7 @@ function listenToApprovals() {
     const pendingCount = approvalsCache.filter(a => a.status === 'Pending').length;
     if (queueEl) queueEl.textContent = `${pendingCount} Pending`;
 
+    approvalsLoaded = true;
     renderApprovalsTable();
     renderRecentActivity();
   }, (err) => {
@@ -2793,9 +3244,23 @@ function listenToAuditLogs() {
     snapshot.forEach(d => {
       auditLogsCache.push({ id: d.id, ...d.data() });
     });
+    auditLogsLoaded = true;
     renderAuditLogsTable();
+    renderRecentActivity();
   }, () => {
-    // If collection empty or no index, fallback gracefully
+    // Fallback if index missing: query directly without orderBy and sort client-side
+    onSnapshot(logsRef, (snapshot) => {
+      auditLogsCache = [];
+      snapshot.forEach(d => {
+        auditLogsCache.push({ id: d.id, ...d.data() });
+      });
+      auditLogsCache.sort((a, b) => (getRecordTimestamp(b) - getRecordTimestamp(a)));
+      auditLogsLoaded = true;
+      renderAuditLogsTable();
+      renderRecentActivity();
+    }, (err) => {
+      console.warn("Audit logs listener fallback error:", err);
+    });
   });
 }
 
@@ -3242,63 +3707,198 @@ function renderDashboardStats() {
   }
 }
 
+function getRecordTimestamp(item) {
+  if (!item) return 0;
+  const ts = item.timestamp || item.submittedAt || item.createdAt || item.updatedAt;
+  if (!ts) return 0;
+  if (typeof ts.toMillis === 'function') return ts.toMillis();
+  if (typeof ts.toDate === 'function') return ts.toDate().getTime();
+  if (typeof ts.seconds === 'number') return ts.seconds * 1000;
+  if (ts instanceof Date) return ts.getTime();
+  const t = new Date(ts).getTime();
+  return isNaN(t) ? 0 : t;
+}
+
 function renderRecentActivity() {
   const container = document.getElementById('recent-updates-list');
   if (!container) return;
 
-  if (approvalsCache.length === 0 && reportsCache.length === 0) {
+  const activities = [];
+
+  // 1. Audit Logs (Administrative Actions)
+  if (Array.isArray(auditLogsCache)) {
+    auditLogsCache.forEach(log => {
+      const action = log.action || 'ACTION';
+      const meta = log.metadata || {};
+      const actionName = typeof formatAction === 'function' ? formatAction(action) : String(action).replace(/_/g, ' ');
+      let details = typeof formatAuditDetails === 'function' ? formatAuditDetails(action, meta) : '';
+      if (!details || details === '—') {
+        details = meta.name ? `Route: ${meta.name}` : (meta.busNumber ? `Bus: ${meta.busNumber}` : 'System configuration change');
+      }
+      const timeMs = getRecordTimestamp(log);
+
+      let markerClass = 'marker-blue';
+      const aUpper = String(action).toUpperCase();
+      if (aUpper.includes('DELETE') || aUpper.includes('REJECT')) markerClass = 'marker-red';
+      else if (aUpper.includes('CREATED') || aUpper.includes('APPROVED') || aUpper.includes('RESOLVED')) markerClass = 'marker-green';
+      else if (aUpper.includes('STATUS') || aUpper.includes('UPDATED') || aUpper.includes('ASSIGNED')) markerClass = 'marker-blue';
+      else if (aUpper.includes('DECISION') || aUpper.includes('SETTINGS') || aUpper.includes('RESET')) markerClass = 'marker-orange';
+
+      let targetView = null;
+      if (log.entityType === 'routes') targetView = 'routes-view';
+      else if (log.entityType === 'buses') targetView = 'buses-view';
+      else if (log.entityType === 'reports') targetView = 'issues-view';
+      else if (log.entityType === 'pending_approvals') targetView = 'approvals-view';
+      else if (log.entityType === 'system_config') targetView = 'settings-view';
+
+      activities.push({
+        id: `audit_${log.id}`,
+        title: actionName,
+        desc: details,
+        meta: `${formatDate(log.timestamp)} • by ${log.performedBy || 'Admin'}`,
+        markerClass,
+        timestamp: timeMs,
+        targetView
+      });
+    });
+  }
+
+  // 2. Pending Approvals
+  if (Array.isArray(approvalsCache)) {
+    approvalsCache.forEach(appr => {
+      const timeMs = getRecordTimestamp(appr);
+      const isApproved = (appr.status || '').toLowerCase() === 'approved';
+      const isRejected = (appr.status || '').toLowerCase() === 'rejected';
+      const markerClass = isApproved ? 'marker-green' : (isRejected ? 'marker-red' : 'marker-orange');
+      activities.push({
+        id: `appr_${appr.id}`,
+        title: `${(appr.type || 'FLEET UPDATE').replace(/_/g, ' ')} (${appr.status || 'Pending'})`,
+        desc: appr.details || appr.routeName || 'Fleet change request submitted for review',
+        meta: `${formatDate(appr.submittedAt || appr.createdAt)} • by ${appr.submittedBy || 'Admin'}`,
+        markerClass,
+        timestamp: timeMs,
+        targetView: 'approvals-view'
+      });
+    });
+  }
+
+  // 3. Issue Reports & Student Tickets
+  if (Array.isArray(reportsCache)) {
+    reportsCache.forEach(rep => {
+      const timeMs = getRecordTimestamp(rep);
+      const isResolved = (rep.status || '').toLowerCase() === 'resolved';
+      const isUrgent = (rep.priority || '').toLowerCase() === 'urgent';
+      activities.push({
+        id: `rep_${rep.id}`,
+        title: `ISSUE: ${rep.subject || rep.categoryName || 'Student Report'}`,
+        desc: `Bus ${rep.busNumber || 'N/A'} • Status: ${rep.status || 'Submitted'}${rep.description ? ' — ' + rep.description : ''}`,
+        meta: `${formatDate(rep.createdAt || rep.timestamp)} • by ${rep.userName || rep.userEmail || 'Student'}`,
+        markerClass: isResolved ? 'marker-green' : (isUrgent ? 'marker-red' : 'marker-orange'),
+        timestamp: timeMs,
+        targetView: 'issues-view'
+      });
+    });
+  }
+
+  // 4. Notifications & Broadcast Advisories
+  if (Array.isArray(notificationsCache)) {
+    notificationsCache.forEach(notif => {
+      const timeMs = getRecordTimestamp(notif);
+      activities.push({
+        id: `notif_${notif.id}`,
+        title: `BROADCAST: ${notif.title || 'Announcement'}`,
+        desc: notif.message || notif.body || 'Advisory broadcasted to riders',
+        meta: `${formatDate(notif.createdAt || notif.timestamp)} • to ${notif.targetAudience || notif.recipientName || 'All Users'}`,
+        markerClass: 'marker-purple',
+        timestamp: timeMs,
+        targetView: 'notifications-view'
+      });
+    });
+  }
+
+  // 5. Routes & Fleet Corridors
+  if (Array.isArray(routesCache)) {
+    routesCache.forEach(route => {
+      if (route.updatedAt || route.createdAt) {
+        const timeMs = getRecordTimestamp(route);
+        const stopsCount = Array.isArray(route.stops) ? route.stops.length : (route.totalStops || 0);
+        activities.push({
+          id: `route_${route.id}`,
+          title: `ROUTE: ${route.name || 'Transit Corridor'}`,
+          desc: `${route.startPoint || 'Origin'} → ${route.destination || 'Destination'} (${stopsCount} stops) • ${route.status || 'Active'}`,
+          meta: `${formatDate(route.updatedAt || route.createdAt)} • Route Corridor`,
+          markerClass: 'marker-blue',
+          timestamp: timeMs,
+          targetView: 'routes-view'
+        });
+      }
+    });
+  }
+
+  // 6. Fleet Buses
+  if (Array.isArray(busesCache)) {
+    busesCache.forEach(bus => {
+      if (bus.updatedAt || bus.createdAt) {
+        const timeMs = getRecordTimestamp(bus);
+        activities.push({
+          id: `bus_${bus.id}`,
+          title: `BUS ${bus.busNumber || 'N/A'}: ${bus.routeName || bus.route || 'Fleet Service'}`,
+          desc: `Driver: ${bus.driverName || 'Not Assigned'} • Status: ${bus.status || 'Active'}`,
+          meta: `${formatDate(bus.updatedAt || bus.createdAt)} • Fleet Vehicle`,
+          markerClass: 'marker-blue',
+          timestamp: timeMs,
+          targetView: 'buses-view'
+        });
+      }
+    });
+  }
+
+  // Deduplicate activities
+  const seenKeys = new Set();
+  const uniqueActivities = [];
+  for (const act of activities) {
+    const key = `${act.title}_${act.desc}_${Math.floor(act.timestamp / 60000)}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueActivities.push(act);
+    }
+  }
+
+  // Sort descending by timestamp (newest first)
+  uniqueActivities.sort((a, b) => b.timestamp - a.timestamp);
+
+  const recentItems = uniqueActivities.slice(0, 5);
+
+  container.innerHTML = '';
+
+  if (recentItems.length === 0) {
+    if (!auditLogsLoaded && !reportsLoaded && !busesLoaded) {
+      // Keep initial skeleton timeline items while data is loading
+      return;
+    }
     container.innerHTML = `
-      <div class="update-item">
-        <div class="update-marker"></div>
-        <div>
-          <div class="update-title">APPROVE BUS REQUEST</div>
-          <div class="update-desc">Approved bus timing for Erode to Mettur</div>
-          <div class="update-meta">25/6/2026, 12:41:17 PM • by teamnexride@gmail.com</div>
-        </div>
-      </div>
-      <div class="update-item">
-        <div class="update-marker"></div>
-        <div>
-          <div class="update-title">ADD TIMING</div>
-          <div class="update-desc">Added 19:26 to route erode_mettur</div>
-          <div class="update-meta">25/6/2026, 12:41:16 PM • by teamnexride@gmail.com</div>
-        </div>
-      </div>
-      <div class="update-item">
-        <div class="update-marker"></div>
-        <div>
-          <div class="update-title">ADD ROUTE</div>
-          <div class="update-desc">Added route: Erode to Mettur</div>
-          <div class="update-meta">25/6/2026, 12:41:15 PM • by teamnexride@gmail.com</div>
-        </div>
+      <div style="text-align: center; padding: 28px 16px; color: var(--text-secondary); background: #F9FAFB; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">
+        <div style="font-size: 22px; margin-bottom: 6px;">📋</div>
+        <div style="font-size: 13.5px; font-weight: 600; color: var(--text-primary);">No Recent Updates Yet</div>
+        <div style="font-size: 12px; margin-top: 4px; color: var(--text-muted); line-height: 1.4;">Recent actions, route edits, approvals, and issue reports will appear here automatically.</div>
       </div>
     `;
     return;
   }
 
-  const activities = [];
-  approvalsCache.slice(0, 4).forEach(appr => {
-    activities.push({
-      title: `${appr.type || 'FLEET UPDATE'} (${appr.status || 'Pending'})`,
-      desc: appr.details || appr.routeName || 'Modification request submitted',
-      meta: `${appr.submittedBy || 'Admin'} • ${appr.submittedAt ? formatDate(appr.submittedAt) : 'Recently'}`
-    });
-  });
-
-  reportsCache.slice(0, 3).forEach(rep => {
-    activities.push({
-      title: `ISSUE REPORT: ${rep.subject || 'Student Complaint'}`,
-      desc: `Bus ${rep.busNumber || 'N/A'} • ${rep.categoryName || 'General'} • Status: ${rep.status || 'Submitted'}`,
-      meta: `${rep.userName || 'Student'} • ${rep.createdAt ? formatDate(rep.createdAt) : 'Recently'}`
-    });
-  });
-
-  activities.slice(0, 5).forEach(act => {
+  recentItems.forEach(act => {
     const item = document.createElement('div');
-    item.className = 'update-item';
+    item.className = `update-item ${act.targetView ? 'clickable' : ''}`;
+    if (act.targetView) {
+      item.title = `Click to view in ${act.targetView.replace('-view', '')}`;
+      item.addEventListener('click', () => {
+        if (typeof switchView === 'function') switchView(act.targetView);
+      });
+    }
+
     item.innerHTML = `
-      <div class="update-marker"></div>
-      <div>
+      <div class="update-marker ${act.markerClass || 'marker-blue'}"></div>
+      <div style="flex: 1; min-width: 0;">
         <div class="update-title">${escapeHtml(act.title)}</div>
         <div class="update-desc">${escapeHtml(act.desc)}</div>
         <div class="update-meta">${escapeHtml(act.meta)}</div>
@@ -3379,6 +3979,12 @@ function renderBusesTable() {
   const statusVal = document.getElementById('buses-status-filter')?.value || 'all';
 
   if (!tbody) return;
+
+  if (!busesLoaded && busesCache.length === 0) {
+    renderTableSkeleton(tbody, 7, 4);
+    return;
+  }
+
   tbody.innerHTML = '';
 
   let filtered = busesCache.filter(b => {
@@ -3472,6 +4078,12 @@ function renderDriversTable() {
   const statusVal = document.getElementById('drivers-status-filter')?.value || 'all';
 
   if (!tbody) return;
+
+  if (!usersLoaded && driversCache.length === 0) {
+    renderTableSkeleton(tbody, 7, 4);
+    return;
+  }
+
   tbody.innerHTML = '';
 
   let filtered = driversCache.filter(d => {
@@ -3527,6 +4139,12 @@ function renderStudentsTable() {
   const selectedBus = busFilter?.value || 'all';
 
   if (!tbody) return;
+
+  if (!usersLoaded && studentsCache.length === 0) {
+    renderTableSkeleton(tbody, 8, 4);
+    return;
+  }
+
   tbody.innerHTML = '';
 
   // Populate bus filter dropdown options dynamically from busesCache
@@ -3588,6 +4206,11 @@ function renderStudentsTable() {
 function renderRoutesTable(routesToRender = null) {
   const tbody = document.getElementById('routes-table-body');
   if (!tbody) return;
+
+  if (!routesLoaded && (!list || list.length === 0)) {
+    renderTableSkeleton(tbody, 8, 4);
+    return;
+  }
 
   const searchInput = document.getElementById('routes-search-input');
   const searchVal = (searchInput ? searchInput.value : '').trim().toLowerCase();
@@ -3689,13 +4312,15 @@ function syncStopsFromDOM() {
   });
 }
 
+let draggedStopIndex = null;
+
 function renderEditorStops() {
   const container = document.getElementById('route-stops-container');
   const countBadge = document.getElementById('route-stops-count-badge');
   if (!container) return;
 
   if (countBadge) {
-    countBadge.textContent = `${currentEditingStops.length} stop${currentEditingStops.length === 1 ? '' : 's'} defined`;
+    countBadge.textContent = `${currentEditingStops.length} stop${currentEditingStops.length === 1 ? '' : 's'} defined • Grab the handle to reorder stops`;
   }
 
   if (currentEditingStops.length === 0) {
@@ -3708,9 +4333,20 @@ function renderEditorStops() {
   }
 
   container.innerHTML = currentEditingStops.map((stop, idx) => `
-    <div class="stop-row-card" data-stop-index="${idx}" style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div style="display: flex; align-items: center; gap: 8px;">
+    <div class="stop-row-card" draggable="true" data-stop-index="${idx}" style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <div class="stop-drag-handle" title="Pick and drag to reorder stop" style="cursor: grab;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="display: inline-block; vertical-align: middle;">
+              <circle cx="5" cy="3" r="1.5"/>
+              <circle cx="11" cy="3" r="1.5"/>
+              <circle cx="5" cy="8" r="1.5"/>
+              <circle cx="11" cy="8" r="1.5"/>
+              <circle cx="5" cy="13" r="1.5"/>
+              <circle cx="11" cy="13" r="1.5"/>
+            </svg>
+            <span style="font-size: 11px;">Drag</span>
+          </div>
           <span class="status-badge badge-blue" style="font-weight: 700; font-size: 11.5px;">Stop #${idx + 1}</span>
           <span class="stop-title-label" style="font-size: 13px; font-weight: 600; color: var(--text-primary);">${escapeHtml(stop.name || 'New Stop')}</span>
         </div>
@@ -3753,6 +4389,7 @@ function renderEditorStops() {
     </div>
   `).join('');
 
+  // Real-time synchronization for all input fields
   container.querySelectorAll('.stop-field-name').forEach(inp => {
     inp.addEventListener('input', (e) => {
       const i = parseInt(e.target.dataset.index, 10);
@@ -3761,6 +4398,129 @@ function renderEditorStops() {
         const cardHeaderName = e.target.closest('.stop-row-card')?.querySelector('.stop-title-label');
         if (cardHeaderName) cardHeaderName.textContent = e.target.value.trim() || 'New Stop';
       }
+    });
+  });
+
+  container.querySelectorAll('.stop-field-morning').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const i = parseInt(e.target.dataset.index, 10);
+      if (currentEditingStops[i]) currentEditingStops[i].morningArrival = e.target.value;
+    });
+  });
+
+  container.querySelectorAll('.stop-field-evening').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const i = parseInt(e.target.dataset.index, 10);
+      if (currentEditingStops[i]) currentEditingStops[i].eveningArrival = e.target.value;
+    });
+  });
+
+  container.querySelectorAll('.stop-field-lat').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const i = parseInt(e.target.dataset.index, 10);
+      const val = e.target.value.trim();
+      if (currentEditingStops[i]) currentEditingStops[i].latitude = val !== '' ? parseFloat(val) : null;
+    });
+  });
+
+  container.querySelectorAll('.stop-field-lng').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const i = parseInt(e.target.dataset.index, 10);
+      const val = e.target.value.trim();
+      if (currentEditingStops[i]) currentEditingStops[i].longitude = val !== '' ? parseFloat(val) : null;
+    });
+  });
+
+  container.querySelectorAll('.stop-field-status').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const i = parseInt(e.target.dataset.index, 10);
+      if (currentEditingStops[i]) currentEditingStops[i].status = e.target.value;
+    });
+  });
+
+  // Attach drag & drop listeners to each stop card
+  const cards = container.querySelectorAll('.stop-row-card');
+  cards.forEach(card => {
+    const cardIndex = parseInt(card.dataset.stopIndex, 10);
+
+    card.addEventListener('dragstart', (e) => {
+      // Don't drag card if user is interacting with text inputs, buttons, or selects
+      if (e.target.closest('input, select, button, textarea')) {
+        e.preventDefault();
+        return;
+      }
+
+      syncStopsFromDOM();
+      draggedStopIndex = cardIndex;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(cardIndex));
+
+      setTimeout(() => {
+        card.classList.add('is-dragging');
+      }, 0);
+    });
+
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+
+      if (draggedStopIndex === null || draggedStopIndex === cardIndex) {
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
+        return;
+      }
+
+      const rect = card.getBoundingClientRect();
+      const isBottom = (e.clientY - rect.top) > (rect.height / 2);
+
+      card.classList.toggle('drag-over-top', !isBottom);
+      card.classList.toggle('drag-over-bottom', isBottom);
+    });
+
+    card.addEventListener('dragleave', (e) => {
+      if (!card.contains(e.relatedTarget)) {
+        card.classList.remove('drag-over-top', 'drag-over-bottom');
+      }
+    });
+
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      card.classList.remove('drag-over-top', 'drag-over-bottom');
+
+      if (draggedStopIndex === null || isNaN(cardIndex) || draggedStopIndex === cardIndex) {
+        return;
+      }
+
+      const rect = card.getBoundingClientRect();
+      const isBottom = (e.clientY - rect.top) > (rect.height / 2);
+
+      let toIndex = cardIndex;
+      if (isBottom) {
+        toIndex = draggedStopIndex < cardIndex ? cardIndex : cardIndex + 1;
+      } else {
+        toIndex = draggedStopIndex < cardIndex ? cardIndex - 1 : cardIndex;
+      }
+      if (toIndex < 0) toIndex = 0;
+      if (toIndex >= currentEditingStops.length) toIndex = currentEditingStops.length - 1;
+
+      if (toIndex !== draggedStopIndex) {
+        const [movedItem] = currentEditingStops.splice(draggedStopIndex, 1);
+        currentEditingStops.splice(toIndex, 0, movedItem);
+        currentEditingStops.forEach((s, idx) => { s.stopOrder = idx + 1; });
+        renderEditorStops();
+
+        const updatedCards = container.querySelectorAll('.stop-row-card');
+        if (updatedCards[toIndex]) {
+          updatedCards[toIndex].classList.add('stop-card-just-moved');
+          setTimeout(() => updatedCards[toIndex]?.classList.remove('stop-card-just-moved'), 1200);
+        }
+      }
+    });
+
+    card.addEventListener('dragend', () => {
+      draggedStopIndex = null;
+      cards.forEach(c => {
+        c.classList.remove('is-dragging', 'drag-over-top', 'drag-over-bottom');
+      });
     });
   });
 }
@@ -4459,6 +5219,14 @@ function renderTimingsTable() {
   ].filter(Boolean);
 
   if (bodies.length === 0) return;
+
+  if (!busesLoaded && busesCache.length === 0) {
+    bodies.forEach(b => {
+      renderTableSkeleton(b, 8, 4);
+    });
+    return;
+  }
+
   bodies.forEach(b => { b.innerHTML = ''; });
 
   if (busesCache.length === 0) {
@@ -4583,6 +5351,12 @@ function renderTimingsTable() {
 function renderTripsTable() {
   const tbody = document.getElementById('trips-table-body');
   if (!tbody) return;
+
+  if (!busesLoaded && tripsCache.length === 0) {
+    renderTableSkeleton(tbody, 10, 3);
+    return;
+  }
+
   tbody.innerHTML = '';
 
   if (tripsCache.length === 0) {
@@ -4620,6 +5394,12 @@ function renderIssuesTable() {
   const catVal = document.getElementById('admin-rep-cat-filter')?.value || 'All';
 
   if (!tbody) return;
+
+  if (!reportsLoaded && reportsCache.length === 0) {
+    renderTableSkeleton(tbody, 8, 4);
+    return;
+  }
+
   tbody.innerHTML = '';
 
   let filtered = reportsCache.filter(r => {
@@ -4686,6 +5466,12 @@ function renderDocumentsTable() {
   const typeVal = document.getElementById('doc-type-filter')?.value || 'all';
 
   if (!tbody) return;
+
+  if (!busesLoaded && documentsCache.length === 0) {
+    renderTableSkeleton(tbody, 7, 4);
+    return;
+  }
+
   tbody.innerHTML = '';
 
   let filtered = documentsCache.filter(doc => {
@@ -4742,6 +5528,12 @@ function renderDocumentsTable() {
 function renderApprovalsTable() {
   const tbody = document.getElementById('approvals-table-body');
   if (!tbody) return;
+
+  if (!approvalsLoaded && approvalsCache.length === 0) {
+    renderTableSkeleton(tbody, 6, 4);
+    return;
+  }
+
   tbody.innerHTML = '';
 
   if (approvalsCache.length === 0) {
@@ -4771,6 +5563,12 @@ function renderApprovalsTable() {
 function renderAuditLogsTable() {
   const tbody = document.getElementById('audit-logs-table-body');
   if (!tbody) return;
+
+  if (!auditLogsLoaded && auditLogsCache.length === 0) {
+    renderTableSkeleton(tbody, 6, 4);
+    return;
+  }
+
   tbody.innerHTML = '';
 
   if (auditLogsCache.length === 0) {
@@ -5896,6 +6694,12 @@ window.adminMoveStopUp = (index) => {
     currentEditingStops[index - 1] = temp;
     currentEditingStops.forEach((s, idx) => { s.stopOrder = idx + 1; });
     renderEditorStops();
+
+    const targetCard = document.querySelectorAll('.stop-row-card')[index - 1];
+    if (targetCard) {
+      targetCard.classList.add('stop-card-just-moved');
+      setTimeout(() => targetCard?.classList.remove('stop-card-just-moved'), 1200);
+    }
   }
 };
 
@@ -5907,6 +6711,12 @@ window.adminMoveStopDown = (index) => {
     currentEditingStops[index + 1] = temp;
     currentEditingStops.forEach((s, idx) => { s.stopOrder = idx + 1; });
     renderEditorStops();
+
+    const targetCard = document.querySelectorAll('.stop-row-card')[index + 1];
+    if (targetCard) {
+      targetCard.classList.add('stop-card-just-moved');
+      setTimeout(() => targetCard?.classList.remove('stop-card-just-moved'), 1200);
+    }
   }
 };
 window.adminRemoveStop = (index) => {
@@ -6229,6 +7039,10 @@ async function logAuditEvent(action, entityType, entityId, metadata = {}) {
       timestamp: serverTimestamp(),
       metadata
     });
+    // Immediately refresh recent updates widget
+    if (typeof renderRecentActivity === 'function') {
+      renderRecentActivity();
+    }
   } catch (err) {
     console.warn("Audit log writing bypassed:", err.message);
   }
@@ -6520,3 +7334,71 @@ if (document.readyState === 'loading') {
 } else {
   setupLegalTabs();
 }
+
+// =============================================================================
+// ADMIN SKELETON LOADING GENERATORS & CONTROLLERS
+// =============================================================================
+
+function getTableSkeletonHTML(colCount = 6, rowCount = 4) {
+  const widths = ['60px', '130px', '150px', '95px', '80px', '115px', '90px', '70px', '125px', '100px'];
+  let html = '';
+  for (let r = 0; r < rowCount; r++) {
+    html += '<tr class="skeleton-table-row">';
+    for (let c = 0; c < colCount; c++) {
+      const isFirst = (c === 0);
+      const isLast = (c === colCount - 1);
+      const isBadge = (c === colCount - 2 || c === 4);
+      const width = widths[(c + r * 2) % widths.length];
+
+      if (isLast) {
+        html += `<td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>`;
+      } else if (isFirst) {
+        html += `<td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>`;
+      } else if (isBadge) {
+        html += `<td><div class="admin-skeleton admin-skeleton-badge" style="width: ${width}; height: 22px;"></div></td>`;
+      } else {
+        html += `<td><div class="admin-skeleton admin-skeleton-line" style="width: ${width}; height: 14px;"></div></td>`;
+      }
+    }
+    html += '</tr>';
+  }
+  return html;
+}
+
+function renderTableSkeleton(tbodyOrId, colCount = 6, rowCount = 4) {
+  const tbody = typeof tbodyOrId === 'string' ? document.getElementById(tbodyOrId) : tbodyOrId;
+  if (!tbody) return;
+  tbody.innerHTML = getTableSkeletonHTML(colCount, rowCount);
+}
+
+function getListSkeletonHTML(count = 3) {
+  let html = '';
+  for (let i = 0; i < count; i++) {
+    const titleWidth = (50 + (i * 15) % 35) + '%';
+    const subWidth = (65 + (i * 11) % 25) + '%';
+    html += `
+      <div class="skeleton-list-card">
+        <div class="admin-skeleton admin-skeleton-circle" style="width: 34px; height: 34px; flex-shrink: 0;"></div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+          <div class="admin-skeleton admin-skeleton-line" style="width: ${titleWidth}; height: 14px;"></div>
+          <div class="admin-skeleton admin-skeleton-line" style="width: ${subWidth}; height: 11px;"></div>
+        </div>
+        <div class="admin-skeleton admin-skeleton-pill" style="width: 52px; height: 18px; flex-shrink: 0;"></div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function renderListSkeleton(containerOrId, count = 3) {
+  const container = typeof containerOrId === 'string' ? document.getElementById(containerOrId) : containerOrId;
+  if (!container) return;
+  container.innerHTML = getListSkeletonHTML(count);
+}
+
+// Global window exposures for skeleton animations
+window.getTableSkeletonHTML = getTableSkeletonHTML;
+window.renderTableSkeleton = renderTableSkeleton;
+window.getListSkeletonHTML = getListSkeletonHTML;
+window.renderListSkeleton = renderListSkeleton;
+
