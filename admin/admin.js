@@ -40,6 +40,7 @@ let approvalsLoaded = false;
 let auditLogsLoaded = false;
 let notificationsLoaded = false;
 let sosLoaded = false;
+let isDashboardLoading = true;
 
 let currentInspectingBus = null;
 let currentInspectingTicket = null;
@@ -2719,6 +2720,9 @@ function listenToBuses() {
     renderRecentActivity();
   }, (err) => {
     console.error("Firestore Buses listener error:", err);
+    busesLoaded = true;
+    renderDashboardStats();
+    renderRecentActivity();
   });
 }
 
@@ -2768,6 +2772,9 @@ function listenToRoutes() {
     }
   }, (err) => {
     console.error("Firestore Routes listener error:", err);
+    routesLoaded = true;
+    renderDashboardStats();
+    renderRecentActivity();
   });
 }
 
@@ -2904,6 +2911,8 @@ function updateSOSMetricsAndBadge() {
     badgeTop.className = `status-badge ${activeCount > 0 ? 'badge-red' : 'badge-green'}`;
   }
   if (mapActiveCount) mapActiveCount.textContent = `${totalOpen} Beacons`;
+  const incidentsCounterBadge = document.getElementById('sos-incidents-counter-badge');
+  if (incidentsCounterBadge) incidentsCounterBadge.textContent = `${sosIncidentsCache.length} Recorded`;
 }
 
 function setupSOSControls() {
@@ -2978,10 +2987,12 @@ function renderSOSView() {
   // 2. Render Incident Cards
   if (filtered.length === 0) {
     container.innerHTML = `
-      <div style="text-align: center; padding: 40px 16px; color: var(--text-secondary);">
-        <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#10B981" stroke-width="1.5" style="margin-bottom: 8px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-        <div style="font-size: 14px; font-weight: 700; color: var(--text-primary);">No ${currentSOSTab === 'active' ? 'Active' : ''} Emergencies</div>
-        <div style="font-size: 12px; margin-top: 4px;">All student SOS distress channels are currently clear.</div>
+      <div class="sos-empty-state">
+        <div class="sos-empty-icon-circle">
+          <span class="folder-svg-icon icon-shield-tick" style="width: 26px; height: 26px; color: #059669;"></span>
+        </div>
+        <div class="sos-empty-title">Campus Perimeter Secure</div>
+        <div class="sos-empty-desc">No ${currentSOSTab === 'active' ? 'active' : ''} emergency SOS distress signals detected. All student safety channels are currently clear.</div>
       </div>
     `;
   } else {
@@ -2992,8 +3003,8 @@ function renderSOSView() {
     });
   }
 
-  // 3. Render Radar Canvas Markers
-  if (radarLayer) {
+  // 3. Render Radar Canvas Markers (if radar layer is active/visible)
+  if (radarLayer && radarLayer.offsetParent !== null) {
     radarLayer.innerHTML = '';
     const activeIncidents = sosIncidentsCache.filter(inc => {
       const s = (inc.status || 'ACTIVE').toUpperCase();
@@ -3095,7 +3106,7 @@ function createSOSIncidentCard(inc) {
 
     <div style="display: flex; gap: 12px; font-size: 12px; align-items: center;">
       <a href="tel:${escapeHtml(inc.phoneNumber || '')}" class="sos-card-phone">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+        <span class="folder-svg-icon icon-sms" style="width: 13px; height: 13px;"></span>
         <span>${escapeHtml(inc.phoneNumber || 'No phone')}</span>
       </a>
       <span style="font-size: 11px; color: ${network === 'ONLINE' ? '#10B981' : '#EF4444'}; font-weight: 600;">• ${escapeHtml(network)}</span>
@@ -3122,20 +3133,20 @@ function createSOSIncidentCard(inc) {
     <div class="sos-card-actions">
       ${status === 'ACTIVE' ? `
         <button class="btn-sos-ack" onclick="window.adminAcknowledgeSOS('${inc.incidentId || inc.id}')">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span class="folder-svg-icon icon-routing" style="width: 13px; height: 13px;"></span>
           <span>Acknowledge</span>
         </button>
       ` : ''}
 
       ${(status === 'ACTIVE' || status === 'ACKNOWLEDGED') ? `
         <button class="btn-sos-resolve" onclick="window.adminResolveSOS('${inc.incidentId || inc.id}')">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          <span class="folder-svg-icon icon-shield-tick" style="width: 13px; height: 13px;"></span>
           <span>Resolve SOS</span>
         </button>
       ` : ''}
 
       <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener" class="btn-sos-map">
-        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 11 22 2 13 21 11 13 3 11"></polygon></svg>
+        <span class="folder-svg-icon icon-location" style="width: 13px; height: 13px;"></span>
         <span>View on Map</span>
       </a>
     </div>
@@ -3635,6 +3646,14 @@ function deriveDerivedState() {
 // RENDER: DASHBOARD VIEW
 // =============================================================================
 function renderDashboardStats() {
+  if (isDashboardLoading) {
+    if (!busesLoaded || !routesLoaded) {
+      renderDashboardSkeleton();
+      return;
+    }
+    renderDashboardLoaded();
+  }
+
   const totalBuses = busesCache.length;
   const activeBuses = busesCache.filter(b => b.status === 'Active' || b.status === 'On Trip').length;
   const inactiveBuses = busesCache.filter(b => b.status === 'Inactive').length;
@@ -3867,13 +3886,12 @@ function renderRecentActivity() {
   // Sort descending by timestamp (newest first)
   uniqueActivities.sort((a, b) => b.timestamp - a.timestamp);
 
-  const recentItems = uniqueActivities.slice(0, 5);
-
-  container.innerHTML = '';
-
   if (recentItems.length === 0) {
-    if (!auditLogsLoaded && !reportsLoaded && !busesLoaded) {
+    if (isDashboardLoading || (!auditLogsLoaded && !reportsLoaded && !busesLoaded)) {
       // Keep initial skeleton timeline items while data is loading
+      if (!container.querySelector('.skeleton-activity-item')) {
+        container.innerHTML = getRecentUpdatesSkeletonHTML(4);
+      }
       return;
     }
     container.innerHTML = `
@@ -3885,6 +3903,8 @@ function renderRecentActivity() {
     `;
     return;
   }
+
+  container.innerHTML = '';
 
   recentItems.forEach(act => {
     const item = document.createElement('div');
@@ -7396,9 +7416,159 @@ function renderListSkeleton(containerOrId, count = 3) {
   container.innerHTML = getListSkeletonHTML(count);
 }
 
+function getDashboardTitleSkeletonHTML() {
+  return `<div class="admin-skeleton admin-skeleton-line" style="width: 160px; height: 32px; border-radius: 6px;" aria-hidden="true"></div>`;
+}
+
+function getKPICardSkeletonHTML(labelWidth = '80px', valueWidth = '60px') {
+  return `
+    <div class="stat-skeleton" aria-hidden="true">
+      <div class="admin-skeleton admin-skeleton-line" style="width: ${labelWidth}; height: 14px; margin-bottom: 12px;"></div>
+      <div class="admin-skeleton admin-skeleton-stat" style="width: ${valueWidth}; height: 36px; border-radius: 6px;"></div>
+    </div>
+  `;
+}
+
+function getRecentUpdatesSkeletonHTML(count = 4) {
+  const widths = [
+    { title: '48%', desc: '78%', meta: '32%' },
+    { title: '42%', desc: '68%', meta: '38%' },
+    { title: '54%', desc: '82%', meta: '28%' },
+    { title: '38%', desc: '72%', meta: '35%' }
+  ];
+  let html = '';
+  for (let i = 0; i < count; i++) {
+    const w = widths[i % widths.length];
+    html += `
+      <div class="skeleton-activity-item" aria-hidden="true">
+        <div class="admin-skeleton admin-skeleton-circle" style="width: 9px; height: 9px; margin-top: 5px; flex-shrink: 0;"></div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 7px;">
+          <div class="admin-skeleton admin-skeleton-line" style="width: ${w.title}; height: 14px;"></div>
+          <div class="admin-skeleton admin-skeleton-line" style="width: ${w.desc}; height: 12px;"></div>
+          <div class="admin-skeleton admin-skeleton-line" style="width: ${w.meta}; height: 10px;"></div>
+        </div>
+      </div>
+    `;
+  }
+  return html;
+}
+
+function getSystemStatusSkeletonHTML() {
+  const rows = [
+    { label: '85px', badge: '110px' },
+    { label: '95px', badge: '88px' },
+    { label: '105px', badge: '76px' }
+  ];
+  return rows.map(r => `
+    <div class="status-row" aria-hidden="true">
+      <div class="admin-skeleton admin-skeleton-line" style="width: ${r.label}; height: 14px;"></div>
+      <div class="admin-skeleton admin-skeleton-pill" style="width: ${r.badge}; height: 22px;"></div>
+    </div>
+  `).join('');
+}
+
+function getDashboardSkeletonHTML() {
+  return `
+    <div class="page-header">
+      ${getDashboardTitleSkeletonHTML()}
+    </div>
+    <div class="stats-grid-row1">
+      <div class="stat-card">${getKPICardSkeletonHTML('78px', '65px')}</div>
+      <div class="stat-card">${getKPICardSkeletonHTML('82px', '65px')}</div>
+      <div class="stat-card">${getKPICardSkeletonHTML('98px', '72px')}</div>
+      <div class="stat-card">${getKPICardSkeletonHTML('92px', '70px')}</div>
+    </div>
+    <div class="stats-grid-row2">
+      <div class="stat-card">${getKPICardSkeletonHTML('102px', '50px')}</div>
+    </div>
+    <div class="widgets-grid">
+      <div class="widget-card">
+        <h2 class="section-title-line">Recent Updates</h2>
+        <div class="updates-list">
+          ${getRecentUpdatesSkeletonHTML(4)}
+        </div>
+      </div>
+      <div class="widget-card system-status-card">
+        <h2 class="section-title-plain">System Status</h2>
+        ${getSystemStatusSkeletonHTML()}
+      </div>
+    </div>
+  `;
+}
+
+function renderDashboardSkeleton() {
+  const dashboardView = document.getElementById('dashboard-view');
+  if (dashboardView) {
+    dashboardView.setAttribute('aria-busy', 'true');
+  }
+
+  // Dashboard title
+  const titleText = document.getElementById('dashboard-title-text');
+  const titleSkeleton = document.getElementById('dashboard-title-skeleton');
+  if (titleText) titleText.classList.add('hidden');
+  if (titleSkeleton) titleSkeleton.classList.remove('hidden');
+
+  // KPI cards
+  const statCards = document.querySelectorAll('#dashboard-view .stat-card');
+  statCards.forEach(card => {
+    const skeleton = card.querySelector('.stat-skeleton');
+    const content = card.querySelector('.stat-content');
+    if (skeleton) skeleton.classList.remove('hidden');
+    if (content) content.classList.add('hidden');
+  });
+
+  // Recent Updates
+  const updatesContainer = document.getElementById('recent-updates-list');
+  if (updatesContainer && !updatesContainer.querySelector('.skeleton-activity-item')) {
+    updatesContainer.innerHTML = getRecentUpdatesSkeletonHTML(4);
+  }
+
+  // System status
+  const sysSkeleton = document.getElementById('system-status-skeleton');
+  const sysContent = document.getElementById('system-status-content');
+  if (sysSkeleton) sysSkeleton.classList.remove('hidden');
+  if (sysContent) sysContent.classList.add('hidden');
+}
+
+function renderDashboardLoaded() {
+  isDashboardLoading = false;
+  const dashboardView = document.getElementById('dashboard-view');
+  if (dashboardView) {
+    dashboardView.setAttribute('aria-busy', 'false');
+  }
+
+  // Dashboard title
+  const titleText = document.getElementById('dashboard-title-text');
+  const titleSkeleton = document.getElementById('dashboard-title-skeleton');
+  if (titleText) titleText.classList.remove('hidden');
+  if (titleSkeleton) titleSkeleton.classList.add('hidden');
+
+  // KPI cards
+  const statCards = document.querySelectorAll('#dashboard-view .stat-card');
+  statCards.forEach(card => {
+    const skeleton = card.querySelector('.stat-skeleton');
+    const content = card.querySelector('.stat-content');
+    if (skeleton) skeleton.classList.add('hidden');
+    if (content) content.classList.remove('hidden');
+  });
+
+  // System status
+  const sysSkeleton = document.getElementById('system-status-skeleton');
+  const sysContent = document.getElementById('system-status-content');
+  if (sysSkeleton) sysSkeleton.classList.add('hidden');
+  if (sysContent) sysContent.classList.remove('hidden');
+}
+
 // Global window exposures for skeleton animations
 window.getTableSkeletonHTML = getTableSkeletonHTML;
 window.renderTableSkeleton = renderTableSkeleton;
 window.getListSkeletonHTML = getListSkeletonHTML;
 window.renderListSkeleton = renderListSkeleton;
+window.getDashboardTitleSkeletonHTML = getDashboardTitleSkeletonHTML;
+window.getKPICardSkeletonHTML = getKPICardSkeletonHTML;
+window.getRecentUpdatesSkeletonHTML = getRecentUpdatesSkeletonHTML;
+window.getSystemStatusSkeletonHTML = getSystemStatusSkeletonHTML;
+window.getDashboardSkeletonHTML = getDashboardSkeletonHTML;
+window.renderDashboardSkeleton = renderDashboardSkeleton;
+window.renderDashboardLoaded = renderDashboardLoaded;
 

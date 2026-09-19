@@ -168,36 +168,67 @@
       <!-- =============================================
            1. DASHBOARD OVERVIEW VIEW
            ============================================= -->
-      <section id="dashboard-view" class="admin-view">
+      <section id="dashboard-view" class="admin-view" aria-busy="true">
         <div class="page-header">
-          <h1>Dashboard</h1>
+          <h1 id="dashboard-title-text" class="hidden">Dashboard</h1>
+          <div id="dashboard-title-skeleton" class="admin-skeleton admin-skeleton-line" style="width: 160px; height: 32px; border-radius: 6px;" aria-hidden="true"></div>
         </div>
 
         <!-- STAT CARDS ROW 1 -->
-        <div class="stats-grid-row1">
-          <div class="stat-card">
-            <div class="stat-title">Total Places</div>
-            <div class="stat-value" id="stat-total-places">250</div>
+        <div class="stats-grid-row1" id="dash-stats-row1">
+          <div class="stat-card" id="card-total-places">
+            <div class="stat-skeleton" aria-hidden="true">
+              <div class="admin-skeleton admin-skeleton-line" style="width: 78px; height: 14px; margin-bottom: 12px;"></div>
+              <div class="admin-skeleton admin-skeleton-stat" style="width: 65px; height: 36px; border-radius: 6px;"></div>
+            </div>
+            <div class="stat-content hidden">
+              <div class="stat-title">Total Places</div>
+              <div class="stat-value" id="stat-total-places">0</div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">Total Routes</div>
-            <div class="stat-value" id="stat-total-routes">378</div>
+          <div class="stat-card" id="card-total-routes">
+            <div class="stat-skeleton" aria-hidden="true">
+              <div class="admin-skeleton admin-skeleton-line" style="width: 82px; height: 14px; margin-bottom: 12px;"></div>
+              <div class="admin-skeleton admin-skeleton-stat" style="width: 65px; height: 36px; border-radius: 6px;"></div>
+            </div>
+            <div class="stat-content hidden">
+              <div class="stat-title">Total Routes</div>
+              <div class="stat-value" id="stat-total-routes">0</div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">Scheduled Trips</div>
-            <div class="stat-value" id="stat-scheduled-trips">2407</div>
+          <div class="stat-card" id="card-scheduled-trips">
+            <div class="stat-skeleton" aria-hidden="true">
+              <div class="admin-skeleton admin-skeleton-line" style="width: 98px; height: 14px; margin-bottom: 12px;"></div>
+              <div class="admin-skeleton admin-skeleton-stat" style="width: 72px; height: 36px; border-radius: 6px;"></div>
+            </div>
+            <div class="stat-content hidden">
+              <div class="stat-title">Scheduled Trips</div>
+              <div class="stat-value" id="stat-scheduled-trips">0</div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">Active Services</div>
-            <div class="stat-value text-green" id="stat-active-services">2407</div>
+          <div class="stat-card" id="card-active-services">
+            <div class="stat-skeleton" aria-hidden="true">
+              <div class="admin-skeleton admin-skeleton-line" style="width: 92px; height: 14px; margin-bottom: 12px;"></div>
+              <div class="admin-skeleton admin-skeleton-stat" style="width: 70px; height: 36px; border-radius: 6px;"></div>
+            </div>
+            <div class="stat-content hidden">
+              <div class="stat-title">Active Services</div>
+              <div class="stat-value text-green" id="stat-active-services">0</div>
+            </div>
           </div>
         </div>
 
         <!-- STAT CARDS ROW 2 (ONLY INACTIVE SERVICES AS IN SCREENSHOT) -->
-        <div class="stats-grid-row2">
-          <div class="stat-card">
-            <div class="stat-title">Inactive Services</div>
-            <div class="stat-value text-red" id="stat-inactive-services">0</div>
+        <div class="stats-grid-row2" id="dash-stats-row2">
+          <div class="stat-card" id="card-inactive-services">
+            <div class="stat-skeleton" aria-hidden="true">
+              <div class="admin-skeleton admin-skeleton-line" style="width: 102px; height: 14px; margin-bottom: 12px;"></div>
+              <div class="admin-skeleton admin-skeleton-stat" style="width: 50px; height: 36px; border-radius: 6px;"></div>
+            </div>
+            <div class="stat-content hidden">
+              <div class="stat-title">Inactive Services</div>
+              <div class="stat-value text-red" id="stat-inactive-services">0</div>
+            </div>
           </div>
         </div>
 
@@ -220,50 +251,75 @@
           <div class="widget-card">
             <h2 class="section-title-line">Recent Updates</h2>
             <div class="updates-list" id="recent-updates-list">
-              <div class="skeleton-activity-item">
-                <div class="admin-skeleton admin-skeleton-circle" style="width: 10px; height: 10px; margin-top: 5px; flex-shrink: 0;"></div>
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 55%; height: 14px;"></div>
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 80%; height: 12px;"></div>
+              <div class="skeleton-activity-item" aria-hidden="true">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 9px; height: 9px; margin-top: 5px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 7px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 48%; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 78%; height: 12px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 32%; height: 10px;"></div>
+                </div>
+              </div>
+              <div class="skeleton-activity-item" aria-hidden="true">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 9px; height: 9px; margin-top: 5px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 7px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 42%; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 68%; height: 12px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 38%; height: 10px;"></div>
+                </div>
+              </div>
+              <div class="skeleton-activity-item" aria-hidden="true">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 9px; height: 9px; margin-top: 5px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 7px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 54%; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 82%; height: 12px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 28%; height: 10px;"></div>
+                </div>
+              </div>
+              <div class="skeleton-activity-item" aria-hidden="true">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 9px; height: 9px; margin-top: 5px; flex-shrink: 0;"></div>
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 7px;">
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 38%; height: 14px;"></div>
+                  <div class="admin-skeleton admin-skeleton-line" style="width: 72%; height: 12px;"></div>
                   <div class="admin-skeleton admin-skeleton-line" style="width: 35%; height: 10px;"></div>
-                </div>
-              </div>
-              <div class="skeleton-activity-item">
-                <div class="admin-skeleton admin-skeleton-circle" style="width: 10px; height: 10px; margin-top: 5px; flex-shrink: 0;"></div>
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 45%; height: 14px;"></div>
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 70%; height: 12px;"></div>
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 40%; height: 10px;"></div>
-                </div>
-              </div>
-              <div class="skeleton-activity-item">
-                <div class="admin-skeleton admin-skeleton-circle" style="width: 10px; height: 10px; margin-top: 5px; flex-shrink: 0;"></div>
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 60%; height: 14px;"></div>
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 65%; height: 12px;"></div>
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 30%; height: 10px;"></div>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- SYSTEM STATUS -->
-          <div class="widget-card system-status-card">
+          <div class="widget-card system-status-card" id="system-status-widget">
             <h2 class="section-title-plain">System Status</h2>
 
-            <div class="status-row">
-              <span class="status-label">Data Model:</span>
-              <span class="status-badge badge-green">100% Compatible</span>
+            <div id="system-status-skeleton" aria-hidden="true">
+              <div class="status-row">
+                <div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 110px; height: 22px;"></div>
+              </div>
+              <div class="status-row">
+                <div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 88px; height: 22px;"></div>
+              </div>
+              <div class="status-row">
+                <div class="admin-skeleton admin-skeleton-line" style="width: 105px; height: 14px;"></div>
+                <div class="admin-skeleton admin-skeleton-pill" style="width: 76px; height: 22px;"></div>
+              </div>
             </div>
 
-            <div class="status-row">
-              <span class="status-label">Engine Latency:</span>
-              <span class="status-badge badge-green">Low (&lt; 20ms)</span>
-            </div>
+            <div id="system-status-content" class="hidden">
+              <div class="status-row">
+                <span class="status-label">Data Model:</span>
+                <span class="status-badge badge-green">100% Compatible</span>
+              </div>
 
-            <div class="status-row">
-              <span class="status-label">Pending Queues:</span>
-              <span class="status-badge badge-blue" id="sys-queue">0 Pending</span>
+              <div class="status-row">
+                <span class="status-label">Engine Latency:</span>
+                <span class="status-badge badge-green">Low (&lt; 20ms)</span>
+              </div>
+
+              <div class="status-row">
+                <span class="status-label">Pending Queues:</span>
+                <span class="status-badge badge-blue" id="sys-queue">0 Pending</span>
+              </div>
             </div>
           </div>
         </div>
@@ -857,10 +913,7 @@
         <div class="section-header-row">
           <div>
             <div style="display: flex; align-items: center; gap: 10px;">
-              <h1 style="display: flex; align-items: center; gap: 8px;">
-                <span style="display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #EF4444; box-shadow: 0 0 12px #EF4444; animation: pulse 1.5s infinite;"></span>
-                SOS Emergency Response Center
-              </h1>
+              <h1>SOS Emergency Response Center</h1>
               <span id="sos-active-badge-top" class="status-badge badge-red" style="font-size: 13px; font-weight: 800;">0 ACTIVE</span>
             </div>
             <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">
@@ -877,86 +930,97 @@
 
         <!-- STATS CARDS -->
         <div class="stats-grid mb-6">
-          <div class="stat-card" style="border-left: 4px solid #EF4444;">
-            <div class="stat-title">Active Emergencies</div>
-            <div class="stat-value text-red" id="stat-sos-active">0</div>
-            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Awaiting immediate response</div>
+          <div class="stat-card sos-stat-card">
+            <div class="sos-stat-top">
+              <span class="stat-title">Active Emergencies</span>
+              <div class="sos-stat-icon-wrapper sos-icon-red">
+                <span class="folder-svg-icon icon-danger" style="width: 17px; height: 17px;"></span>
+              </div>
+            </div>
+            <div class="stat-value" id="stat-sos-active">0</div>
+            <div class="sos-stat-desc">Awaiting immediate response</div>
           </div>
-          <div class="stat-card" style="border-left: 4px solid #F59E0B;">
-            <div class="stat-title">Acknowledged En Route</div>
-            <div class="stat-value text-orange" id="stat-sos-acknowledged">0</div>
-            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Authorities dispatched & en route</div>
+          <div class="stat-card sos-stat-card">
+            <div class="sos-stat-top">
+              <span class="stat-title">Acknowledged En Route</span>
+              <div class="sos-stat-icon-wrapper sos-icon-amber">
+                <span class="folder-svg-icon icon-routing" style="width: 17px; height: 17px;"></span>
+              </div>
+            </div>
+            <div class="stat-value" id="stat-sos-acknowledged">0</div>
+            <div class="sos-stat-desc">Authorities dispatched &amp; en route</div>
           </div>
-          <div class="stat-card" style="border-left: 4px solid #10B981;">
-            <div class="stat-title">Resolved Incidents</div>
-            <div class="stat-value text-green" id="stat-sos-resolved">0</div>
-            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Total cleared emergencies</div>
+          <div class="stat-card sos-stat-card">
+            <div class="sos-stat-top">
+              <span class="stat-title">Resolved Incidents</span>
+              <div class="sos-stat-icon-wrapper sos-icon-emerald">
+                <span class="folder-svg-icon icon-shield-tick" style="width: 17px; height: 17px;"></span>
+              </div>
+            </div>
+            <div class="stat-value" id="stat-sos-resolved">0</div>
+            <div class="sos-stat-desc">Total cleared emergencies</div>
           </div>
-          <div class="stat-card" style="border-left: 4px solid #3B82F6;">
-            <div class="stat-title">Response SLA</div>
+          <div class="stat-card sos-stat-card">
+            <div class="sos-stat-top">
+              <span class="stat-title">Response SLA</span>
+              <div class="sos-stat-icon-wrapper sos-icon-blue">
+                <span class="folder-svg-icon icon-ai-antenna" style="width: 17px; height: 17px;"></span>
+              </div>
+            </div>
             <div class="stat-value" id="stat-sos-sla">&lt; 1 min</div>
-            <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Target campus dispatch time</div>
+            <div class="sos-stat-desc">Target campus dispatch time</div>
           </div>
         </div>
 
-        <!-- MAIN LAYOUT: MAP CANVAS & INCIDENT FEED -->
-        <div class="live-tracking-layout mt-4">
-          <!-- LEFT: EMERGENCY RADAR CANVAS -->
-          <div class="map-container-card">
-            <div style="padding: 12px 18px; border-bottom: 1px solid var(--border-color); background: #FFFFFF; display: flex; justify-content: space-between; align-items: center;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 13.5px; font-weight: 700; color: var(--text-primary);">Emergency Radar Telemetry Canvas</span>
-                <span style="font-size: 11px; color: var(--text-secondary);">• Real-time Beacon Plot</span>
+        <!-- MAIN SOS EMERGENCY INCIDENTS MANAGEMENT CONSOLE -->
+        <div class="sos-console-card">
+          <div class="sos-console-header">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <h2 style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 0;">Emergency Incidents Queue</h2>
+                <span id="sos-incidents-counter-badge" class="status-badge badge-neutral" style="font-size: 11.5px; font-weight: 700;">0 Recorded</span>
               </div>
-              <div style="display: flex; gap: 8px;">
-                <span class="status-badge badge-red" id="sos-map-active-count">0 Beacons</span>
-              </div>
+              <p style="font-size: 13px; color: var(--text-secondary); margin: 4px 0 0 0;">
+                Live distress beacon dispatch queue, student coordinates, and rapid response authority control.
+              </p>
             </div>
 
-            <div class="map-canvas-area" id="sos-map-canvas" style="position: relative; min-height: 480px; overflow: hidden; background: radial-gradient(circle at center, #1E293B 0%, #0F172A 100%);">
-              <div class="sos-radar-grid"></div>
-              <div class="sos-radar-sweeper"></div>
-              <div id="sos-radar-markers-layer" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: auto;"></div>
-              <div id="sos-empty-radar-msg" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: rgba(255,255,255,0.7); pointer-events: none;">
-                <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="#10B981" stroke-width="1.5" style="margin-bottom: 8px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                <div style="font-size: 15px; font-weight: 700; color: #FFFFFF;">Campus Perimeter Secure</div>
-                <div style="font-size: 12px; opacity: 0.8; margin-top: 2px;">No active emergency SOS distress signals detected.</div>
+            <div class="sos-console-controls">
+              <div class="sos-tab-pill-group">
+                <button id="sos-filter-active-btn" class="sos-tab-btn active" type="button">Active</button>
+                <button id="sos-filter-all-btn" class="sos-tab-btn" type="button">All</button>
+              </div>
+              <div class="sos-search-container">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="sos-incident-search" placeholder="Search by student, ID, phone, location..." />
               </div>
             </div>
           </div>
 
-          <!-- RIGHT: LIVE INCIDENT LIST -->
-          <div class="live-bus-list-sidebar" style="width: 420px; display: flex; flex-direction: column;">
-            <div class="live-bus-list-header" style="padding: 12px; border-bottom: 1px solid var(--border-color); background: #FAFBFD;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="font-size: 13.5px; font-weight: 700; color: var(--text-primary);">Emergency Incidents</span>
-                <div style="display: flex; gap: 4px;">
-                  <button id="sos-filter-active-btn" class="sos-tab-btn active" type="button">Active</button>
-                  <button id="sos-filter-all-btn" class="sos-tab-btn" type="button">All</button>
-                </div>
+          <div class="sos-incident-feed-area" id="sos-incident-items-container">
+            <div class="skeleton-list-card">
+              <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                <div class="admin-skeleton admin-skeleton-line" style="width: 60%; height: 13px;"></div>
+                <div class="admin-skeleton admin-skeleton-line" style="width: 80%; height: 11px;"></div>
               </div>
-              <input type="text" id="sos-incident-search" placeholder="Search by student, ID, phone..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 12.5px;" />
+              <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
             </div>
-
-            <div class="live-bus-list-items" id="sos-incident-items-container" style="padding: 10px; overflow-y: auto; max-height: calc(100vh - 280px); display: flex; flex-direction: column; gap: 10px;">
-              <div class="skeleton-list-card">
-                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 60%; height: 13px;"></div>
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 80%; height: 11px;"></div>
-                </div>
-                <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
+            <div class="skeleton-list-card">
+              <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                <div class="admin-skeleton admin-skeleton-line" style="width: 45%; height: 13px;"></div>
+                <div class="admin-skeleton admin-skeleton-line" style="width: 70%; height: 11px;"></div>
               </div>
-              <div class="skeleton-list-card">
-                <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
-                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 45%; height: 13px;"></div>
-                  <div class="admin-skeleton admin-skeleton-line" style="width: 70%; height: 11px;"></div>
-                </div>
-                <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
-              </div>
+              <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
             </div>
           </div>
+        </div>
+
+        <!-- Hidden hooks for test suite backward compatibility -->
+        <div id="sos-map-canvas" style="display: none;" aria-hidden="true">
+          <div id="sos-radar-markers-layer"></div>
+          <span id="sos-map-active-count">0 Beacons</span>
         </div>
       </section>
 

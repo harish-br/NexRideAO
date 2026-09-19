@@ -2987,6 +2987,26 @@ form.modal-content {
   mask-image: url('/document-text.svg');
 }
 
+.icon-shield-tick {
+  -webkit-mask-image: url('/assets/shield-tick.svg');
+  mask-image: url('/assets/shield-tick.svg');
+}
+
+.icon-clipboard-tick {
+  -webkit-mask-image: url('/assets/clipboard-tick.svg');
+  mask-image: url('/assets/clipboard-tick.svg');
+}
+
+.icon-ai-antenna {
+  -webkit-mask-image: url('/ai-antenna.svg');
+  mask-image: url('/ai-antenna.svg');
+}
+
+.icon-location {
+  -webkit-mask-image: url('/assets/location.svg');
+  mask-image: url('/assets/location.svg');
+}
+
 /* ---------------------------------------------
    ROUTE STOPS DRAG & DROP ARRANGEMENT STYLES
    --------------------------------------------- */
@@ -3093,133 +3113,264 @@ form.modal-content {
   box-shadow: 0 1px 4px rgba(239, 68, 68, 0.3);
 }
 
-.sos-radar-grid {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    radial-gradient(circle at center, transparent 0, transparent 40px, rgba(239, 68, 68, 0.1) 41px, transparent 42px),
-    radial-gradient(circle at center, transparent 0, transparent 100px, rgba(239, 68, 68, 0.08) 101px, transparent 102px),
-    radial-gradient(circle at center, transparent 0, transparent 180px, rgba(239, 68, 68, 0.06) 181px, transparent 182px),
-    radial-gradient(circle at center, transparent 0, transparent 260px, rgba(239, 68, 68, 0.05) 261px, transparent 262px),
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 40px 40px, 40px 40px;
-  pointer-events: none;
+/* =============================================================================
+   SOS EMERGENCY RESPONSE CENTER - PROFESSIONAL REFINED CARD & CONSOLE SYSTEM
+   Clean, modern enterprise styling with zero side borders
+   ============================================================================= */
+
+.sos-stat-card {
+  background: #FFFFFF;
+  padding: 22px 24px;
+  border-radius: 14px;
+  border: 1px solid #E5E7EB;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 120px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.sos-radar-sweeper {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 320px;
-  height: 320px;
-  transform-origin: top left;
-  background: conic-gradient(from 0deg, rgba(239, 68, 68, 0.2) 0deg, rgba(239, 68, 68, 0.03) 60deg, transparent 60deg);
-  border-radius: 50%;
-  animation: radarSweep 5s linear infinite;
-  pointer-events: none;
+.sos-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.07);
+  border-color: #CBD5E1;
 }
 
-@keyframes radarSweep {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.radar-sos-marker {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  cursor: pointer;
-  z-index: 10;
+.sos-stat-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: transform 0.2s ease;
+  justify-content: space-between;
+  margin-bottom: 6px;
 }
 
-.radar-sos-marker:hover {
-  transform: translate(-50%, -50%) scale(1.1);
-  z-index: 20;
+.sos-stat-top .stat-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+  margin-bottom: 0;
 }
 
-.radar-sos-beacon {
-  position: relative;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: #EF4444;
-  border: 3px solid #FFFFFF;
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.9);
+.sos-stat-icon-wrapper {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 11px;
+  flex-shrink: 0;
 }
 
-.radar-sos-beacon::after {
-  content: '';
-  position: absolute;
-  top: -8px;
-  left: -8px;
-  right: -8px;
-  bottom: -8px;
-  border-radius: 50%;
-  border: 2px solid #EF4444;
-  animation: beaconPulse 1.6s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+.sos-icon-red {
+  background: #FEF2F2;
+  color: #EF4444;
 }
 
-@keyframes beaconPulse {
-  0% { transform: scale(0.6); opacity: 1; }
-  100% { transform: scale(2.2); opacity: 0; }
+.sos-icon-amber {
+  background: #FFFBEB;
+  color: #F59E0B;
 }
 
-.radar-sos-label {
-  background: rgba(15, 23, 42, 0.88);
-  border: 1px solid rgba(239, 68, 68, 0.5);
-  backdrop-filter: blur(6px);
-  color: #FFFFFF;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+.sos-icon-emerald {
+  background: #ECFDF5;
+  color: #10B981;
 }
 
-.sos-incident-card {
+.sos-icon-blue {
+  background: #EFF6FF;
+  color: #3B82F6;
+}
+
+.sos-stat-card .stat-value {
+  font-size: 34px;
+  font-weight: 800;
+  color: #0F172A;
+  letter-spacing: -0.8px;
+  line-height: 1.1;
+  margin: 6px 0 4px 0;
+}
+
+.sos-stat-desc {
+  font-size: 12px;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+/* Console Card Container */
+.sos-console-card {
   background: #FFFFFF;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid #E5E7EB;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  min-height: 480px;
+}
+
+.sos-console-header {
+  padding: 16px 22px;
+  background: #FAFBFD;
+  border-bottom: 1px solid #E5E7EB;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.sos-console-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sos-tab-pill-group {
+  display: flex;
+  background: #F1F5F9;
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+}
+
+.sos-tab-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #64748B;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sos-tab-btn:hover {
+  color: #0F172A;
+}
+
+.sos-tab-btn.active {
+  background: #FFFFFF;
+  color: #0F172A;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.sos-search-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 7px 12px;
+  min-width: 270px;
+  color: #94A3B8;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sos-search-container:focus-within {
+  border-color: #3B82F6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  color: #3B82F6;
+}
+
+.sos-search-container input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: #0F172A;
+  width: 100%;
+}
+
+.sos-search-container input::placeholder {
+  color: #94A3B8;
+}
+
+.sos-incident-feed-area {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+  overflow-y: auto;
+  max-height: calc(100vh - 300px);
+}
+
+/* Incident Cards - NO SIDE COLORS */
+.sos-incident-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   transition: all 0.2s ease;
   position: relative;
 }
 
+.sos-incident-card:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.07);
+  border-color: #CBD5E1;
+  transform: translateY(-1px);
+}
+
 .sos-incident-card.active {
-  border-left: 4px solid #EF4444;
-  background: #FFFBFB;
+  background: #FFFFFF;
+  border-color: #E2E8F0;
 }
 
 .sos-incident-card.acknowledged {
-  border-left: 4px solid #F59E0B;
-  background: #FFFDF7;
+  background: #FFFFFF;
+  border-color: #E2E8F0;
 }
 
 .sos-incident-card.resolved {
-  border-left: 4px solid #10B981;
-  opacity: 0.85;
+  background: #FAFAFA;
+  border-color: #E2E8F0;
+  opacity: 0.9;
 }
 
-.sos-incident-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
+/* Reassuring Empty State */
+.sos-empty-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 64px 20px;
+}
+
+.sos-empty-icon-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.sos-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0F172A;
+  margin-bottom: 4px;
+}
+
+.sos-empty-desc {
+  font-size: 13.5px;
+  color: #64748B;
+  max-width: 440px;
+  line-height: 1.5;
 }
 
 .sos-card-header {
@@ -3336,10 +3487,19 @@ form.modal-content {
 
 /* =============================================================================
    ADMIN SKELETON LOADING ANIMATION SYSTEM
-   GPU-accelerated, silky smooth shimmer for tables, metric cards, and lists
+   Apple-style, silky smooth shimmer for tables, metric cards, and widgets
    ============================================================================= */
 
 @keyframes adminSkeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes skeleton-shimmer {
   0% {
     background-position: -200% 0;
   }
@@ -3360,13 +3520,31 @@ form.modal-content {
 .admin-skeleton {
   position: relative !important;
   overflow: hidden !important;
+  background: #F1F3F5;
   background: linear-gradient(
     90deg,
-    #F3F4F6 0%,
-    #E5E7EB 25%,
-    #F9FAFB 50%,
-    #E5E7EB 75%,
-    #F3F4F6 100%
+    #F1F3F5 25%,
+    #FAFAFA 37%,
+    #F1F3F5 63%
+  ) !important;
+  background-size: 200% 100% !important;
+  animation: adminSkeletonShimmer 1.8s ease-in-out infinite !important;
+  border-radius: var(--radius-sm, 6px);
+  display: inline-block;
+  vertical-align: middle;
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+.skeleton {
+  position: relative !important;
+  overflow: hidden !important;
+  background: #F1F3F5;
+  background: linear-gradient(
+    90deg,
+    #F1F3F5 25%,
+    #FAFAFA 37%,
+    #F1F3F5 63%
   ) !important;
   background-size: 200% 100% !important;
   animation: adminSkeletonShimmer 1.8s ease-in-out infinite !important;
@@ -3383,7 +3561,17 @@ form.modal-content {
   display: block;
 }
 
+.skeleton-line {
+  height: 14px;
+  border-radius: 4px;
+  display: block;
+}
+
 .admin-skeleton-circle {
+  border-radius: 50% !important;
+}
+
+.skeleton-circle {
   border-radius: 50% !important;
 }
 
@@ -3392,14 +3580,30 @@ form.modal-content {
   border-radius: 9999px !important;
 }
 
+.skeleton-pill,
+.skeleton-badge {
+  border-radius: 9999px !important;
+}
+
 .admin-skeleton-btn {
+  border-radius: var(--radius-sm, 6px) !important;
+}
+
+.skeleton-btn {
   border-radius: var(--radius-sm, 6px) !important;
 }
 
 .admin-skeleton-stat {
   display: block;
-  margin: 4px 0;
-  height: 28px;
+  margin: 0;
+  height: 36px;
+  border-radius: 6px;
+}
+
+.skeleton-stat {
+  display: block;
+  margin: 0;
+  height: 36px;
   border-radius: 6px;
 }
 
@@ -3445,10 +3649,33 @@ form.modal-content {
   border-bottom: 1px solid var(--border-color, #F3F4F6);
 }
 
+.skeleton-activity-item:last-child {
+  border-bottom: none;
+}
+
+/* Stat card skeleton container styling */
+.stat-skeleton {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
 /* Reduced motion accessibility */
 @media (prefers-reduced-motion: reduce) {
   .admin-skeleton {
     animation: adminSkeletonPulse 2s ease-in-out infinite !important;
-    background: #E5E7EB !important;
+    background: #F1F3F5 !important;
+  }
+  .skeleton {
+    animation: none !important;
+    background: #F1F3F5 !important;
   }
 }
