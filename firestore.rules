@@ -229,5 +229,13 @@ service cloud.firestore {
       // Only admins can delete SOS incidents
       allow delete: if isAdmin();
     }
+
+    // ==========================================
+    // 13. Compliance Documents (Drivers, Students, Vehicles)
+    // ==========================================
+    match /documents/{documentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isAuthenticated();
+    }
   }
 }

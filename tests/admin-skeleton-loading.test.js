@@ -74,7 +74,6 @@ test('ADMIN SKELETON LOADING ANIMATION SYSTEM: Comprehensive Verification', asyn
     // Check widget containers have skeleton elements
     assert.match(htmlContent, /id="recent-updates-list"[^>]*>[\s\S]*?skeleton-activity-item/, '#recent-updates-list must contain skeleton-activity-item');
     assert.match(htmlContent, /id="live-bus-items-container"[^>]*>[\s\S]*?skeleton-list-card/, '#live-bus-items-container must contain skeleton-list-card');
-    assert.match(htmlContent, /id="sos-incident-items-container"[^>]*>[\s\S]*?skeleton-list-card/, '#sos-incident-items-container must contain skeleton-list-card');
     assert.match(htmlContent, /id="inspect-bus-students-list"[^>]*>[\s\S]*?skeleton-list-card/, '#inspect-bus-students-list must contain skeleton-list-card');
     assert.match(htmlContent, /id="inspect-bus-docs-list"[^>]*>[\s\S]*?skeleton-list-card/, '#inspect-bus-docs-list must contain skeleton-list-card');
 
@@ -140,7 +139,6 @@ test('ADMIN SKELETON LOADING ANIMATION SYSTEM: Comprehensive Verification', asyn
     assert.match(jsContent, /let approvalsLoaded\s*=\s*false;/, 'Must declare approvalsLoaded flag');
     assert.match(jsContent, /let auditLogsLoaded\s*=\s*false;/, 'Must declare auditLogsLoaded flag');
     assert.match(jsContent, /let notificationsLoaded\s*=\s*false;/, 'Must declare notificationsLoaded flag');
-    assert.match(jsContent, /let sosLoaded\s*=\s*false;/, 'Must declare sosLoaded flag');
 
     // Firestore listeners set flags to true
     assert.match(jsContent, /listenToBuses[\s\S]*?busesLoaded\s*=\s*true;/, 'listenToBuses must set busesLoaded = true');
@@ -150,7 +148,6 @@ test('ADMIN SKELETON LOADING ANIMATION SYSTEM: Comprehensive Verification', asyn
     assert.match(jsContent, /listenToApprovals[\s\S]*?approvalsLoaded\s*=\s*true;/, 'listenToApprovals must set approvalsLoaded = true');
     assert.match(jsContent, /listenToAuditLogs[\s\S]*?auditLogsLoaded\s*=\s*true;/, 'listenToAuditLogs must set auditLogsLoaded = true');
     assert.match(jsContent, /listenToNotifications[\s\S]*?notificationsLoaded\s*=\s*true;/, 'listenToNotifications must set notificationsLoaded = true');
-    assert.match(jsContent, /listenToSOSIncidents[\s\S]*?sosLoaded\s*=\s*true;/, 'listenToSOSIncidents must set sosLoaded = true');
 
     // Render methods check loaded flags before falling back to empty state
     assert.match(jsContent, /renderBusesTable[\s\S]*?!busesLoaded && busesCache\.length === 0/, 'renderBusesTable must check !busesLoaded');
@@ -164,7 +161,6 @@ test('ADMIN SKELETON LOADING ANIMATION SYSTEM: Comprehensive Verification', asyn
     assert.match(jsContent, /renderApprovalsTable[\s\S]*?!approvalsLoaded && approvalsCache\.length === 0/, 'renderApprovalsTable must check !approvalsLoaded');
     assert.match(jsContent, /renderNotificationsManagementTable[\s\S]*?!notificationsLoaded && notificationsCache\.length === 0/, 'renderNotificationsManagementTable must check !notificationsLoaded');
     assert.match(jsContent, /renderAuditLogsTable[\s\S]*?!auditLogsLoaded && auditLogsCache\.length === 0/, 'renderAuditLogsTable must check !auditLogsLoaded');
-    assert.match(jsContent, /renderSOSView[\s\S]*?!sosLoaded && sosIncidentsCache\.length === 0/, 'renderSOSView must check !sosLoaded');
 
     // switchView router supports all views
     assert.match(jsContent, /if \(viewId === 'drivers-view'\)\s*\{\s*renderDriversTable\(\);/, 'switchView handles drivers-view');

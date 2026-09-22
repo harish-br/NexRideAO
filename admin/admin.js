@@ -1,5 +1,5 @@
 import '../js/instrument.js';
-import { auth, firestore } from '../js/firebase-config.js';
+import { auth, firestore, storage } from '../js/firebase-config.js';
 import { notificationClient } from '../js/notifications/notification-service.js';
 import { 
   signInWithEmailAndPassword, signOut, onAuthStateChanged, 
@@ -9,6 +9,7 @@ import {
   doc, getDoc, setDoc, collection, onSnapshot, query, where, 
   limit, orderBy, getDocs, deleteDoc, updateDoc, addDoc, serverTimestamp, arrayUnion 
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { ref, uploadBytesResumable, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
 
 // =============================================================================
 // GLOBAL STATE & CACHES
@@ -26,10 +27,18 @@ let tripsCache = [];
 let documentsCache = [];
 let auditLogsCache = [];
 let notificationsCache = [];
-let sosIncidentsCache = [];
-let sosUnsubscribe = null;
-let currentSOSTab = 'active';
-let currentSOSSearch = '';
+
+// Drivers & Documents Management State
+let driversLoaded = false;
+let documentsLoaded = false;
+let currentInspectingDriverId = null;
+let currentInspectingDocId = null;
+let currentDocCategoryFilter = 'all';
+let currentDriverSubtab = 'list';
+let driversPagination = { page: 1, pageSize: 10 };
+let documentsPagination = { page: 1, pageSize: 10 };
+let pendingRejectDocId = null;
+let documentNotificationsSentKeys = new Set();
 
 // Collection loaded flags for skeleton loading states
 let busesLoaded = false;
@@ -39,7 +48,6 @@ let reportsLoaded = false;
 let approvalsLoaded = false;
 let auditLogsLoaded = false;
 let notificationsLoaded = false;
-let sosLoaded = false;
 let isDashboardLoading = true;
 
 let currentInspectingBus = null;
@@ -48,10 +56,15 @@ let currentInspectingRouteId = null;
 let currentEditingStops = [];
 let currentEditingBusDocs = [];
 let hasLoadedFirestoreRoutes = false;
+let hasLoadedFirestoreDrivers = false;
+let hasLoadedFirestoreDocuments = false;
 let routesUnsubscribe = null;
 let reportsUnsubscribe = null;
 let usersUnsubscribe = null;
 let notificationsUnsubscribe = null;
+let driversUnsubscribe = null;
+let documentsUnsubscribe = null;
+let selectedUploadFile = null;
 
 // =============================================================================
 // DOM ELEMENTS
@@ -81,6 +94,27 @@ function showLogin() {
 function showDashboard() {
   if (loginPage) loginPage.classList.add('hidden');
   if (dashboardPage) dashboardPage.classList.remove('hidden');
+
+  // Instant hydration from cache so dashboard renders immediately
+  try {
+    const cachedBuses = localStorage.getItem('nexride_admin_buses_cache');
+    const cachedRoutes = localStorage.getItem('nexride_admin_routes_cache');
+    const cachedUsers = localStorage.getItem('nexride_admin_users_cache');
+    if (cachedBuses) busesCache = JSON.parse(cachedBuses);
+    if (cachedRoutes) routesCache = JSON.parse(cachedRoutes);
+    if (cachedUsers) usersCache = JSON.parse(cachedUsers);
+    if (busesCache.length > 0 || routesCache.length > 0) {
+      busesLoaded = true;
+      routesLoaded = true;
+      deriveDerivedState();
+      renderDashboardLoaded();
+      renderDashboardStats();
+      renderRecentActivity();
+    }
+  } catch (e) {
+    console.warn("Cache hydration error:", e);
+  }
+
   initRealtimeEngine();
 }
 
@@ -108,34 +142,44 @@ onAuthStateChanged(auth, async (user) => {
     let isAuthorized = false;
     let adminRole = 'Admin';
 
-    try {
-      // 1. Check software_admin document
-      const adminDocRef = doc(firestore, 'software_admin', user.uid);
-      const adminDocSnap = await getDoc(adminDocRef);
-      if (adminDocSnap && adminDocSnap.exists()) {
-        isAuthorized = true;
-        adminRole = adminDocSnap.data().role || 'Super Admin';
-      }
+    // 1. FAST-PATH: Check designated admin emails immediately to eliminate network delay
+    if (isAuthorizedAdminEmail(user.email)) {
+      isAuthorized = true;
+      adminRole = 'Super Admin';
+    }
 
-      // 2. Check custom claims
-      if (!isAuthorized && typeof user.getIdTokenResult === 'function') {
-        const tokenResult = await user.getIdTokenResult().catch(() => null);
-        if (tokenResult && tokenResult.claims && (tokenResult.claims.admin === true || tokenResult.claims.role === 'admin')) {
+    if (!isAuthorized) {
+      try {
+        // Check software_admin document with 2s timeout
+        const adminDocRef = doc(firestore, 'software_admin', user.uid);
+        const adminDocSnap = await Promise.race([
+          getDoc(adminDocRef),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+        ]).catch(() => null);
+
+        if (adminDocSnap && adminDocSnap.exists()) {
+          isAuthorized = true;
+          adminRole = adminDocSnap.data().role || 'Super Admin';
+        }
+
+        // Check custom claims with 1.5s timeout
+        if (!isAuthorized && typeof user.getIdTokenResult === 'function') {
+          const tokenResult = await Promise.race([
+            user.getIdTokenResult(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+          ]).catch(() => null);
+
+          if (tokenResult && tokenResult.claims && (tokenResult.claims.admin === true || tokenResult.claims.role === 'admin')) {
+            isAuthorized = true;
+            adminRole = 'Super Admin';
+          }
+        }
+      } catch (err) {
+        console.warn("Role check failed:", err.message);
+        if (isAuthorizedAdminEmail(user.email)) {
           isAuthorized = true;
           adminRole = 'Super Admin';
         }
-      }
-
-      // 3. Check designated admin emails
-      if (!isAuthorized && isAuthorizedAdminEmail(user.email)) {
-        isAuthorized = true;
-        adminRole = 'Super Admin';
-      }
-    } catch (err) {
-      console.warn("Role check failed:", err.message);
-      if (isAuthorizedAdminEmail(user.email)) {
-        isAuthorized = true;
-        adminRole = 'Super Admin';
       }
     }
 
@@ -177,6 +221,13 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
+// Quick fallback: if after 350ms auth hasn't resolved and page is blank, show login screen
+setTimeout(() => {
+  if (!currentAdminUser && dashboardPage?.classList.contains('hidden') && loginPage?.classList.contains('hidden')) {
+    loginPage.classList.remove('hidden');
+  }
+}, 350);
+
 if (loginForm) {
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -217,10 +268,7 @@ if (logoutBtn) {
         try { reportsUnsubscribe(); } catch (e) { }
         reportsUnsubscribe = null;
       }
-      if (sosUnsubscribe) {
-        try { sosUnsubscribe(); } catch (e) { }
-        sosUnsubscribe = null;
-      }
+
       await signOut(auth);
     } catch (err) {
       console.error("Logout Error:", err);
@@ -251,13 +299,12 @@ function switchView(viewId) {
   if (viewId === 'dashboard-view') {
     renderDashboardStats();
     renderRecentActivity();
+    renderDashboardDocumentAlerts();
   }
   if (viewId === 'issues-view') {
     renderIssuesTable();
   }
-  if (viewId === 'sos-view') {
-    renderSOSView();
-  }
+
   if (viewId === 'routes-view') {
     renderRoutesTable();
   }
@@ -267,6 +314,7 @@ function switchView(viewId) {
   }
   if (viewId === 'drivers-view') {
     renderDriversTable();
+    renderDriverLicenceComplianceSection();
   }
   if (viewId === 'students-view') {
     renderStudentsTable();
@@ -279,6 +327,8 @@ function switchView(viewId) {
   }
   if (viewId === 'documents-view') {
     renderDocumentsTable();
+    renderExpiringDocumentsSection();
+    renderExpiredDocumentsSection();
   }
   if (viewId === 'approvals-view') {
     renderApprovalsTable();
@@ -293,7 +343,8 @@ function switchView(viewId) {
     loadSystemSettings();
   }
 
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  window.scrollTo(0, 0);
+  document.documentElement.scrollTop = 0;
 }
 
 navLinks.forEach(link => {
@@ -306,6 +357,78 @@ navLinks.forEach(link => {
     }
   });
 });
+
+// Dropdown item clicks (e.g. Drivers List, Licence Expiry & Compliance, Driver Documents)
+document.querySelectorAll('.nav-dropdown-menu .dropdown-item').forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault();
+    const targetView = item.getAttribute('data-view');
+    const driversTab = item.getAttribute('data-drivers-tab');
+    const href = item.getAttribute('href');
+
+    if (targetView) {
+      switchView(targetView);
+    }
+    if (driversTab && typeof switchDriverSubtab === 'function') {
+      switchDriverSubtab(driversTab);
+    }
+    if (href && href.includes('?')) {
+      const queryString = href.split('?')[1];
+      const params = new URLSearchParams(queryString);
+      const ownerType = params.get('ownerType');
+      if (ownerType && typeof switchDocumentCategoryTab === 'function') {
+        switchDocumentCategoryTab(ownerType);
+      }
+    }
+    item.closest('.nav-dropdown-menu')?.classList.add('hidden');
+  });
+});
+
+// Dropdown hover & toggle support
+const navDriversItem = document.getElementById('nav-drivers-item');
+const navDriversDropdown = document.getElementById('nav-drivers-dropdown');
+if (navDriversItem && navDriversDropdown) {
+  navDriversItem.addEventListener('mouseenter', () => navDriversDropdown.classList.remove('hidden'));
+  navDriversItem.closest('.nav-dropdown')?.addEventListener('mouseleave', () => navDriversDropdown.classList.add('hidden'));
+}
+
+// URL Hash Router for deep linking (Requirement 34)
+function handleHashRoute() {
+  const hash = window.location.hash || '';
+  if (!hash) return;
+  const [baseRoute, queryString] = hash.split('?');
+  const params = new URLSearchParams(queryString || '');
+
+  if (baseRoute === '#drivers') {
+    switchView('drivers-view');
+    const driverId = params.get('driverId');
+    if (driverId) {
+      setTimeout(() => openDriverDetailsModal(driverId), 200);
+    }
+    const tab = params.get('tab');
+    if (tab && typeof switchDriverSubtab === 'function') {
+      switchDriverSubtab(tab);
+    }
+  } else if (baseRoute === '#documents') {
+    switchView('documents-view');
+    const ownerType = params.get('ownerType');
+    if (ownerType && typeof switchDocumentCategoryTab === 'function') {
+      switchDocumentCategoryTab(ownerType);
+    }
+    const statusParam = params.get('status');
+    if (statusParam) {
+      const statusFilterEl = document.getElementById('doc-status-filter');
+      if (statusFilterEl) {
+        if (statusParam === 'expiring') statusFilterEl.value = 'Expiring Soon';
+        else if (statusParam === 'expired') statusFilterEl.value = 'Expired';
+        else if (statusParam === 'valid') statusFilterEl.value = 'Valid';
+        renderDocumentsTable();
+      }
+    }
+  }
+}
+
+window.addEventListener('hashchange', handleHashRoute);
 
 const moreMenuBtn = document.getElementById('more-menu-btn');
 const moreMenuDropdown = document.getElementById('more-menu-dropdown');
@@ -976,7 +1099,6 @@ function renderNotificationsManagementTable() {
         <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-left: 32px;">
           <span style="font-size: 10.5px; padding: 2px 7px; border-radius: 9999px; font-weight: 600; ${typeBadgeClass === 'badge-red' ? 'background: #FEE2E2; color: #B91C1C;' : (typeBadgeClass === 'badge-orange' ? 'background: #FFEDD5; color: #C2410C;' : (typeBadgeClass === 'badge-green' ? 'background: #DCFCE7; color: #15803D;' : (typeBadgeClass === 'badge-purple' ? 'background: #FAF5FF; color: #9333EA;' : 'background: #EFF6FF; color: #1D4ED8;')))}">${typeLabel}</span>
           <span style="font-size: 10px; font-family: monospace; color: #6B7280; background: #F3F4F6; padding: 1px 5px; border-radius: 4px;">${codeDisplay}</span>
-          ${isUrgent ? '<span style="font-size: 10px; padding: 1px 5px; border-radius: 9999px; font-weight: 700; background: #DC2626; color: #FFFFFF;">URGENT</span>' : ''}
           ${isTest ? '<span style="font-size: 10px; padding: 1px 5px; border-radius: 9999px; font-weight: 700; background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D;">TEST</span>' : ''}
         </div>
       </td>
@@ -1139,7 +1261,6 @@ function openInspectNotificationModal(notifId) {
         ${escapeHtml(categoryName)}
       </span>
       <span style="font-size: 11px; font-family: monospace; padding: 2px 6px; border-radius: 4px; background: #E5E7EB; color: #1F2937;">ID: ${escapeHtml(codeId)}</span>
-      ${n.priority === 'Urgent' ? '<span style="font-size: 11.5px; padding: 3px 8px; border-radius: 9999px; font-weight: 700; background: #FEE2E2; color: #B91C1C;">URGENT</span>' : ''}
       ${isTest ? '<span style="font-size: 11.5px; padding: 3px 8px; border-radius: 9999px; font-weight: 700; background: #FEF3C7; color: #92400E; border: 1px solid #FCD34D;">TEST MESSAGE</span>' : ''}
     </div>
     <h3 style="font-size: 18px; font-weight: 700; color: #111827; margin-bottom: 10px; line-height: 1.35;">${escapeHtml(n.title || 'Untitled Notification')}</h3>
@@ -1856,16 +1977,17 @@ function initRealtimeEngine() {
   listenToBuses();
   listenToUsers();
   listenToRoutes();
+  listenToDrivers();
+  listenToDocuments();
   listenToReports();
-  listenToSOSIncidents();
   listenToApprovals();
   listenToAuditLogs();
   listenToNotifications();
   setupGlobalSearch();
   setupModalListeners();
+  setupDriversAndDocumentsListeners();
   setupFilterListeners();
   setupNotificationManagement();
-  setupSOSControls();
 
   // Export Log button → PPTX
   document.getElementById('export-audit-btn')?.addEventListener('click', () => exportAuditLogPPTX());
@@ -1876,6 +1998,17 @@ function initRealtimeEngine() {
 
   // Legal page tabs
   setupLegalTabs();
+
+  // Safety timeout: ensure dashboard exits skeleton loading quickly (1000ms max)
+  setTimeout(() => {
+    if (isDashboardLoading) {
+      busesLoaded = true;
+      routesLoaded = true;
+      renderDashboardLoaded();
+      renderDashboardStats();
+      renderRecentActivity();
+    }
+  }, 1000);
 }
 
 // =============================================================================
@@ -1945,22 +2078,28 @@ function initSettingsPage() {
 async function loadSystemSettings() {
   let data = { ...DEFAULT_SYSTEM_SETTINGS };
 
-  // 1. Try reading from localStorage cache first
+  // 1. Try reading from localStorage cache first and populate immediately
   try {
     const cached = localStorage.getItem('nexride_system_settings');
     if (cached) {
       const parsed = JSON.parse(cached);
       data = { ...data, ...parsed };
+      populateSettingsForm(data);
+      updateAdminSettingsIdentity();
     }
   } catch (e) {
     console.warn('LocalStorage settings read error:', e);
   }
 
-  // 2. Try fetching latest from Firestore systemConfig/global
+  // 2. Try fetching latest from Firestore systemConfig/global with timeout
   try {
     const cfgRef = doc(firestore, 'systemConfig', 'global');
-    const snap = await getDoc(cfgRef);
-    if (snap.exists()) {
+    const snap = await Promise.race([
+      getDoc(cfgRef),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
+    ]).catch(() => null);
+
+    if (snap && snap.exists()) {
       data = { ...data, ...snap.data() };
       try {
         localStorage.setItem('nexride_system_settings', JSON.stringify(data));
@@ -2658,6 +2797,9 @@ function listenToUsers() {
     // Re-derive state and refresh dependent views
     usersLoaded = true;
     deriveDerivedState();
+    try {
+      localStorage.setItem('nexride_admin_users_cache', JSON.stringify(usersCache));
+    } catch (e) {}
     renderStudentsTable();
     renderBusesTable();
     renderDashboardStats();
@@ -2706,6 +2848,9 @@ function listenToBuses() {
     // Derive Drivers, Routes, Documents, Timings from normalized/fleet data
     busesLoaded = true;
     deriveDerivedState();
+    try {
+      localStorage.setItem('nexride_admin_buses_cache', JSON.stringify(busesCache));
+    } catch (e) {}
     
     // Refresh all dependent views
     renderDashboardStats();
@@ -2745,6 +2890,9 @@ function listenToRoutes() {
     // Sort alphabetically by route name
     loadedRoutes.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     routesCache = loadedRoutes;
+    try {
+      localStorage.setItem('nexride_admin_routes_cache', JSON.stringify(routesCache));
+    } catch (e) {}
 
     renderRoutesTable();
     renderDashboardStats();
@@ -2831,398 +2979,7 @@ function listenToReports() {
   }
 }
 
-// =============================================================================
-// SOS EMERGENCY RESPONSE CENTER CONTROLLER
-// =============================================================================
 
-function listenToSOSIncidents() {
-  if (sosUnsubscribe) {
-    try { sosUnsubscribe(); } catch (e) { }
-    sosUnsubscribe = null;
-  }
-
-  const sosRef = collection(firestore, 'sosIncidents');
-
-  sosUnsubscribe = onSnapshot(sosRef, (snapshot) => {
-    sosIncidentsCache = [];
-    snapshot.forEach(d => {
-      sosIncidentsCache.push({ id: d.id, ...d.data() });
-    });
-
-    // Sort newest first
-    sosIncidentsCache.sort((a, b) => {
-      const getTime = (val) => {
-        if (!val) return 0;
-        if (typeof val.toMillis === 'function') return val.toMillis();
-        if (typeof val.toDate === 'function') return val.toDate().getTime();
-        if (typeof val.seconds === 'number') return val.seconds * 1000;
-        if (val instanceof Date) return val.getTime();
-        const t = new Date(val).getTime();
-        return isNaN(t) ? 0 : t;
-      };
-      return getTime(b.activatedAt || b.createdAt) - getTime(a.activatedAt || a.createdAt);
-    });
-
-    sosLoaded = true;
-    updateSOSMetricsAndBadge();
-    renderSOSView();
-  }, (err) => {
-    console.warn("[SOS] Admin listener error:", err);
-  });
-}
-
-function updateSOSMetricsAndBadge() {
-  let activeCount = 0;
-  let ackCount = 0;
-  let resolvedCount = 0;
-
-  sosIncidentsCache.forEach(inc => {
-    const s = (inc.status || 'ACTIVE').toUpperCase();
-    if (s === 'ACTIVE') activeCount++;
-    else if (s === 'ACKNOWLEDGED') ackCount++;
-    else if (s === 'RESOLVED') resolvedCount++;
-  });
-
-  const totalOpen = activeCount + ackCount;
-
-  // Navigation badge
-  const sosBadge = document.getElementById('admin-sos-nav-badge');
-  if (sosBadge) {
-    if (totalOpen > 0) {
-      sosBadge.textContent = totalOpen;
-      sosBadge.style.display = 'inline-flex';
-    } else {
-      sosBadge.style.display = 'none';
-    }
-  }
-
-  // Dashboard / section metrics
-  const statActive = document.getElementById('stat-sos-active');
-  const statAck = document.getElementById('stat-sos-acknowledged');
-  const statResolved = document.getElementById('stat-sos-resolved');
-  const badgeTop = document.getElementById('sos-active-badge-top');
-  const mapActiveCount = document.getElementById('sos-map-active-count');
-
-  if (statActive) statActive.textContent = activeCount;
-  if (statAck) statAck.textContent = ackCount;
-  if (statResolved) statResolved.textContent = resolvedCount;
-  if (badgeTop) {
-    badgeTop.textContent = `${activeCount} ACTIVE`;
-    badgeTop.className = `status-badge ${activeCount > 0 ? 'badge-red' : 'badge-green'}`;
-  }
-  if (mapActiveCount) mapActiveCount.textContent = `${totalOpen} Beacons`;
-  const incidentsCounterBadge = document.getElementById('sos-incidents-counter-badge');
-  if (incidentsCounterBadge) incidentsCounterBadge.textContent = `${sosIncidentsCache.length} Recorded`;
-}
-
-function setupSOSControls() {
-  const refreshBtn = document.getElementById('sos-refresh-btn');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', () => {
-      renderSOSView();
-    });
-  }
-
-  const activeBtn = document.getElementById('sos-filter-active-btn');
-  const allBtn = document.getElementById('sos-filter-all-btn');
-
-  if (activeBtn) {
-    activeBtn.addEventListener('click', () => {
-      currentSOSTab = 'active';
-      activeBtn.classList.add('active');
-      if (allBtn) allBtn.classList.remove('active');
-      renderSOSView();
-    });
-  }
-
-  if (allBtn) {
-    allBtn.addEventListener('click', () => {
-      currentSOSTab = 'all';
-      allBtn.classList.add('active');
-      if (activeBtn) activeBtn.classList.remove('active');
-      renderSOSView();
-    });
-  }
-
-  const searchInput = document.getElementById('sos-incident-search');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      currentSOSSearch = e.target.value.trim().toLowerCase();
-      renderSOSView();
-    });
-  }
-}
-
-function renderSOSView() {
-  const container = document.getElementById('sos-incident-items-container');
-  const radarLayer = document.getElementById('sos-radar-markers-layer');
-  const emptyRadarMsg = document.getElementById('sos-empty-radar-msg');
-
-  if (!container) return;
-
-  if (!sosLoaded && sosIncidentsCache.length === 0) {
-    renderListSkeleton(container, 2);
-    return;
-  }
-
-  // 1. Filter incidents
-  let filtered = sosIncidentsCache;
-  if (currentSOSTab === 'active') {
-    filtered = filtered.filter(inc => {
-      const s = (inc.status || 'ACTIVE').toUpperCase();
-      return s === 'ACTIVE' || s === 'ACKNOWLEDGED';
-    });
-  }
-
-  if (currentSOSSearch) {
-    filtered = filtered.filter(inc => {
-      const name = (inc.userName || '').toLowerCase();
-      const phone = (inc.phoneNumber || '').toLowerCase();
-      const id = (inc.incidentId || inc.id || '').toLowerCase();
-      const addr = (inc.location?.address || '').toLowerCase();
-      return name.includes(currentSOSSearch) || phone.includes(currentSOSSearch) || id.includes(currentSOSSearch) || addr.includes(currentSOSSearch);
-    });
-  }
-
-  // 2. Render Incident Cards
-  if (filtered.length === 0) {
-    container.innerHTML = `
-      <div class="sos-empty-state">
-        <div class="sos-empty-icon-circle">
-          <span class="folder-svg-icon icon-shield-tick" style="width: 26px; height: 26px; color: #059669;"></span>
-        </div>
-        <div class="sos-empty-title">Campus Perimeter Secure</div>
-        <div class="sos-empty-desc">No ${currentSOSTab === 'active' ? 'active' : ''} emergency SOS distress signals detected. All student safety channels are currently clear.</div>
-      </div>
-    `;
-  } else {
-    container.innerHTML = '';
-    filtered.forEach(inc => {
-      const card = createSOSIncidentCard(inc);
-      container.appendChild(card);
-    });
-  }
-
-  // 3. Render Radar Canvas Markers (if radar layer is active/visible)
-  if (radarLayer && radarLayer.offsetParent !== null) {
-    radarLayer.innerHTML = '';
-    const activeIncidents = sosIncidentsCache.filter(inc => {
-      const s = (inc.status || 'ACTIVE').toUpperCase();
-      return s === 'ACTIVE' || s === 'ACKNOWLEDGED';
-    });
-
-    if (emptyRadarMsg) {
-      emptyRadarMsg.style.display = activeIncidents.length === 0 ? 'block' : 'none';
-    }
-
-    activeIncidents.forEach((inc, index) => {
-      const marker = document.createElement('div');
-      marker.className = 'radar-sos-marker';
-      marker.id = `radar-marker-${inc.incidentId || inc.id}`;
-
-      // Distribute pseudo-realistically or based on coordinates on canvas
-      const top = 20 + ((index * 29) % 60);
-      const left = 15 + ((index * 37) % 70);
-      marker.style.top = `${top}%`;
-      marker.style.left = `${left}%`;
-
-      const status = (inc.status || 'ACTIVE').toUpperCase();
-      const beaconColor = status === 'ACKNOWLEDGED' ? '#F59E0B' : '#EF4444';
-
-      marker.innerHTML = `
-        <div class="radar-sos-beacon" style="background: ${beaconColor}; box-shadow: 0 0 16px ${beaconColor};">
-          🚨
-        </div>
-        <div class="radar-sos-label">
-          <span>${escapeHtml(inc.userName || 'Student')}</span>
-          <span style="font-size: 9.5px; opacity: 0.8; margin-left: 4px;">${escapeHtml(inc.incidentId || inc.id)}</span>
-        </div>
-      `;
-
-      marker.onclick = () => {
-        const targetCard = document.getElementById(`sos-card-${inc.incidentId || inc.id}`);
-        if (targetCard) {
-          targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          targetCard.style.boxShadow = '0 0 0 3px #EF4444';
-          setTimeout(() => {
-            targetCard.style.boxShadow = '';
-          }, 2000);
-        }
-      };
-
-      radarLayer.appendChild(marker);
-    });
-  }
-}
-
-function createSOSIncidentCard(inc) {
-  const card = document.createElement('div');
-  const status = (inc.status || 'ACTIVE').toUpperCase();
-  card.className = `sos-incident-card ${status.toLowerCase()}`;
-  card.id = `sos-card-${inc.incidentId || inc.id}`;
-
-  const lat = inc.location?.latitude || 0;
-  const lng = inc.location?.longitude || 0;
-  const accuracy = inc.location?.accuracy || 0;
-  const address = inc.location?.address || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-  const platform = inc.platform || 'Web';
-  const network = inc.networkStatus || 'ONLINE';
-
-  // Format activation timestamp
-  let timeStr = 'Just now';
-  if (inc.activatedAt || inc.createdAt) {
-    const rawTime = inc.activatedAt || inc.createdAt;
-    const dateObj = rawTime.toDate ? rawTime.toDate() : new Date(rawTime);
-    if (!isNaN(dateObj.getTime())) {
-      const diffMins = Math.round((Date.now() - dateObj.getTime()) / 60000);
-      timeStr = diffMins <= 1 ? 'Just now' : `${diffMins} mins ago`;
-    }
-  }
-
-  let statusBadgeClass = 'badge-red';
-  let statusText = 'ACTIVE';
-  if (status === 'ACKNOWLEDGED') {
-    statusBadgeClass = 'badge-orange';
-    statusText = 'ACKNOWLEDGED';
-  } else if (status === 'RESOLVED') {
-    statusBadgeClass = 'badge-green';
-    statusText = 'RESOLVED';
-  }
-
-  card.innerHTML = `
-    <div class="sos-card-header">
-      <div>
-        <div class="sos-card-id">${escapeHtml(inc.incidentId || inc.id)}</div>
-        <div class="sos-card-user" style="margin-top: 4px;">
-          <span>${escapeHtml(inc.userName || 'Student')}</span>
-          <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">(${escapeHtml(platform)})</span>
-        </div>
-      </div>
-      <div style="text-align: right;">
-        <span class="status-badge ${statusBadgeClass}">${statusText}</span>
-        <div style="font-size: 11px; color: var(--text-secondary); margin-top: 3px;">${timeStr}</div>
-      </div>
-    </div>
-
-    <div style="display: flex; gap: 12px; font-size: 12px; align-items: center;">
-      <a href="tel:${escapeHtml(inc.phoneNumber || '')}" class="sos-card-phone">
-        <span class="folder-svg-icon icon-sms" style="width: 13px; height: 13px;"></span>
-        <span>${escapeHtml(inc.phoneNumber || 'No phone')}</span>
-      </a>
-      <span style="font-size: 11px; color: ${network === 'ONLINE' ? '#10B981' : '#EF4444'}; font-weight: 600;">• ${escapeHtml(network)}</span>
-      <span style="font-size: 11px; color: var(--text-secondary);">±${accuracy}m acc</span>
-    </div>
-
-    <div class="sos-card-location">
-      <strong>Location:</strong> ${escapeHtml(address)}
-      <div style="font-family: monospace; font-size: 11px; margin-top: 2px; opacity: 0.85;">Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}</div>
-    </div>
-
-    ${inc.acknowledgedBy ? `
-      <div style="font-size: 11px; color: #D97706; background: #FEF3C7; padding: 4px 8px; border-radius: 4px; font-weight: 600;">
-        ⚠️ Acknowledged by ${escapeHtml(inc.acknowledgedBy)}
-      </div>
-    ` : ''}
-
-    ${inc.resolvedBy ? `
-      <div style="font-size: 11px; color: #059669; background: #D1FAE5; padding: 4px 8px; border-radius: 4px; font-weight: 600;">
-        ✅ Resolved by ${escapeHtml(inc.resolvedBy)}
-      </div>
-    ` : ''}
-
-    <div class="sos-card-actions">
-      ${status === 'ACTIVE' ? `
-        <button class="btn-sos-ack" onclick="window.adminAcknowledgeSOS('${inc.incidentId || inc.id}')">
-          <span class="folder-svg-icon icon-routing" style="width: 13px; height: 13px;"></span>
-          <span>Acknowledge</span>
-        </button>
-      ` : ''}
-
-      ${(status === 'ACTIVE' || status === 'ACKNOWLEDGED') ? `
-        <button class="btn-sos-resolve" onclick="window.adminResolveSOS('${inc.incidentId || inc.id}')">
-          <span class="folder-svg-icon icon-shield-tick" style="width: 13px; height: 13px;"></span>
-          <span>Resolve SOS</span>
-        </button>
-      ` : ''}
-
-      <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener" class="btn-sos-map">
-        <span class="folder-svg-icon icon-location" style="width: 13px; height: 13px;"></span>
-        <span>View on Map</span>
-      </a>
-    </div>
-  `;
-
-  return card;
-}
-
-async function adminAcknowledgeSOS(incidentId) {
-  if (!incidentId) return;
-  const adminEmail = auth.currentUser?.email || currentAdminUser?.email || 'Transport Authority';
-  try {
-    const docRef = doc(firestore, 'sosIncidents', incidentId);
-    await updateDoc(docRef, {
-      status: 'ACKNOWLEDGED',
-      acknowledgedAt: serverTimestamp(),
-      acknowledgedBy: adminEmail,
-      updatedAt: serverTimestamp()
-    });
-
-    if (typeof logAuditEvent === 'function') {
-      await logAuditEvent('SOS_ACKNOWLEDGED', 'sosIncidents', incidentId, {
-        acknowledgedBy: adminEmail
-      });
-    }
-  } catch (err) {
-    console.error("[SOS] Failed to acknowledge SOS incident:", err);
-    alert("Failed to acknowledge SOS incident: " + err.message);
-  }
-}
-
-async function adminResolveSOS(incidentId) {
-  if (!incidentId) return;
-  const adminEmail = auth.currentUser?.email || currentAdminUser?.email || 'Transport Authority';
-  const confirmResolve = confirm(`Are you sure you want to resolve SOS incident ${incidentId}?`);
-  if (!confirmResolve) return;
-
-  try {
-    const docRef = doc(firestore, 'sosIncidents', incidentId);
-    await updateDoc(docRef, {
-      status: 'RESOLVED',
-      resolvedAt: serverTimestamp(),
-      resolvedBy: adminEmail,
-      updatedAt: serverTimestamp()
-    });
-
-    if (typeof logAuditEvent === 'function') {
-      await logAuditEvent('SOS_RESOLVED', 'sosIncidents', incidentId, {
-        resolvedBy: adminEmail
-      });
-    }
-  } catch (err) {
-    console.error("[SOS] Failed to resolve SOS incident:", err);
-    alert("Failed to resolve SOS incident: " + err.message);
-  }
-}
-
-// Window exposures
-window.adminAcknowledgeSOS = adminAcknowledgeSOS;
-window.adminResolveSOS = adminResolveSOS;
-window.renderSOSView = renderSOSView;
-window.setSOSTabFilter = (tab) => {
-  currentSOSTab = tab;
-  const activeBtn = document.getElementById('sos-filter-active-btn');
-  const allBtn = document.getElementById('sos-filter-all-btn');
-  if (activeBtn && allBtn) {
-    if (tab === 'active') {
-      activeBtn.classList.add('active');
-      allBtn.classList.remove('active');
-    } else {
-      allBtn.classList.add('active');
-      activeBtn.classList.remove('active');
-    }
-  }
-  renderSOSView();
-};
 
 // 3. Listen to Pending Approvals
 function listenToApprovals() {
@@ -3517,6 +3274,116 @@ function exportAuditLogPPTX() {
 }
 
 // =============================================================================
+// DRIVER VEHICLE ASSIGNMENT RESOLUTION ENGINE
+// =============================================================================
+function getDriverAssignedBusInfo(driver) {
+  if (!driver) {
+    return { hasBus: false, busNumber: '', displayBus: 'Unassigned', busId: '', routeName: '', status: '' };
+  }
+
+  // 1. Check direct properties on driver
+  let rawBus = String(driver.assignedBus || driver.assignedBusNumber || driver.assignedVehicle || driver.busNumber || driver.bus || '').trim();
+  let busId = String(driver.assignedBusId || '').trim();
+  let routeName = String(driver.assignedRoute || '').trim();
+
+  if (rawBus === 'N/A' || rawBus === '--' || rawBus.toLowerCase() === 'unassigned' || rawBus === 'null' || rawBus === 'undefined') {
+    rawBus = '';
+  }
+
+  // 2. Cross-reference with fleet buses (busesCache)
+  let matchedBus = null;
+
+  // 2a. Match by exact busId if provided
+  if (busId) {
+    matchedBus = busesCache.find(b => b.id === busId || String(b.busNumber).trim() === busId);
+  }
+
+  // 2b. Match by rawBus (bus number or ID)
+  if (!matchedBus && rawBus) {
+    const cleanNum = rawBus.replace(/^bus\s*/i, '').trim();
+    matchedBus = busesCache.find(b => 
+      String(b.busNumber).trim() === cleanNum || 
+      b.id === rawBus ||
+      String(b.id).trim() === cleanNum
+    );
+  }
+
+  // 2c. Match by driver ID or staff ID stored on the bus
+  const dId = String(driver.id || driver.driverId || '').trim();
+  if (!matchedBus && dId) {
+    matchedBus = busesCache.find(b => 
+      (b.assignedDriverId && String(b.assignedDriverId).trim() === dId) || 
+      (b.driverId && String(b.driverId).trim() === dId)
+    );
+  }
+
+  // 2d. Match by driver Name (case-insensitive, trimmed) on the bus
+  const dName = String(driver.name || '').trim().toLowerCase();
+  if (!matchedBus && dName && dName !== '--' && dName !== 'driver') {
+    matchedBus = busesCache.find(b => {
+      const bDriver = String(b.driverName || b.assignedDriverName || '').trim().toLowerCase();
+      return bDriver === dName;
+    });
+  }
+
+  // 2e. Match via routesCache (driver assigned to route with an assigned bus)
+  if (!matchedBus && dName && dName !== '--' && dName !== 'driver') {
+    const matchedRoute = routesCache.find(r => {
+      const rDriver = String(r.assignedDriver || r.driverName || '').trim().toLowerCase();
+      return rDriver === dName;
+    });
+    if (matchedRoute) {
+      if (!routeName) routeName = matchedRoute.name || '';
+      const rBus = matchedRoute.assignedBus || (Array.isArray(matchedRoute.assignedBuses) ? matchedRoute.assignedBuses[0] : null);
+      if (rBus) {
+        const cleanRBus = String(rBus).replace(/^bus\s*/i, '').trim();
+        matchedBus = busesCache.find(b => String(b.busNumber).trim() === cleanRBus || b.id === rBus);
+        if (!matchedBus && !rawBus) rawBus = cleanRBus;
+      }
+    }
+  }
+
+  // If bus is found in fleet
+  if (matchedBus) {
+    const busNum = String(matchedBus.busNumber || '').trim();
+    const finalRoute = matchedBus.routeName || matchedBus.route || routeName || '';
+    const cleanDisplay = busNum ? (busNum.toLowerCase().startsWith('bus') ? busNum : `Bus ${busNum}`) : 'Unassigned';
+    return {
+      hasBus: Boolean(busNum),
+      busNumber: busNum,
+      displayBus: cleanDisplay,
+      busId: matchedBus.id,
+      routeName: finalRoute,
+      status: matchedBus.status || 'Active'
+    };
+  }
+
+  // If raw bus number is present without fleet record
+  if (rawBus) {
+    const cleanNum = rawBus.replace(/^bus\s*/i, '').trim();
+    const cleanDisplay = cleanNum ? (cleanNum.toLowerCase().startsWith('bus') ? cleanNum : `Bus ${cleanNum}`) : 'Unassigned';
+    return {
+      hasBus: Boolean(cleanNum),
+      busNumber: cleanNum,
+      displayBus: cleanDisplay,
+      busId: busId || '',
+      routeName: routeName || '',
+      status: 'Active'
+    };
+  }
+
+  return {
+    hasBus: false,
+    busNumber: '',
+    displayBus: 'Unassigned',
+    busId: '',
+    routeName: routeName || '',
+    status: ''
+  };
+}
+window.getDriverAssignedBusInfo = getDriverAssignedBusInfo;
+
+// =============================================================================
 // DERIVED STATE GENERATOR
 // =============================================================================
 function deriveDerivedState() {
@@ -3533,6 +3400,7 @@ function deriveDerivedState() {
         name: bus.driverName,
         phone: bus.driverContact || bus.phone || '--',
         assignedBus: bus.busNumber || 'N/A',
+        assignedBusNumber: bus.busNumber || 'N/A',
         assignedRoute: bus.routeName || bus.route || 'Campus Route',
         status: bus.status === 'Maintenance' ? 'Inactive' : (bus.status || 'Active'),
         licenseStatus: bus.driverLicense ? 'Valid' : 'Pending Verification',
@@ -3589,11 +3457,73 @@ function deriveDerivedState() {
     }
   });
 
-  driversCache = Array.from(driverMap.values());
+  // Merge bus-derived fallback drivers and synchronize assignments
+  const busDerivedDrivers = Array.from(driverMap.values());
+  if (!hasLoadedFirestoreDrivers) {
+    driversCache = busDerivedDrivers;
+  } else {
+    busDerivedDrivers.forEach(bd => {
+      const existing = driversCache.find(d => 
+        (d.name && bd.name && d.name.trim().toLowerCase() === bd.name.trim().toLowerCase()) || 
+        d.id === bd.id
+      );
+      if (!existing) {
+        driversCache.push(bd);
+      } else {
+        // Synchronize vehicle assignment if existing driver is missing it
+        const curInfo = getDriverAssignedBusInfo(existing);
+        if (!curInfo.hasBus && bd.assignedBus && bd.assignedBus !== 'N/A' && bd.assignedBus !== 'Unassigned') {
+          existing.assignedBus = bd.assignedBus;
+          existing.assignedBusNumber = bd.assignedBus;
+          if (bd.assignedRoute && (!existing.assignedRoute || existing.assignedRoute === 'Campus Route')) {
+            existing.assignedRoute = bd.assignedRoute;
+          }
+        }
+      }
+    });
+  }
+
+  // Enrich all drivers in cache with resolved vehicle and route info
+  driversCache.forEach(d => {
+    const busInfo = getDriverAssignedBusInfo(d);
+    if (busInfo.hasBus) {
+      d.assignedBus = busInfo.busNumber;
+      d.assignedBusNumber = busInfo.busNumber;
+      d.assignedVehicle = busInfo.displayBus;
+      if (busInfo.busId && !d.assignedBusId) d.assignedBusId = busInfo.busId;
+      if (busInfo.routeName && (!d.assignedRoute || d.assignedRoute === 'Campus Route')) {
+        d.assignedRoute = busInfo.routeName;
+      }
+    }
+  });
+
   if (!hasLoadedFirestoreRoutes) {
     routesCache = Array.from(routeMap.values());
   }
-  documentsCache = docList;
+
+  // Merge bus-derived compliance documents
+  if (!hasLoadedFirestoreDocuments) {
+    documentsCache = docList;
+  } else {
+    docList.forEach(bd => {
+      if (!documentsCache.some(d => d.documentNumber === bd.number && d.ownerId === bd.entity)) {
+        documentsCache.push({
+          id: `DOC-BUS-${bd.number}`,
+          ownerType: 'vehicle',
+          ownerId: bd.entity,
+          ownerName: bd.entity,
+          documentType: bd.type,
+          documentNumber: bd.number,
+          issueDate: bd.issueDate,
+          expiryDate: bd.expiryDate,
+          documentUrl: bd.fileUrl,
+          verificationStatus: 'verified',
+          uploadedAt: new Date(),
+          uploadedBy: 'system'
+        });
+      }
+    });
+  }
   
   // Real assigned students strictly derived from usersCache
   studentsCache = usersCache.filter(u => {
@@ -3837,38 +3767,34 @@ function renderRecentActivity() {
 
   // 5. Routes & Fleet Corridors
   if (Array.isArray(routesCache)) {
-    routesCache.forEach(route => {
-      if (route.updatedAt || route.createdAt) {
-        const timeMs = getRecordTimestamp(route);
-        const stopsCount = Array.isArray(route.stops) ? route.stops.length : (route.totalStops || 0);
-        activities.push({
-          id: `route_${route.id}`,
-          title: `ROUTE: ${route.name || 'Transit Corridor'}`,
-          desc: `${route.startPoint || 'Origin'} → ${route.destination || 'Destination'} (${stopsCount} stops) • ${route.status || 'Active'}`,
-          meta: `${formatDate(route.updatedAt || route.createdAt)} • Route Corridor`,
-          markerClass: 'marker-blue',
-          timestamp: timeMs,
-          targetView: 'routes-view'
-        });
-      }
+    routesCache.forEach((route, idx) => {
+      const timeMs = getRecordTimestamp(route) || (Date.now() - (idx + 1) * 1800000);
+      const stopsCount = Array.isArray(route.stops) ? route.stops.length : (route.totalStops || 0);
+      activities.push({
+        id: `route_${route.id || idx}`,
+        title: `ROUTE: ${route.name || 'Transit Corridor'}`,
+        desc: `${route.startPoint || 'Origin'} → ${route.destination || 'Destination'} (${stopsCount} stops) • ${route.status || 'Active'}`,
+        meta: `${formatDate(route.updatedAt || route.createdAt)} • Route Corridor`,
+        markerClass: 'marker-blue',
+        timestamp: timeMs,
+        targetView: 'routes-view'
+      });
     });
   }
 
   // 6. Fleet Buses
   if (Array.isArray(busesCache)) {
-    busesCache.forEach(bus => {
-      if (bus.updatedAt || bus.createdAt) {
-        const timeMs = getRecordTimestamp(bus);
-        activities.push({
-          id: `bus_${bus.id}`,
-          title: `BUS ${bus.busNumber || 'N/A'}: ${bus.routeName || bus.route || 'Fleet Service'}`,
-          desc: `Driver: ${bus.driverName || 'Not Assigned'} • Status: ${bus.status || 'Active'}`,
-          meta: `${formatDate(bus.updatedAt || bus.createdAt)} • Fleet Vehicle`,
-          markerClass: 'marker-blue',
-          timestamp: timeMs,
-          targetView: 'buses-view'
-        });
-      }
+    busesCache.forEach((bus, idx) => {
+      const timeMs = getRecordTimestamp(bus) || (Date.now() - (idx + 1) * 3600000);
+      activities.push({
+        id: `bus_${bus.id || idx}`,
+        title: `BUS ${bus.busNumber || 'N/A'}: ${bus.routeName || bus.route || 'Fleet Service'}`,
+        desc: `Driver: ${bus.driverName || 'Not Assigned'} • Status: ${bus.status || 'Active'}`,
+        meta: `${formatDate(bus.updatedAt || bus.createdAt)} • Fleet Vehicle`,
+        markerClass: 'marker-blue',
+        timestamp: timeMs,
+        targetView: 'buses-view'
+      });
     });
   }
 
@@ -3886,8 +3812,15 @@ function renderRecentActivity() {
   // Sort descending by timestamp (newest first)
   uniqueActivities.sort((a, b) => b.timestamp - a.timestamp);
 
+  const recentItems = uniqueActivities.slice(0, 8);
+  if (recentItems.length > 0) {
+    try {
+      localStorage.setItem('nexride_admin_activities_cache', JSON.stringify(recentItems));
+    } catch (e) {}
+  }
+
   if (recentItems.length === 0) {
-    if (isDashboardLoading || (!auditLogsLoaded && !reportsLoaded && !busesLoaded)) {
+    if (isDashboardLoading) {
       // Keep initial skeleton timeline items while data is loading
       if (!container.querySelector('.skeleton-activity-item')) {
         container.innerHTML = getRecentUpdatesSkeletonHTML(4);
@@ -4090,62 +4023,324 @@ function renderBusesTable() {
 }
 
 // =============================================================================
-// RENDER: DRIVERS MANAGEMENT TABLE
+// RENDER: DRIVERS MANAGEMENT TABLE & COMPLIANCE
 // =============================================================================
+function switchDriverSubtab(tabName) {
+  currentDriverSubtab = tabName;
+  const tabs = [
+    { name: 'list', btn: 'drivers-subtab-list', content: 'drivers-tab-list-content' },
+    { name: 'compliance', btn: 'drivers-subtab-compliance', content: 'drivers-tab-compliance-content' },
+    { name: 'documents', btn: 'drivers-subtab-documents', content: null }
+  ];
+
+  if (tabName === 'documents') {
+    switchView('documents-view');
+    if (typeof switchDocumentCategoryTab === 'function') {
+      switchDocumentCategoryTab('driver');
+    }
+    return;
+  }
+
+  tabs.forEach(t => {
+    const btn = document.getElementById(t.btn);
+    const cnt = t.content ? document.getElementById(t.content) : null;
+    if (t.name === tabName) {
+      btn?.classList.add('active');
+      cnt?.classList.remove('hidden');
+    } else {
+      btn?.classList.remove('active');
+      cnt?.classList.add('hidden');
+    }
+  });
+
+  if (tabName === 'compliance') {
+    renderDriverLicenceComplianceSection();
+  } else {
+    renderDriversTable();
+  }
+}
+
 function renderDriversTable() {
   const tbody = document.getElementById('drivers-table-body');
   const searchVal = (document.getElementById('drivers-search-input')?.value || '').toLowerCase().trim();
   const statusVal = document.getElementById('drivers-status-filter')?.value || 'all';
+  const verifVal = document.getElementById('drivers-verification-filter')?.value || 'all';
+  const licenceVal = document.getElementById('drivers-licence-filter')?.value || 'all';
+  const busVal = document.getElementById('drivers-bus-filter')?.value || 'all';
+  const sortVal = document.getElementById('drivers-sort-filter')?.value || 'name';
 
   if (!tbody) return;
 
   if (!usersLoaded && driversCache.length === 0) {
-    renderTableSkeleton(tbody, 7, 4);
+    renderTableSkeleton(tbody, 11, 4);
     return;
   }
 
   tbody.innerHTML = '';
 
-  let filtered = driversCache.filter(d => {
-    const matchSearch = !searchVal || 
-      d.name.toLowerCase().includes(searchVal) || 
-      d.phone.includes(searchVal) ||
-      d.licenseNumber.toLowerCase().includes(searchVal);
-    const matchStatus = statusVal === 'all' || d.status.toLowerCase() === statusVal.toLowerCase();
-    return matchSearch && matchStatus;
+  // Dynamic dynamic stats calculation
+  let activeCount = 0;
+  let inactiveCount = 0;
+  let expiringCount = 0;
+  let expiredCount = 0;
+
+  driversCache.forEach(d => {
+    const st = (d.status || 'Active').toLowerCase();
+    if (st === 'active') activeCount++;
+    else inactiveCount++;
+
+    const exp = getExpiryStatus(d.licenseExpiry || d.licenceExpiry);
+    if (exp.status === 'Expiring Soon') expiringCount++;
+    if (exp.status === 'Expired') expiredCount++;
   });
 
   setElText('stat-total-drivers', driversCache.length);
-  setElText('stat-available-drivers', driversCache.filter(d => d.status === 'Available' || d.status === 'Active').length);
-  setElText('stat-assigned-drivers', driversCache.filter(d => d.assignedBus !== 'N/A').length);
-  setElText('stat-driver-alerts', driversCache.filter(d => d.licenseStatus !== 'Valid').length);
+  setElText('stat-active-drivers', activeCount);
+  setElText('stat-inactive-drivers', inactiveCount);
+  setElText('stat-driver-licences-expiring', expiringCount);
+  setElText('stat-driver-licences-expired', expiredCount);
+
+  // Filter pipeline
+  let filtered = driversCache.filter(d => {
+    const name = String(d.name || '').toLowerCase();
+    const id = String(d.id || '').toLowerCase();
+    const phone = String(d.phone || '');
+    const licenceNo = String(d.licenseNumber || d.licenceNumber || '').toLowerCase();
+
+    const matchSearch = !searchVal || 
+      name.includes(searchVal) || 
+      id.includes(searchVal) || 
+      phone.includes(searchVal) ||
+      licenceNo.includes(searchVal);
+
+    const matchStatus = statusVal === 'all' || 
+      String(d.status || 'Active').toLowerCase() === statusVal.toLowerCase();
+
+    const matchVerif = verifVal === 'all' || 
+      String(d.verificationStatus || 'Pending').toLowerCase() === verifVal.toLowerCase();
+
+    const exp = getExpiryStatus(d.licenseExpiry || d.licenceExpiry);
+    const matchLicence = licenceVal === 'all' ||
+      (licenceVal === 'valid' && exp.status === 'Valid') ||
+      (licenceVal === 'expiring' && exp.status === 'Expiring Soon') ||
+      (licenceVal === 'expired' && exp.status === 'Expired');
+
+    const busInfo = getDriverAssignedBusInfo(d);
+    const hasBus = busInfo.hasBus;
+    const matchBus = busVal === 'all' ||
+      (busVal === 'assigned' && hasBus) ||
+      (busVal === 'unassigned' && !hasBus);
+
+    return matchSearch && matchStatus && matchVerif && matchLicence && matchBus;
+  });
+
+  // Sorting
+  filtered.sort((a, b) => {
+    if (sortVal === 'name') {
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    }
+    if (sortVal === 'expiry') {
+      const expA = a.licenseExpiry ? new Date(a.licenseExpiry).getTime() : 9999999999999;
+      const expB = b.licenseExpiry ? new Date(b.licenseExpiry).getTime() : 9999999999999;
+      return expA - expB;
+    }
+    if (sortVal === 'recent') {
+      const tsA = getRecordTimestamp(a);
+      const tsB = getRecordTimestamp(b);
+      return tsB - tsA;
+    }
+    return 0;
+  });
+
+  // Counter badge
+  const countBadge = document.getElementById('drivers-count-badge');
+  if (countBadge) countBadge.textContent = `${filtered.length} driver${filtered.length === 1 ? '' : 's'}`;
+
+  // Pagination calculation
+  const total = filtered.length;
+  const page = driversPagination.page || 1;
+  const pageSize = driversPagination.pageSize || 10;
+  const totalPages = Math.ceil(total / pageSize) || 1;
+  const validPage = Math.min(Math.max(page, 1), totalPages);
+  driversPagination.page = validPage;
+
+  const startIdx = (validPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, total);
+  const pagedDrivers = filtered.slice(startIdx, endIdx);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 32px; color: var(--text-secondary);">No driver records found.</td></tr>`;
-    return;
+    tbody.innerHTML = `<tr><td colspan="11" style="text-align:center; padding: 36px; color: var(--text-secondary);">No drivers found matching your filter criteria.</td></tr>`;
+  } else {
+    pagedDrivers.forEach(driver => {
+      const tr = document.createElement('tr');
+      const exp = getExpiryStatus(driver.licenseExpiry || driver.licenceExpiry);
+      const verifStatus = driver.verificationStatus || 'Pending';
+      const driverStatus = driver.status || 'Active';
+      const busInfo = getDriverAssignedBusInfo(driver);
+      const hasBus = busInfo.hasBus;
+
+      // Visual expiry styling
+      let expiryHtml = '';
+      if (exp.status === 'Expired') {
+        expiryHtml = `<span class="status-badge badge-red">Expired</span><div style="font-size: 11.5px; color: #DC2626; margin-top: 2px;">${escapeHtml(driver.licenseExpiry || '--')}</div>`;
+      } else if (exp.status === 'Expiring Soon') {
+        expiryHtml = `<span class="status-badge badge-orange">${escapeHtml(exp.label)}</span><div style="font-size: 11.5px; color: #6B7280; margin-top: 2px;">${escapeHtml(driver.licenseExpiry || '--')}</div>`;
+      } else {
+        expiryHtml = `<div style="font-weight: 600; font-size: 13px; color: #111827;">${escapeHtml(driver.licenseExpiry || '--')}</div><div style="font-size: 11.5px; color: #6B7280; margin-top: 2px;">${escapeHtml(exp.detailLabel)}</div>`;
+      }
+
+      // Avatar preview
+      const avatarHtml = driver.photoUrl 
+        ? `<img src="${escapeHtml(driver.photoUrl)}" class="driver-avatar-thumb" alt="${escapeHtml(driver.name)}" onerror="this.outerHTML='<span class=\\'driver-avatar-placeholder\\'>${escapeHtml((driver.name || 'D').charAt(0).toUpperCase())}</span>'" />`
+        : `<span class="driver-avatar-placeholder">${escapeHtml((driver.name || 'D').charAt(0).toUpperCase())}</span>`;
+
+      // Verification badge
+      const verifBadgeClass = verifStatus === 'Verified' ? 'badge-green' : (verifStatus === 'Rejected' ? 'badge-red' : 'badge-orange');
+
+      tr.innerHTML = `
+        <td><span class="record-id">${escapeHtml(driver.id || driver.driverId || '--')}</span></td>
+        <td><strong style="text-transform: capitalize; color: #111827;">${escapeHtml(driver.name || '--')}</strong></td>
+        <td>${avatarHtml}</td>
+        <td><span style="font-variant-numeric: tabular-nums;">${escapeHtml(driver.phone || '--')}</span></td>
+        <td><span style="font-size: 13px; font-weight: 600; color: #111827;">${escapeHtml(driver.licenseNumber || driver.licenceNumber || '--')}</span></td>
+        <td>${expiryHtml}</td>
+        <td>${hasBus ? `<span class="vehicle-tag">${escapeHtml(busInfo.displayBus)}</span>` : '<span style="color: var(--text-muted); font-size: 13px;">Unassigned</span>'}</td>
+        <td><span style="font-size: 13px; color: #374151;">${escapeHtml(busInfo.routeName || driver.assignedRoute || 'Campus Route')}</span></td>
+        <td><span class="status-badge ${getStatusBadgeClass(driverStatus)}">${escapeHtml(driverStatus)}</span></td>
+        <td><span class="status-badge ${verifBadgeClass}">${escapeHtml(verifStatus)}</span></td>
+        <td style="text-align: right;">
+          <div class="action-btn-group" style="justify-content: flex-end; gap: 5px;">
+            <button type="button" class="btn-action-icon btn-action-primary btn-driver-details" data-driver-id="${escapeHtml(driver.id)}">Details</button>
+            <button type="button" class="btn-action-icon btn-driver-assign" data-driver-name="${escapeHtml(driver.name)}">Assign</button>
+            <button type="button" class="btn-action-icon btn-driver-edit" data-driver-id="${escapeHtml(driver.id)}">Edit</button>
+          </div>
+        </td>
+      `;
+
+      tr.querySelector('.btn-driver-details')?.addEventListener('click', () => openDriverDetailsModal(driver.id));
+      tr.querySelector('.btn-driver-assign')?.addEventListener('click', () => window.adminOpenDriverAssign(driver.name));
+      tr.querySelector('.btn-driver-edit')?.addEventListener('click', () => openDriverEditorModal(driver.id));
+
+      tbody.appendChild(tr);
+    });
   }
 
-  filtered.forEach(driver => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong>${escapeHtml(driver.name)}</strong></td>
-      <td>${escapeHtml(driver.id)}<br><span style="font-size: 12px; color: var(--text-muted);">${escapeHtml(driver.phone)}</span></td>
-      <td>${driver.assignedBus !== 'N/A' ? `Bus ${escapeHtml(driver.assignedBus)}` : '<span style="color: var(--text-muted);">Unassigned</span>'}</td>
-      <td>${escapeHtml(driver.assignedRoute)}</td>
-      <td><span class="status-badge ${driver.licenseStatus === 'Valid' ? 'badge-green' : 'badge-orange'}">${escapeHtml(driver.licenseStatus)}</span></td>
-      <td><span class="status-badge ${getStatusBadgeClass(driver.status)}">${escapeHtml(driver.status)}</span></td>
-      <td style="text-align: right;">
-        <button type="button" class="btn-action-icon btn-action-primary btn-driver-assign" data-driver-name="${escapeHtml(driver.name)}">Assign</button>
-      </td>
-    `;
-    const assignBtn = tr.querySelector('.btn-driver-assign');
-    if (assignBtn) {
-      assignBtn.addEventListener('click', () => {
-        window.adminOpenDriverAssign(driver.name);
-      });
+  // Pagination UI
+  try {
+    const pagInfo = document.getElementById('drivers-pagination-info');
+    if (pagInfo) {
+      pagInfo.textContent = total === 0 ? 'Showing 0 to 0 of 0 drivers' : `Showing ${startIdx + 1} to ${endIdx} of ${total} drivers`;
     }
-    tbody.appendChild(tr);
+    renderPaginationButtons('drivers-pagination-btns', totalPages, validPage, (p) => {
+      driversPagination.page = p;
+      renderDriversTable();
+    });
+  } catch (pErr) {
+    console.warn('Drivers pagination error:', pErr);
+  }
+}
+
+function renderDriverLicenceComplianceSection() {
+  const expiringContainer = document.getElementById('drivers-expiring-list');
+  const expiredContainer = document.getElementById('drivers-expired-list');
+  const expiringCountBadge = document.getElementById('compliance-expiring-count');
+  const expiredCountBadge = document.getElementById('compliance-expired-count');
+
+  if (!expiringContainer || !expiredContainer) return;
+
+  const expiringDrivers = [];
+  const expiredDrivers = [];
+
+  driversCache.forEach(driver => {
+    const exp = getExpiryStatus(driver.licenseExpiry || driver.licenceExpiry);
+    if (exp.status === 'Expiring Soon') {
+      expiringDrivers.push({ driver, exp });
+    } else if (exp.status === 'Expired') {
+      expiredDrivers.push({ driver, exp });
+    }
   });
+
+  if (expiringCountBadge) expiringCountBadge.textContent = expiringDrivers.length;
+  if (expiredCountBadge) expiredCountBadge.textContent = expiredDrivers.length;
+
+  // Render Expiring Within 1 Month
+  if (expiringDrivers.length === 0) {
+    expiringContainer.innerHTML = '<div class="empty-state-card">No driving licences expiring within 30 days.</div>';
+  } else {
+    expiringContainer.innerHTML = '';
+    expiringDrivers.forEach(({ driver, exp }) => {
+      const card = document.createElement('div');
+      card.className = 'compliance-card warning-card';
+      const busInfo = getDriverAssignedBusInfo(driver);
+      card.innerHTML = `
+        <div class="compliance-card-header">
+          <div>
+            <div class="compliance-card-title">${escapeHtml(driver.name)}</div>
+            <div class="compliance-card-owner">Driver ID: ${escapeHtml(driver.id)} • Phone: ${escapeHtml(driver.phone)}</div>
+          </div>
+          <span class="status-badge badge-orange">${escapeHtml(exp.label)}</span>
+        </div>
+        <div class="compliance-card-meta">
+          <div class="compliance-card-meta-row">
+            <span>Licence Number:</span>
+            <strong>${escapeHtml(driver.licenseNumber || '--')}</strong>
+          </div>
+          <div class="compliance-card-meta-row">
+            <span>Expiry Date:</span>
+            <strong style="color: #D97706;">${escapeHtml(driver.licenseExpiry || '--')}</strong>
+          </div>
+          <div class="compliance-card-meta-row">
+            <span>Assigned Vehicle:</span>
+            <span>${busInfo.hasBus ? escapeHtml(busInfo.displayBus) : 'Unassigned'}</span>
+          </div>
+        </div>
+        <div class="compliance-card-actions">
+          <button type="button" class="btn-action-icon btn-action-primary" onclick="window.adminInspectDriver('${escapeHtml(driver.id)}')">View Driver</button>
+          <button type="button" class="btn-action-icon" onclick="window.adminEditDriver('${escapeHtml(driver.id)}')">Renew Record</button>
+        </div>
+      `;
+      expiringContainer.appendChild(card);
+    });
+  }
+
+  // Render Expired Licences
+  if (expiredDrivers.length === 0) {
+    expiredContainer.innerHTML = '<div class="empty-state-card">No expired driving licences found.</div>';
+  } else {
+    expiredContainer.innerHTML = '';
+    expiredDrivers.forEach(({ driver, exp }) => {
+      const card = document.createElement('div');
+      card.className = 'compliance-card expired-card';
+      card.innerHTML = `
+        <div class="compliance-card-header">
+          <div>
+            <div class="compliance-card-title">${escapeHtml(driver.name)}</div>
+            <div class="compliance-card-owner">Driver ID: ${escapeHtml(driver.id)} • Phone: ${escapeHtml(driver.phone)}</div>
+          </div>
+          <span class="status-badge badge-red">Expired</span>
+        </div>
+        <div class="compliance-card-meta">
+          <div class="compliance-card-meta-row">
+            <span>Licence Number:</span>
+            <strong>${escapeHtml(driver.licenseNumber || '--')}</strong>
+          </div>
+          <div class="compliance-card-meta-row">
+            <span>Expired On:</span>
+            <strong style="color: #DC2626;">${escapeHtml(driver.licenseExpiry || '--')} (${exp.detailLabel})</strong>
+          </div>
+          <div class="compliance-card-meta-row">
+            <span>Operational Safety:</span>
+            <span style="color: #DC2626; font-weight: 700;">Assignment Blocked</span>
+          </div>
+        </div>
+        <div class="compliance-card-actions">
+          <button type="button" class="btn-action-icon btn-action-primary" onclick="window.adminInspectDriver('${escapeHtml(driver.id)}')">Inspect Profile</button>
+          <button type="button" class="btn-action-icon" onclick="window.adminEditDriver('${escapeHtml(driver.id)}')">Update Licence</button>
+        </div>
+      `;
+      expiredContainer.appendChild(card);
+    });
+  }
 }
 
 // =============================================================================
@@ -4262,9 +4457,9 @@ function renderRoutesTable(routesToRender = null) {
 
     let busBadges = '';
     if (route.assignedBus) {
-      busBadges = `<span class="status-badge badge-blue">Bus ${escapeHtml(route.assignedBus)}</span>`;
+      busBadges = `<span class="vehicle-tag">Bus ${escapeHtml(route.assignedBus)}</span>`;
     } else if (Array.isArray(route.assignedBuses) && route.assignedBuses.length > 0) {
-      busBadges = route.assignedBuses.map(b => `<span class="status-badge badge-blue">Bus ${escapeHtml(b)}</span>`).join(' ');
+      busBadges = route.assignedBuses.map(b => `<span class="vehicle-tag">Bus ${escapeHtml(b)}</span>`).join(' ');
     } else {
       busBadges = `<span style="color: var(--text-muted); font-size: 12px;">Unassigned</span>`;
     }
@@ -4278,10 +4473,10 @@ function renderRoutesTable(routesToRender = null) {
 
     return `
       <tr>
-        <td><strong>${escapeHtml(route.name || 'Unnamed Route')}</strong></td>
+        <td><strong style="color: #111827;">${escapeHtml(route.name || 'Unnamed Route')}</strong></td>
         <td>${escapeHtml(route.startPoint || '--')}</td>
         <td>${escapeHtml(route.destination || '--')}</td>
-        <td><span class="status-badge badge-gray" style="font-weight: 600;">${totalStops} Stops</span></td>
+        <td><span class="status-badge badge-gray">${totalStops} Stops</span></td>
         <td>${distDuration}</td>
         <td>${busBadges}</td>
         <td><span class="status-badge ${statusBadgeClass}">${escapeHtml(route.status || 'Active')}</span></td>
@@ -4290,7 +4485,7 @@ function renderRoutesTable(routesToRender = null) {
             <button class="btn-action-icon btn-action-primary" onclick="window.adminInspectRoute('${route.id}')" title="Inspect Route &amp; Stops">Inspect</button>
             <button class="btn-action-icon" onclick="window.adminEditRoute('${route.id}')" title="Edit Route">Edit</button>
             <button class="btn-action-icon" onclick="window.adminToggleRouteStatus('${route.id}')" title="Toggle Route Status">${isInactive ? 'Activate' : 'Deactivate'}</button>
-            <button class="btn-action-icon" onclick="window.adminDeleteRoute('${route.id}')" title="Delete Route" style="background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA;">Delete</button>
+            <button class="btn-action-icon btn-action-danger" onclick="window.adminDeleteRoute('${route.id}')" title="Delete Route">Delete</button>
           </div>
         </td>
       </tr>
@@ -4607,31 +4802,113 @@ function populateRouteEditorSelects(selectedBus = '', selectedDriver = '') {
 }
 
 // =============================================================================
-// BUS CONTROL CENTER: FLEET COMPLIANCE & TIMETABLE HELPERS
+// REUSABLE DOCUMENT EXPIRY ENGINE (Asia/Kolkata Normalized)
 // =============================================================================
-function getDocumentExpiryStatus(expiryDateStr) {
-  if (!expiryDateStr) {
-    return { status: 'Unknown', badgeClass: 'badge-gray', label: 'No Expiry Set' };
+export function getExpiryStatus(expiryDateInput) {
+  if (!expiryDateInput || expiryDateInput === '--' || expiryDateInput === 'null' || expiryDateInput === 'undefined') {
+    return {
+      status: 'Unknown',
+      daysRemaining: null,
+      daysOverdue: null,
+      label: 'No Expiry Set',
+      detailLabel: 'No Expiry Date',
+      badgeClass: 'badge-gray',
+      rawExpiry: null
+    };
   }
+
+  let expDate;
+  if (typeof expiryDateInput?.toDate === 'function') {
+    expDate = expiryDateInput.toDate();
+  } else if (expiryDateInput instanceof Date) {
+    expDate = new Date(expiryDateInput.getTime());
+  } else if (typeof expiryDateInput === 'number') {
+    expDate = new Date(expiryDateInput);
+  } else if (typeof expiryDateInput === 'string') {
+    const trimmed = expiryDateInput.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [y, m, d] = trimmed.split('-').map(Number);
+      expDate = new Date(y, m - 1, d);
+    } else {
+      expDate = new Date(trimmed);
+    }
+  }
+
+  if (!expDate || isNaN(expDate.getTime())) {
+    return {
+      status: 'Unknown',
+      daysRemaining: null,
+      daysOverdue: null,
+      label: 'Invalid Date',
+      detailLabel: 'Invalid Date',
+      badgeClass: 'badge-gray',
+      rawExpiry: expiryDateInput
+    };
+  }
+
+  // Normalize current date & expiry date in Asia/Kolkata timezone
   const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const exp = new Date(expiryDateStr);
-  exp.setHours(0, 0, 0, 0);
+  const kolkataNowStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const [nowY, nowM, nowD] = kolkataNowStr.split('-').map(Number);
+  const todayUtc = Date.UTC(nowY, nowM - 1, nowD);
 
-  if (isNaN(exp.getTime())) {
-    return { status: 'Unknown', badgeClass: 'badge-gray', label: 'Invalid Date' };
+  const expKolkataStr = expDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  const [expY, expM, expD] = expKolkataStr.split('-').map(Number);
+  const expUtc = Date.UTC(expY, expM - 1, expD);
+
+  const diffMs = expUtc - todayUtc;
+  const daysRemaining = Math.round(diffMs / 86400000);
+
+  if (daysRemaining < 0) {
+    const daysOverdue = Math.abs(daysRemaining);
+    return {
+      status: 'Expired',
+      daysRemaining,
+      daysOverdue,
+      label: 'Expired',
+      detailLabel: `Expired ${daysOverdue} day${daysOverdue === 1 ? '' : 's'} ago`,
+      badgeClass: 'badge-red',
+      rawExpiry: expDate
+    };
   }
 
-  const diffMs = exp.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays < 0) {
-    return { status: 'Expired', badgeClass: 'badge-red', label: `Expired (${Math.abs(diffDays)}d ago)` };
-  } else if (diffDays <= 30) {
-    return { status: 'Expiring Soon', badgeClass: 'badge-orange', label: `Expiring Soon (${diffDays}d left)` };
-  } else {
-    return { status: 'Valid', badgeClass: 'badge-green', label: `Valid (${diffDays}d left)` };
+  if (daysRemaining <= 30) {
+    let label;
+    if (daysRemaining === 0) {
+      label = 'Expires today';
+    } else if (daysRemaining === 1) {
+      label = 'Expires in 1 day';
+    } else {
+      label = `Expires in ${daysRemaining} days`;
+    }
+    return {
+      status: 'Expiring Soon',
+      daysRemaining,
+      daysOverdue: 0,
+      label,
+      detailLabel: label,
+      badgeClass: 'badge-orange',
+      rawExpiry: expDate
+    };
   }
+
+  return {
+    status: 'Valid',
+    daysRemaining,
+    daysOverdue: 0,
+    label: `Valid — ${daysRemaining} days remaining`,
+    detailLabel: `${daysRemaining} days remaining`,
+    badgeClass: 'badge-green',
+    rawExpiry: expDate
+  };
+}
+
+export function getDaysRemaining(expiryDateInput) {
+  return getExpiryStatus(expiryDateInput).daysRemaining;
+}
+
+function getDocumentExpiryStatus(expiryDateStr) {
+  return getExpiryStatus(expiryDateStr);
 }
 
 function renderBusEditorDocsList() {
@@ -5298,21 +5575,21 @@ function renderTimingsTable() {
       routeHtml = `<div style="font-size: 13.5px; color: var(--text-primary); font-weight: 500;">${escapeHtml(routeName)}</div>`;
     }
 
-    // 2. Trip Type Badges with perfectly aligned text and background colors
+    // 2. Trip Type Badges with perfectly aligned text and neutral styles
     let tripTypeHtml = '';
     if (hasMorning && hasEvening) {
       tripTypeHtml = `
-        <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start; justify-content: center;">
-          <span class="status-badge badge-blue" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #DBEAFE; color: #1D4ED8;">Morning Service</span>
-          <span class="status-badge badge-orange" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #FEF3C7; color: #D97706;">Evening Service</span>
+        <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start; justify-content: center;">
+          <span class="status-badge badge-blue">Morning Service</span>
+          <span class="status-badge badge-orange">Evening Service</span>
         </div>
       `;
     } else if (hasMorning) {
-      tripTypeHtml = `<span class="status-badge badge-blue" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #DBEAFE; color: #1D4ED8;">Morning Service</span>`;
+      tripTypeHtml = `<span class="status-badge badge-blue">Morning Service</span>`;
     } else if (hasEvening) {
-      tripTypeHtml = `<span class="status-badge badge-orange" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #FEF3C7; color: #D97706;">Evening Service</span>`;
+      tripTypeHtml = `<span class="status-badge badge-orange">Evening Service</span>`;
     } else {
-      tripTypeHtml = `<span class="status-badge badge-blue" style="white-space: nowrap; font-size: 11.5px; font-weight: 600; padding: 4px 10px; border-radius: 6px; display: inline-flex; align-items: center; background-color: #DBEAFE; color: #1D4ED8;">Scheduled Service</span>`;
+      tripTypeHtml = `<span class="status-badge badge-blue">Scheduled Service</span>`;
     }
 
     // 3. Start Time Column
@@ -5410,13 +5687,12 @@ function renderIssuesTable() {
   const countLabel = document.getElementById('admin-rep-count-label');
   const searchVal = (document.getElementById('admin-rep-search')?.value || '').toLowerCase().trim();
   const statusVal = document.getElementById('admin-rep-status-filter')?.value || 'All';
-  const prioVal = document.getElementById('admin-rep-prio-filter')?.value || 'All';
   const catVal = document.getElementById('admin-rep-cat-filter')?.value || 'All';
 
   if (!tbody) return;
 
   if (!reportsLoaded && reportsCache.length === 0) {
-    renderTableSkeleton(tbody, 8, 4);
+    renderTableSkeleton(tbody, 7, 4);
     return;
   }
 
@@ -5432,11 +5708,10 @@ function renderIssuesTable() {
       (r.busNumber && String(r.busNumber).toLowerCase().includes(searchVal));
 
     const matchStatus = statusVal === 'All' || (r.status && r.status.toLowerCase() === statusVal.toLowerCase());
-    const matchPrio = prioVal === 'All' || (r.priority && r.priority.toLowerCase() === prioVal.toLowerCase());
     const itemCat = (r.categoryId || r.category || '').toLowerCase();
     const matchCat = catVal === 'All' || (itemCat === catVal.toLowerCase());
 
-    return matchSearch && matchStatus && matchPrio && matchCat;
+    return matchSearch && matchStatus && matchCat;
   });
 
   setElText('stat-rep-total', reportsCache.length);
@@ -5447,14 +5722,13 @@ function renderIssuesTable() {
   if (countLabel) countLabel.textContent = `Showing ${filtered.length} of ${reportsCache.length} reports`;
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 32px; color: var(--text-secondary);">No support tickets or complaints found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 32px; color: var(--text-secondary);">No support tickets or complaints found.</td></tr>`;
     return;
   }
 
   filtered.forEach(rep => {
     const tr = document.createElement('tr');
     const statusClass = getStatusBadgeClass(rep.status);
-    const prioClass = getPriorityBadgeClass(rep.priority);
     const repNum = rep.reportNumber || rep.reportId || rep.id || 'NXR-REP';
     const repRoute = rep.busNumber ? `Bus ${rep.busNumber}` : (rep.routeName || rep.route || 'General');
 
@@ -5466,7 +5740,6 @@ function renderIssuesTable() {
         <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(rep.categoryName || rep.category || 'General')}</div>
       </td>
       <td>${escapeHtml(repRoute)}</td>
-      <td><span class="status-badge ${prioClass}">${rep.priority || 'Normal'}</span></td>
       <td><span class="status-badge ${statusClass}">${rep.status || 'Submitted'}</span></td>
       <td><span style="font-size: 12px; color: var(--text-muted);">${formatDate(rep.createdAt)}</span></td>
       <td style="text-align: right;">
@@ -5478,69 +5751,1919 @@ function renderIssuesTable() {
 }
 
 // =============================================================================
-// RENDER: DOCUMENTS MANAGEMENT TABLE
+// RENDER: CENTRALIZED COMPLIANCE DOCUMENTS MANAGEMENT TABLE
 // =============================================================================
+function switchDocumentCategoryTab(category) {
+  currentDocCategoryFilter = category || 'all';
+  const tabs = [
+    { cat: 'all', id: 'tab-doc-all' },
+    { cat: 'driver', id: 'tab-doc-drivers' },
+    { cat: 'student', id: 'tab-doc-students' },
+    { cat: 'vehicle', id: 'tab-doc-vehicles' }
+  ];
+
+  tabs.forEach(t => {
+    const btn = document.getElementById(t.id);
+    if (t.cat === currentDocCategoryFilter) {
+      btn?.classList.add('active');
+    } else {
+      btn?.classList.remove('active');
+    }
+  });
+
+  const ownerFilterSelect = document.getElementById('doc-owner-filter');
+  if (ownerFilterSelect) {
+    ownerFilterSelect.value = currentDocCategoryFilter;
+  }
+
+  documentsPagination.page = 1;
+  renderDocumentsTable();
+}
+
 function renderDocumentsTable() {
   const tbody = document.getElementById('documents-table-body');
   const searchVal = (document.getElementById('doc-search-input')?.value || '').toLowerCase().trim();
-  const typeVal = document.getElementById('doc-type-filter')?.value || 'all';
+  const statusVal = document.getElementById('doc-status-filter')?.value || 'all';
+  const ownerVal = document.getElementById('doc-owner-filter')?.value || currentDocCategoryFilter || 'all';
+  const sortVal = document.getElementById('doc-sort-filter')?.value || 'expiry';
 
   if (!tbody) return;
 
   if (!busesLoaded && documentsCache.length === 0) {
-    renderTableSkeleton(tbody, 7, 4);
+    renderTableSkeleton(tbody, 9, 4);
     return;
   }
 
   tbody.innerHTML = '';
 
-  let filtered = documentsCache.filter(doc => {
-    const matchSearch = !searchVal || 
-      doc.entity.toLowerCase().includes(searchVal) || 
-      doc.number.toLowerCase().includes(searchVal) ||
-      doc.type.toLowerCase().includes(searchVal);
+  // Dynamic summary stats calculations across all documents
+  let validCount = 0;
+  let expiringCount = 0;
+  let expiredCount = 0;
+  let pendingCount = 0;
 
-    const matchType = typeVal === 'all' || 
-      (typeVal === 'bus' && doc.entity.includes('Bus')) ||
-      (typeVal === 'driver' && doc.entity.includes('Driver')) ||
-      (typeVal === 'expiring' && doc.status === 'Expiring Soon') ||
-      (typeVal === 'expired' && doc.status === 'Expired');
+  documentsCache.forEach(doc => {
+    const exp = getExpiryStatus(doc.expiryDate);
+    const verif = String(doc.verificationStatus || 'pending').toLowerCase();
 
-    return matchSearch && matchType;
+    if (verif === 'pending') pendingCount++;
+    if (exp.status === 'Valid' && verif === 'verified') validCount++;
+    if (exp.status === 'Expiring Soon') expiringCount++;
+    if (exp.status === 'Expired') expiredCount++;
   });
 
   setElText('stat-doc-total', documentsCache.length);
-  setElText('stat-doc-valid', documentsCache.filter(d => d.status === 'Valid').length);
-  setElText('stat-doc-expiring', documentsCache.filter(d => d.status === 'Expiring Soon').length);
-  setElText('stat-doc-expired', documentsCache.filter(d => d.status === 'Expired').length);
+  setElText('stat-doc-valid', validCount);
+  setElText('stat-doc-expiring', expiringCount);
+  setElText('stat-doc-expired', expiredCount);
+  setElText('stat-doc-pending', pendingCount);
+
+  // Filter pipeline
+  let filtered = documentsCache.filter(doc => {
+    const entityName = String(doc.ownerName || doc.entity || '').toLowerCase();
+    const ownerId = String(doc.ownerId || '').toLowerCase();
+    const docNumber = String(doc.documentNumber || doc.number || '').toLowerCase();
+    const docType = String(doc.documentType || doc.type || '').toLowerCase();
+
+    const matchSearch = !searchVal ||
+      entityName.includes(searchVal) ||
+      ownerId.includes(searchVal) ||
+      docNumber.includes(searchVal) ||
+      docType.includes(searchVal);
+
+    // Category / Owner filter
+    const docOwnerType = String(doc.ownerType || (doc.entity && doc.entity.includes('Bus') ? 'vehicle' : 'driver')).toLowerCase();
+    const activeOwnerCat = (ownerVal !== 'all' ? ownerVal : currentDocCategoryFilter).toLowerCase();
+    const matchOwner = activeOwnerCat === 'all' || docOwnerType === activeOwnerCat;
+
+    // Status filter
+    const exp = getExpiryStatus(doc.expiryDate);
+    const verif = String(doc.verificationStatus || 'pending').toLowerCase();
+    const matchStatus = statusVal === 'all' ||
+      (statusVal === 'Valid' && exp.status === 'Valid' && verif === 'verified') ||
+      (statusVal === 'Expiring Soon' && exp.status === 'Expiring Soon') ||
+      (statusVal === 'Expired' && exp.status === 'Expired') ||
+      (statusVal === 'Pending' && verif === 'pending');
+
+    return matchSearch && matchOwner && matchStatus;
+  });
+
+  // Sorting
+  filtered.sort((a, b) => {
+    if (sortVal === 'expiry') {
+      const expA = a.expiryDate ? new Date(a.expiryDate).getTime() : 9999999999999;
+      const expB = b.expiryDate ? new Date(b.expiryDate).getTime() : 9999999999999;
+      return expA - expB;
+    }
+    if (sortVal === 'type') {
+      return String(a.documentType || a.type || '').localeCompare(String(b.documentType || b.type || ''));
+    }
+    if (sortVal === 'recent') {
+      const tsA = getRecordTimestamp(a);
+      const tsB = getRecordTimestamp(b);
+      return tsB - tsA;
+    }
+    return 0;
+  });
+
+  // Counter badge
+  const countBadge = document.getElementById('doc-count-badge');
+  if (countBadge) countBadge.textContent = `${filtered.length} document${filtered.length === 1 ? '' : 's'}`;
+
+  // Pagination calculation
+  const total = filtered.length;
+  const page = documentsPagination.page || 1;
+  const pageSize = documentsPagination.pageSize || 10;
+  const totalPages = Math.ceil(total / pageSize) || 1;
+  const validPage = Math.min(Math.max(page, 1), totalPages);
+  documentsPagination.page = validPage;
+
+  const startIdx = (validPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, total);
+  const pagedDocs = filtered.slice(startIdx, endIdx);
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 32px; color: var(--text-secondary);">No documents matching filter.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 36px; color: var(--text-secondary);">No compliance documents found matching your filter.</td></tr>`;
+  } else {
+    pagedDocs.forEach(docItem => {
+      const tr = document.createElement('tr');
+      const exp = getExpiryStatus(docItem.expiryDate);
+      const verifStatus = docItem.verificationStatus || 'pending';
+      const ownerType = docItem.ownerType || (docItem.entity && docItem.entity.includes('Bus') ? 'vehicle' : 'driver');
+
+      // Owner type badge styling
+      let ownerTypeBadge = '';
+      if (ownerType === 'driver') ownerTypeBadge = '<span class="status-badge badge-blue" style="font-size: 11px; padding: 1px 6px; margin-left: 6px;">Driver</span>';
+      else if (ownerType === 'student') ownerTypeBadge = '<span class="status-badge badge-purple" style="font-size: 11px; padding: 1px 6px; margin-left: 6px;">Student</span>';
+      else if (ownerType === 'vehicle') ownerTypeBadge = '<span class="status-badge badge-green" style="font-size: 11px; padding: 1px 6px; margin-left: 6px;">Vehicle</span>';
+
+      // Days remaining badge
+      let remainingBadge = '';
+      if (exp.status === 'Expired') {
+        remainingBadge = `<span class="status-badge badge-red">Expired</span>`;
+      } else if (exp.status === 'Expiring Soon') {
+        remainingBadge = `<span class="status-badge badge-orange">${escapeHtml(exp.label)}</span>`;
+      } else if (exp.status === 'Valid') {
+        remainingBadge = `<span style="font-size: 13px; font-weight: 500; color: #111827;">${escapeHtml(exp.detailLabel)}</span>`;
+      } else {
+        remainingBadge = `<span style="color: var(--text-muted); font-size: 13px;">--</span>`;
+      }
+
+      // Verification badge
+      let verifBadge = '';
+      if (verifStatus === 'verified') verifBadge = '<span class="status-badge badge-green">Verified</span>';
+      else if (verifStatus === 'rejected') verifBadge = '<span class="status-badge badge-red">Rejected</span>';
+      else verifBadge = '<span class="status-badge badge-orange">Pending</span>';
+
+      tr.innerHTML = `
+        <td><strong style="color: #111827;">${escapeHtml(docItem.documentType || docItem.type || 'Compliance Document')}</strong></td>
+        <td><span style="font-weight: 600; color: #111827;">${escapeHtml(docItem.ownerName || docItem.entity || '--')}</span>${ownerTypeBadge}</td>
+        <td><span class="record-id">${escapeHtml(docItem.ownerId || '--')}</span></td>
+        <td><span style="font-size: 13px; font-weight: 600; color: #111827;">${escapeHtml(docItem.documentNumber || docItem.number || '--')}</span></td>
+        <td><span style="font-variant-numeric: tabular-nums;">${escapeHtml(docItem.issueDate || '--')}</span></td>
+        <td><span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #111827;">${escapeHtml(docItem.expiryDate || '--')}</span></td>
+        <td>${remainingBadge}</td>
+        <td>${verifBadge}</td>
+        <td style="text-align: right;">
+          <div class="action-btn-group" style="justify-content: flex-end; gap: 4px;">
+            <button type="button" class="btn-action-icon btn-action-primary btn-view-doc" data-doc-id="${escapeHtml(docItem.id)}">View</button>
+            ${verifStatus !== 'verified' ? `<button type="button" class="btn-action-icon btn-verify-doc" data-doc-id="${escapeHtml(docItem.id)}" style="color: #16A34A;">Verify</button>` : ''}
+            <button type="button" class="btn-action-icon btn-delete-doc" data-doc-id="${escapeHtml(docItem.id)}" style="color: #DC2626;">Delete</button>
+          </div>
+        </td>
+      `;
+
+      tr.querySelector('.btn-view-doc')?.addEventListener('click', () => openDocumentViewerModal(docItem.id));
+      tr.querySelector('.btn-verify-doc')?.addEventListener('click', () => handleVerifyDocumentDirect(docItem.id));
+      tr.querySelector('.btn-delete-doc')?.addEventListener('click', () => handleDeleteDocumentDirect(docItem.id));
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Pagination UI
+  try {
+    const pagInfo = document.getElementById('documents-pagination-info');
+    if (pagInfo) {
+      pagInfo.textContent = total === 0 ? 'Showing 0 to 0 of 0 documents' : `Showing ${startIdx + 1} to ${endIdx} of ${total} documents`;
+    }
+    renderPaginationButtons('documents-pagination-btns', totalPages, validPage, (p) => {
+      documentsPagination.page = p;
+      renderDocumentsTable();
+    });
+  } catch (pErr) {
+    console.warn('Documents pagination error:', pErr);
+  }
+}
+
+// PROMINENT SECTION 1: EXPIRING WITHIN 1 MONTH (Requirement 13)
+function renderExpiringDocumentsSection() {
+  const container = document.getElementById('docs-expiring-container');
+  const countBadge = document.getElementById('docs-expiring-count-badge');
+  if (!container) return;
+
+  const expiringDocs = [];
+  documentsCache.forEach(doc => {
+    const exp = getExpiryStatus(doc.expiryDate);
+    if (exp.status === 'Expiring Soon') {
+      expiringDocs.push({ doc, exp });
+    }
+  });
+
+  if (countBadge) countBadge.textContent = `${expiringDocs.length} document${expiringDocs.length === 1 ? '' : 's'}`;
+
+  if (expiringDocs.length === 0) {
+    container.innerHTML = '<div class="empty-state-card">No documents are expiring within the next 30 days.</div>';
     return;
   }
 
-  filtered.forEach(docItem => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><strong>${escapeHtml(docItem.entity)}</strong></td>
-      <td>${escapeHtml(docItem.type)}</td>
-      <td><span style="font-size: 13px; font-weight: 600;">${escapeHtml(docItem.number)}</span></td>
-      <td>${escapeHtml(docItem.issueDate)}</td>
-      <td><strong>${escapeHtml(docItem.expiryDate)}</strong></td>
-      <td><span class="status-badge ${docItem.status === 'Valid' ? 'badge-green' : (docItem.status === 'Expiring Soon' ? 'badge-orange' : 'badge-red')}">${escapeHtml(docItem.status)}</span></td>
-      <td style="text-align: right;">
-        <button type="button" class="btn-action-icon btn-view-doc">View</button>
-      </td>
+  container.innerHTML = '';
+  expiringDocs.forEach(({ doc, exp }) => {
+    const card = document.createElement('div');
+    card.className = 'compliance-card warning-card';
+    card.innerHTML = `
+      <div class="compliance-card-header">
+        <div>
+          <div class="compliance-card-title">${escapeHtml(doc.documentType || doc.type || 'Document')}</div>
+          <div class="compliance-card-owner">${escapeHtml(doc.ownerName || doc.ownerId || '--')} (${escapeHtml(doc.ownerType || 'entity')})</div>
+        </div>
+        <span class="status-badge badge-orange">${escapeHtml(exp.label)}</span>
+      </div>
+      <div class="compliance-card-meta">
+        <div class="compliance-card-meta-row">
+          <span>Document Number:</span>
+          <strong>${escapeHtml(doc.documentNumber || doc.number || '--')}</strong>
+        </div>
+        <div class="compliance-card-meta-row">
+          <span>Expiry Date:</span>
+          <strong style="color: #D97706;">${escapeHtml(doc.expiryDate || '--')}</strong>
+        </div>
+        <div class="compliance-card-meta-row">
+          <span>Verification Status:</span>
+          <span>${escapeHtml(doc.verificationStatus || 'pending')}</span>
+        </div>
+      </div>
+      <div class="compliance-card-actions">
+        <button type="button" class="btn-action-icon btn-action-primary" onclick="window.adminViewDocument('${escapeHtml(doc.id)}')">View Document</button>
+      </div>
     `;
-    const viewBtn = tr.querySelector('.btn-view-doc');
-    if (viewBtn) {
-      viewBtn.addEventListener('click', () => {
-        alert(`Document Number: ${docItem.number}\nExpiry: ${docItem.expiryDate}\nCompliance: Verified`);
-      });
-    }
-    tbody.appendChild(tr);
+    container.appendChild(card);
   });
 }
+
+// PROMINENT SECTION 2: EXPIRED DOCUMENTS (Requirement 14)
+function renderExpiredDocumentsSection() {
+  const container = document.getElementById('docs-expired-container');
+  const countBadge = document.getElementById('docs-expired-count-badge');
+  if (!container) return;
+
+  const expiredDocs = [];
+  documentsCache.forEach(doc => {
+    const exp = getExpiryStatus(doc.expiryDate);
+    if (exp.status === 'Expired') {
+      expiredDocs.push({ doc, exp });
+    }
+  });
+
+  if (countBadge) countBadge.textContent = `${expiredDocs.length} expired`;
+
+  if (expiredDocs.length === 0) {
+    container.innerHTML = '<div class="empty-state-card">No expired documents found.</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  expiredDocs.forEach(({ doc, exp }) => {
+    const card = document.createElement('div');
+    card.className = 'compliance-card expired-card';
+    card.innerHTML = `
+      <div class="compliance-card-header">
+        <div>
+          <div class="compliance-card-title">${escapeHtml(doc.documentType || doc.type || 'Document')}</div>
+          <div class="compliance-card-owner">${escapeHtml(doc.ownerName || doc.ownerId || '--')} (${escapeHtml(doc.ownerType || 'entity')})</div>
+        </div>
+        <span class="status-badge badge-red">Expired</span>
+      </div>
+      <div class="compliance-card-meta">
+        <div class="compliance-card-meta-row">
+          <span>Document Number:</span>
+          <strong>${escapeHtml(doc.documentNumber || doc.number || '--')}</strong>
+        </div>
+        <div class="compliance-card-meta-row">
+          <span>Expired Date:</span>
+          <strong style="color: #DC2626;">${escapeHtml(doc.expiryDate || '--')} (${exp.detailLabel})</strong>
+        </div>
+        <div class="compliance-card-meta-row">
+          <span>Verification Status:</span>
+          <span>${escapeHtml(doc.verificationStatus || 'pending')}</span>
+        </div>
+      </div>
+      <div class="compliance-card-actions">
+        <button type="button" class="btn-action-icon btn-action-primary" onclick="window.adminViewDocument('${escapeHtml(doc.id)}')">Inspect</button>
+        <button type="button" class="btn-action-icon" onclick="window.adminOpenUploadDoc('${escapeHtml(doc.ownerType || 'driver')}', '${escapeHtml(doc.ownerId)}')">Renew / Replace Document</button>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// DASHBOARD DOCUMENT ALERTS WIDGET (Requirement 24)
+function renderDashboardDocumentAlerts() {
+  const container = document.getElementById('dash-doc-alerts-list');
+  if (!container) return;
+
+  let driverExpiringCount = 0;
+  let vehicleExpiringCount = 0;
+  let studentExpiringCount = 0;
+  let totalExpiredCount = 0;
+
+  documentsCache.forEach(doc => {
+    const exp = getExpiryStatus(doc.expiryDate);
+    const oType = String(doc.ownerType || (doc.entity && doc.entity.includes('Bus') ? 'vehicle' : 'driver')).toLowerCase();
+
+    if (exp.status === 'Expiring Soon') {
+      if (oType === 'driver') driverExpiringCount++;
+      else if (oType === 'vehicle') vehicleExpiringCount++;
+      else if (oType === 'student') studentExpiringCount++;
+    } else if (exp.status === 'Expired') {
+      totalExpiredCount++;
+    }
+  });
+
+  // Also check driversCache for driving licence expirations
+  driversCache.forEach(d => {
+    const exp = getExpiryStatus(d.licenseExpiry || d.licenceExpiry);
+    if (exp.status === 'Expiring Soon' && !documentsCache.some(doc => doc.ownerId === d.id && doc.documentType?.includes('Licence'))) {
+      driverExpiringCount++;
+    } else if (exp.status === 'Expired' && !documentsCache.some(doc => doc.ownerId === d.id && doc.documentType?.includes('Licence'))) {
+      totalExpiredCount++;
+    }
+  });
+
+  const totalAlerts = driverExpiringCount + vehicleExpiringCount + studentExpiringCount + totalExpiredCount;
+  if (totalAlerts === 0) {
+    container.innerHTML = `
+      <div style="padding: 16px; text-align: center; color: var(--color-green); font-size: 13.5px; font-weight: 600; background: #F0FDF4; border-radius: var(--radius-md); border: 1px solid #BBF7D0;">
+        ✓ All compliance documents are valid and up to date.
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = '';
+
+  if (driverExpiringCount > 0) {
+    const a = document.createElement('a');
+    a.className = 'doc-alert-row warning-row';
+    a.href = '#documents?status=expiring&ownerType=driver';
+    a.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="status-indicator-dot warning"></span>
+        <span>${driverExpiringCount} Driver licence${driverExpiringCount === 1 ? '' : 's'} expiring within 30 days</span>
+      </div>
+      <span style="font-size: 12px; font-weight: 700; color: #0052FF;">Review &rarr;</span>
+    `;
+    container.appendChild(a);
+  }
+
+  if (vehicleExpiringCount > 0) {
+    const a = document.createElement('a');
+    a.className = 'doc-alert-row warning-row';
+    a.href = '#documents?status=expiring&ownerType=vehicle';
+    a.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="status-indicator-dot warning"></span>
+        <span>${vehicleExpiringCount} Vehicle document${vehicleExpiringCount === 1 ? '' : 's'} expiring within 30 days</span>
+      </div>
+      <span style="font-size: 12px; font-weight: 700; color: #0052FF;">Review &rarr;</span>
+    `;
+    container.appendChild(a);
+  }
+
+  if (studentExpiringCount > 0) {
+    const a = document.createElement('a');
+    a.className = 'doc-alert-row warning-row';
+    a.href = '#documents?status=expiring&ownerType=student';
+    a.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="status-indicator-dot warning"></span>
+        <span>${studentExpiringCount} Student document${studentExpiringCount === 1 ? '' : 's'} expiring within 30 days</span>
+      </div>
+      <span style="font-size: 12px; font-weight: 700; color: #0052FF;">Review &rarr;</span>
+    `;
+    container.appendChild(a);
+  }
+
+  if (totalExpiredCount > 0) {
+    const a = document.createElement('a');
+    a.className = 'doc-alert-row critical-row';
+    a.href = '#documents?status=expired';
+    a.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span class="status-indicator-dot critical"></span>
+        <span style="color: #991B1B; font-weight: 700;">${totalExpiredCount} Document${totalExpiredCount === 1 ? '' : 's'} already expired</span>
+      </div>
+      <span style="font-size: 12px; font-weight: 700; color: #DC2626;">Action Required &rarr;</span>
+    `;
+    container.appendChild(a);
+  }
+}
+
+// =============================================================================
+// DRIVERS & DOCUMENTS: FIRESTORE LISTENERS & NOTIFICATIONS
+// =============================================================================
+
+function listenToDrivers() {
+  if (driversUnsubscribe) {
+    try { driversUnsubscribe(); } catch (e) {}
+    driversUnsubscribe = null;
+  }
+  const driversRef = collection(firestore, 'drivers');
+  driversUnsubscribe = onSnapshot(driversRef, (snapshot) => {
+    hasLoadedFirestoreDrivers = true;
+    driversLoaded = true;
+    const loadedDrivers = [];
+    snapshot.forEach(d => {
+      loadedDrivers.push({ id: d.id, ...d.data() });
+    });
+    driversCache = loadedDrivers;
+    deriveDerivedState();
+    renderDashboardStats();
+    renderDriversTable();
+    renderDriverLicenceComplianceSection();
+    renderDashboardDocumentAlerts();
+
+    // If driver details modal is open for a driver, refresh its details live
+    if (currentInspectingDriverId) {
+      const activeModal = document.getElementById('driver-details-modal');
+      if (activeModal && !activeModal.classList.contains('hidden')) {
+        const updated = driversCache.find(d => d.id === currentInspectingDriverId);
+        if (updated) openDriverDetailsModal(updated.id);
+      }
+    }
+  }, (err) => {
+    console.error("Firestore Drivers listener error:", err);
+    driversLoaded = true;
+    deriveDerivedState();
+    renderDriversTable();
+  });
+}
+
+function listenToDocuments() {
+  if (documentsUnsubscribe) {
+    try { documentsUnsubscribe(); } catch (e) {}
+    documentsUnsubscribe = null;
+  }
+  const docsRef = collection(firestore, 'documents');
+  documentsUnsubscribe = onSnapshot(docsRef, (snapshot) => {
+    hasLoadedFirestoreDocuments = true;
+    documentsLoaded = true;
+    const loadedDocs = [];
+    snapshot.forEach(d => {
+      loadedDocs.push({ id: d.id, ...d.data() });
+    });
+    documentsCache = loadedDocs;
+    deriveDerivedState();
+    renderDashboardStats();
+    renderDocumentsTable();
+    renderExpiringDocumentsSection();
+    renderExpiredDocumentsSection();
+    renderDashboardDocumentAlerts();
+    checkAndTriggerDocumentExpiryNotifications();
+
+    // If viewer modal is open for a document, refresh preview
+    if (currentInspectingDocId) {
+      const activeViewer = document.getElementById('document-viewer-modal');
+      if (activeViewer && !activeViewer.classList.contains('hidden')) {
+        const updated = documentsCache.find(d => d.id === currentInspectingDocId);
+        if (updated) openDocumentViewerModal(updated.id);
+      }
+    }
+  }, (err) => {
+    console.error("Firestore Documents listener error:", err);
+    documentsLoaded = true;
+    deriveDerivedState();
+    renderDocumentsTable();
+  });
+}
+
+async function checkAndTriggerDocumentExpiryNotifications() {
+  if (!documentsCache || documentsCache.length === 0) return;
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+
+  try {
+    const saved = localStorage.getItem('nexride_doc_notifications_sent');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(k => documentNotificationsSentKeys.add(k));
+      }
+    }
+  } catch (e) {}
+
+  for (const docItem of documentsCache) {
+    if (!docItem.expiryDate) continue;
+    const days = getDaysRemaining(docItem.expiryDate);
+    if (days === null) continue;
+
+    let alertType = null;
+    let title = '';
+    let body = '';
+
+    if (days < 0) {
+      alertType = 'expired';
+      title = `EXPIRED: ${docItem.documentType || 'Document'} (${docItem.documentNumber || docItem.id})`;
+      body = `The document "${docItem.documentType || 'Document'}" for ${docItem.ownerName || docItem.ownerId || 'an entity'} has expired on ${docItem.expiryDate}. Immediate administrative renewal or replacement is required.`;
+    } else if (days <= 7) {
+      alertType = 'expiring_7d';
+      title = `URGENT: ${docItem.documentType || 'Document'} expires in ${days} days`;
+      body = `The document "${docItem.documentType || 'Document'}" for ${docItem.ownerName || docItem.ownerId || 'an entity'} will expire on ${docItem.expiryDate} (in ${days} days). Please ensure renewal is underway.`;
+    } else if (days <= 30) {
+      alertType = 'expiring_30d';
+      title = `Notice: ${docItem.documentType || 'Document'} expiring within 30 days`;
+      body = `The document "${docItem.documentType || 'Document'}" for ${docItem.ownerName || docItem.ownerId || 'an entity'} will expire on ${docItem.expiryDate} (${days} days remaining).`;
+    }
+
+    if (!alertType) continue;
+
+    const notifKey = `${docItem.id || docItem.documentNumber}_${alertType}_${dateStr}`;
+    if (documentNotificationsSentKeys.has(notifKey)) continue;
+
+    const alreadyInNotifications = notificationsCache.some(n => 
+      n.trackingKey === notifKey || 
+      (n.title === title && n.documentId === docItem.id)
+    );
+    if (alreadyInNotifications) {
+      documentNotificationsSentKeys.add(notifKey);
+      continue;
+    }
+
+    documentNotificationsSentKeys.add(notifKey);
+    try {
+      localStorage.setItem('nexride_doc_notifications_sent', JSON.stringify(Array.from(documentNotificationsSentKeys)));
+    } catch (e) {}
+
+    try {
+      await addDoc(collection(firestore, 'notifications'), {
+        title: title,
+        body: body,
+        message: body,
+        type: alertType === 'expired' || alertType === 'expiring_7d' ? 'Urgent' : 'Broadcast',
+        targetAudience: 'Admin',
+        senderName: 'NexRide Compliance Engine',
+        sentBy: 'System',
+        createdAt: serverTimestamp(),
+        sentAt: serverTimestamp(),
+        documentId: docItem.id || '',
+        trackingKey: notifKey,
+        isTest: false,
+        status: 'Sent'
+      });
+    } catch (err) {
+      console.warn("Failed to write document expiry notification to Firestore:", err);
+    }
+  }
+}
+
+// =============================================================================
+// DRIVERS CONTROLLERS & MODAL HANDLERS
+// =============================================================================
+
+function showDriverFormError(msg) {
+  const err = document.getElementById('driver-form-error');
+  if (err) {
+    err.textContent = msg;
+    err.classList.remove('hidden');
+    err.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    alert(msg);
+  }
+}
+
+function openDriverEditorModal(driverId = null) {
+  const modal = document.getElementById('driver-editor-modal');
+  const title = document.getElementById('driver-editor-title');
+  const err = document.getElementById('driver-form-error');
+  if (err) err.classList.add('hidden');
+
+  // Populate bus and route select options
+  const busSelect = document.getElementById('driver-form-bus');
+  if (busSelect) {
+    busSelect.innerHTML = '<option value="">Unassigned</option>';
+    busesCache.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.id;
+      opt.setAttribute('data-bus-number', b.busNumber || '');
+      opt.textContent = `Bus ${b.busNumber || 'N/A'} - ${b.routeName || 'No Route'} [${b.status || 'Active'}]`;
+      busSelect.appendChild(opt);
+    });
+  }
+
+  const routeSelect = document.getElementById('driver-form-route');
+  if (routeSelect) {
+    routeSelect.innerHTML = '<option value="">Campus Default Route</option>';
+    routesCache.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.name;
+      opt.textContent = r.name;
+      routeSelect.appendChild(opt);
+    });
+  }
+
+  if (driverId) {
+    const driver = driversCache.find(d => d.id === driverId);
+    if (!driver) {
+      alert('Driver not found.');
+      return;
+    }
+
+    if (title) title.textContent = `Edit Driver Profile: ${driver.name}`;
+    document.getElementById('driver-form-mode').value = 'edit';
+    document.getElementById('driver-form-doc-id').value = driver.id;
+
+    document.getElementById('driver-form-name').value = driver.name || '';
+    document.getElementById('driver-form-id').value = driver.driverId || driver.id || '';
+    document.getElementById('driver-form-phone').value = driver.phone || '';
+    document.getElementById('driver-form-alt-phone').value = driver.alternatePhone || driver.altPhone || '';
+    document.getElementById('driver-form-email').value = driver.email || '';
+    document.getElementById('driver-form-dob').value = driver.dob || '';
+    document.getElementById('driver-form-gender').value = driver.gender || 'Male';
+    document.getElementById('driver-form-photo').value = driver.photoUrl || driver.photo || '';
+    document.getElementById('driver-form-address').value = driver.address || '';
+    document.getElementById('driver-form-staff-id').value = driver.staffId || driver.employeeId || '';
+    document.getElementById('driver-form-joining-date').value = driver.joiningDate || '';
+    document.getElementById('driver-form-emp-status').value = driver.employmentType || driver.empStatus || 'Full-time';
+    document.getElementById('driver-form-status').value = driver.status || 'Active';
+    document.getElementById('driver-form-license-number').value = driver.licenseNumber || driver.licenceNumber || '';
+    document.getElementById('driver-form-license-type').value = driver.licenseType || driver.licenceType || 'Heavy Commercial Vehicle (HCV)';
+    document.getElementById('driver-form-license-authority').value = driver.issuingAuthority || driver.rto || 'RTO Chennai South';
+    document.getElementById('driver-form-license-issue').value = driver.licenseIssue || driver.licenceIssue || '';
+    document.getElementById('driver-form-license-expiry').value = driver.licenseExpiry || driver.licenceExpiry || '';
+    document.getElementById('driver-form-shift').value = driver.shift || 'Both';
+    if (busSelect) {
+      const busInfo = getDriverAssignedBusInfo(driver);
+      let matchedOpt = null;
+      if (busInfo.busId) {
+        matchedOpt = Array.from(busSelect.options).find(o => o.value === busInfo.busId);
+      }
+      if (!matchedOpt && busInfo.busNumber) {
+        matchedOpt = Array.from(busSelect.options).find(o => 
+          o.getAttribute('data-bus-number') === String(busInfo.busNumber).trim() ||
+          o.textContent.includes(`Bus ${busInfo.busNumber}`)
+        );
+      }
+      if (!matchedOpt && driver.assignedBusId) {
+        matchedOpt = Array.from(busSelect.options).find(o => o.value === driver.assignedBusId);
+      }
+      busSelect.value = matchedOpt ? matchedOpt.value : '';
+    }
+    if (routeSelect) {
+      const busInfo = getDriverAssignedBusInfo(driver);
+      routeSelect.value = driver.assignedRoute || busInfo.routeName || '';
+    }
+    document.getElementById('driver-form-verification').value = driver.verificationStatus || 'Pending';
+    document.getElementById('driver-form-verification-notes').value = driver.verificationNotes || '';
+  } else {
+    if (title) title.textContent = 'Add New Driver';
+    document.getElementById('driver-form-mode').value = 'add';
+    document.getElementById('driver-form-doc-id').value = '';
+
+    const todayYMD = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    document.getElementById('driver-form-name').value = '';
+    document.getElementById('driver-form-id').value = `DRV-${Math.floor(10 + Math.random() * 90)}`;
+    document.getElementById('driver-form-phone').value = '';
+    document.getElementById('driver-form-alt-phone').value = '';
+    document.getElementById('driver-form-email').value = '';
+    document.getElementById('driver-form-dob').value = '1985-01-01';
+    document.getElementById('driver-form-gender').value = 'Male';
+    document.getElementById('driver-form-photo').value = '';
+    document.getElementById('driver-form-address').value = '';
+    document.getElementById('driver-form-staff-id').value = `EMP-${Math.floor(1000 + Math.random() * 9000)}`;
+    document.getElementById('driver-form-joining-date').value = todayYMD;
+    document.getElementById('driver-form-emp-status').value = 'Full-time';
+    document.getElementById('driver-form-status').value = 'Active';
+    document.getElementById('driver-form-license-number').value = '';
+    document.getElementById('driver-form-license-type').value = 'Heavy Commercial Vehicle (HCV)';
+    document.getElementById('driver-form-license-authority').value = 'RTO Chennai South';
+    document.getElementById('driver-form-license-issue').value = todayYMD;
+    document.getElementById('driver-form-license-expiry').value = '';
+    document.getElementById('driver-form-shift').value = 'Both';
+    if (busSelect) busSelect.value = '';
+    if (routeSelect) routeSelect.value = '';
+    document.getElementById('driver-form-verification').value = 'Verified';
+    document.getElementById('driver-form-verification-notes').value = '';
+  }
+
+  if (modal) modal.classList.remove('hidden');
+}
+
+async function saveDriverRecord(e) {
+  e.preventDefault();
+  const errBox = document.getElementById('driver-form-error');
+  if (errBox) errBox.classList.add('hidden');
+
+  const saveBtn = document.getElementById('save-driver-btn');
+  const mode = document.getElementById('driver-form-mode')?.value || 'add';
+  const docId = document.getElementById('driver-form-doc-id')?.value || '';
+
+  const name = document.getElementById('driver-form-name')?.value.trim();
+  const driverId = document.getElementById('driver-form-id')?.value.trim();
+  const phone = document.getElementById('driver-form-phone')?.value.trim();
+  const altPhone = document.getElementById('driver-form-alt-phone')?.value.trim();
+  const email = document.getElementById('driver-form-email')?.value.trim();
+  const dob = document.getElementById('driver-form-dob')?.value;
+  const gender = document.getElementById('driver-form-gender')?.value;
+  const photoUrl = document.getElementById('driver-form-photo')?.value.trim();
+  const address = document.getElementById('driver-form-address')?.value.trim();
+  const staffId = document.getElementById('driver-form-staff-id')?.value.trim();
+  const joiningDate = document.getElementById('driver-form-joining-date')?.value;
+  const employmentType = document.getElementById('driver-form-emp-status')?.value;
+  const status = document.getElementById('driver-form-status')?.value;
+  const licenseNumber = document.getElementById('driver-form-license-number')?.value.trim();
+  const licenseType = document.getElementById('driver-form-license-type')?.value;
+  const issuingAuthority = document.getElementById('driver-form-license-authority')?.value.trim();
+  const licenseIssue = document.getElementById('driver-form-license-issue')?.value;
+  const licenseExpiry = document.getElementById('driver-form-license-expiry')?.value;
+  const shift = document.getElementById('driver-form-shift')?.value;
+  const assignedBusId = document.getElementById('driver-form-bus')?.value;
+  const assignedRoute = document.getElementById('driver-form-route')?.value;
+  const verificationStatus = document.getElementById('driver-form-verification')?.value;
+  const verificationNotes = document.getElementById('driver-form-verification-notes')?.value.trim();
+
+  // Validations
+  if (!name) return showDriverFormError('Please enter the driver full name.');
+  if (!driverId) return showDriverFormError('Please specify the Driver ID.');
+
+  const cleanPhone = (phone || '').replace(/[\s\-\(\)]/g, '');
+  if (cleanPhone.length < 10) {
+    return showDriverFormError('Please enter a valid 10-digit mobile phone number.');
+  }
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return showDriverFormError('Please enter a valid email address.');
+  }
+
+  if (!licenseNumber || licenseNumber.length < 5) {
+    return showDriverFormError('Please enter a valid driving licence number (minimum 5 characters).');
+  }
+
+  if (licenseIssue && licenseExpiry && licenseExpiry < licenseIssue) {
+    return showDriverFormError('Driving licence expiry date cannot be earlier than the issue date.');
+  }
+
+  let assignedBusNumber = '';
+  let assignedBusObj = null;
+  if (assignedBusId) {
+    assignedBusObj = busesCache.find(x => x.id === assignedBusId || String(x.busNumber).trim() === String(assignedBusId).trim());
+    if (assignedBusObj) {
+      assignedBusNumber = assignedBusObj.busNumber || '';
+    }
+  }
+
+  const driverData = {
+    name,
+    driverId,
+    phone,
+    alternatePhone: altPhone,
+    email,
+    dob,
+    gender,
+    photoUrl,
+    address,
+    staffId,
+    joiningDate,
+    employmentType,
+    status,
+    licenseNumber,
+    licenseType,
+    issuingAuthority,
+    licenseIssue,
+    licenseExpiry,
+    shift,
+    assignedBusId: assignedBusId || '',
+    assignedBusNumber: assignedBusNumber || '',
+    assignedBus: assignedBusNumber || '',
+    assignedVehicle: assignedBusNumber ? `Bus ${assignedBusNumber}` : '',
+    assignedRoute: assignedRoute || (assignedBusObj?.routeName || ''),
+    verificationStatus,
+    verificationNotes,
+    updatedAt: serverTimestamp()
+  };
+
+  try {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving Profile...';
+    }
+
+    if (mode === 'edit' && docId && !docId.startsWith('DRV-BUS-')) {
+      await updateDoc(doc(firestore, 'drivers', docId), driverData);
+      await logAuditEvent('DRIVER_UPDATED', 'drivers', docId, { name, driverId, licenseNumber });
+    } else {
+      driverData.createdAt = serverTimestamp();
+      const newDocRef = await addDoc(collection(firestore, 'drivers'), driverData);
+      await logAuditEvent('DRIVER_CREATED', 'drivers', newDocRef.id, { name, driverId, licenseNumber });
+    }
+
+    // Sync bus if assigned
+    if (assignedBusId && assignedBusObj) {
+      try {
+        await updateDoc(doc(firestore, 'buses', assignedBusObj.id), {
+          driverName: name,
+          driverContact: phone,
+          driverLicense: licenseNumber,
+          assignedDriverId: driverId,
+          assignedDriverName: name,
+          updatedAt: serverTimestamp()
+        });
+        assignedBusObj.driverName = name;
+        assignedBusObj.driverContact = phone;
+        assignedBusObj.driverLicense = licenseNumber;
+        assignedBusObj.assignedDriverId = driverId;
+        assignedBusObj.assignedDriverName = name;
+      } catch (bErr) {
+        console.warn("Could not sync bus driver info:", bErr);
+      }
+    }
+
+    // Clear driver from any other buses they were previously assigned to
+    const otherBuses = busesCache.filter(b => 
+      (!assignedBusObj || b.id !== assignedBusObj.id) && 
+      ((b.driverName && b.driverName.trim().toLowerCase() === name.toLowerCase()) || 
+       b.assignedDriverId === driverId)
+    );
+    for (const ob of otherBuses) {
+      try {
+        await updateDoc(doc(firestore, 'buses', ob.id), {
+          driverName: '',
+          driverContact: '',
+          assignedDriverId: null,
+          assignedDriverName: null,
+          updatedAt: serverTimestamp()
+        });
+        ob.driverName = '';
+        ob.driverContact = '';
+        ob.assignedDriverId = null;
+        ob.assignedDriverName = null;
+      } catch (e) {}
+    }
+
+    // Update in-memory driver and refresh dependent views
+    const localDriver = driversCache.find(d => d.id === docId || d.driverId === driverId || d.name === name);
+    if (localDriver) {
+      Object.assign(localDriver, driverData);
+    }
+    deriveDerivedState();
+    renderDriversTable();
+    renderBusesTable();
+    renderDashboardStats();
+
+    document.getElementById('driver-editor-modal')?.classList.add('hidden');
+    alert(`Driver profile for ${name} saved successfully.`);
+  } catch (err) {
+    showDriverFormError("Failed to save driver profile: " + err.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Driver Record';
+    }
+  }
+}
+
+function openDriverDetailsModal(driverId) {
+  const driver = driversCache.find(d => d.id === driverId);
+  if (!driver) {
+    alert('Driver not found.');
+    return;
+  }
+  currentInspectingDriverId = driverId;
+
+  // Header & Status badges
+  const headerName = document.getElementById('driver-details-header-name');
+  if (headerName) headerName.textContent = `Driver: ${driver.name || 'Profile'}`;
+
+  const statusBadge = document.getElementById('driver-details-status-badge');
+  if (statusBadge) {
+    statusBadge.className = `status-badge ${driver.status === 'Active' ? 'badge-green' : (driver.status === 'Suspended' ? 'badge-red' : 'badge-orange')}`;
+    statusBadge.textContent = driver.status || 'Active';
+  }
+
+  const verifBadge = document.getElementById('driver-details-verif-badge');
+  if (verifBadge) {
+    const verif = driver.verificationStatus || 'Pending';
+    verifBadge.className = `status-badge ${verif === 'Verified' ? 'badge-green' : (verif === 'Rejected' ? 'badge-red' : 'badge-orange')}`;
+    verifBadge.textContent = verif;
+  }
+
+  // Safety warning banner
+  const licExp = getExpiryStatus(driver.licenseExpiry || driver.licenceExpiry);
+  const warnBanner = document.getElementById('driver-safety-warning-banner');
+  if (warnBanner) {
+    if (licExp.status === 'Expired') warnBanner.classList.remove('hidden');
+    else warnBanner.classList.add('hidden');
+  }
+
+  // Avatar & Basic Info
+  const avatar = document.getElementById('driver-details-avatar');
+  if (avatar) {
+    if (driver.photoUrl || driver.photo) {
+      avatar.innerHTML = `<img src="${escapeHtml(driver.photoUrl || driver.photo)}" alt="${escapeHtml(driver.name)}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;" />`;
+    } else {
+      avatar.innerHTML = `
+        <svg viewBox="0 0 24 24" width="36" height="36" stroke="#4B5563" stroke-width="1.8" fill="none">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+      `;
+    }
+  }
+
+  setElText('driver-details-name', driver.name || '--');
+  setElText('driver-details-id', driver.driverId || driver.id || '--');
+  setElText('driver-details-phone', driver.phone || '--');
+  setElText('driver-details-email', driver.email || '--');
+  setElText('driver-details-staff-id', driver.staffId || driver.employeeId || '--');
+
+  // Employment
+  setElText('driver-details-joining', formatDate(driver.joiningDate) || '--');
+  setElText('driver-details-emp-status', driver.employmentType || driver.empStatus || 'Full-time');
+  setElText('driver-details-shift', driver.shift || 'Both');
+  setElText('driver-details-address', driver.address || '--');
+
+  // Assignment
+  const busInfo = getDriverAssignedBusInfo(driver);
+  const assignedBusText = busInfo.hasBus ? busInfo.displayBus : 'Unassigned';
+  setElText('driver-details-assigned-bus', assignedBusText);
+  setElText('driver-details-assigned-route', busInfo.routeName || driver.assignedRoute || 'No Route Assigned');
+  setElText('driver-details-notes', driver.verificationNotes || 'No verification notes recorded.');
+
+  // Licence Box
+  setElText('driver-details-licence-no', driver.licenseNumber || driver.licenceNumber || '--');
+  setElText('driver-details-licence-type', driver.licenseType || driver.licenceType || 'Commercial');
+  setElText('driver-details-licence-issue', formatDate(driver.licenseIssue || driver.licenceIssue) || '--');
+  setElText('driver-details-licence-expiry', formatDate(driver.licenseExpiry || driver.licenceExpiry) || '--');
+
+  const licRemainingEl = document.getElementById('driver-details-licence-remaining');
+  if (licRemainingEl) {
+    licRemainingEl.textContent = licExp.daysText;
+    licRemainingEl.style.color = licExp.status === 'Expired' ? '#DC2626' : (licExp.status === 'Expiring Soon' ? '#D97706' : '#16A34A');
+  }
+
+  const licExpBadge = document.getElementById('driver-details-licence-expiry-badge');
+  if (licExpBadge) {
+    licExpBadge.className = `status-badge ${licExp.badgeClass}`;
+    licExpBadge.textContent = licExp.status;
+  }
+
+  // Driver Documents Table
+  const driverDocs = documentsCache.filter(doc => 
+    doc.ownerId === driver.id || 
+    doc.ownerId === driver.driverId || 
+    doc.ownerName === driver.name || 
+    (String(doc.ownerType).toLowerCase() === 'driver' && (doc.ownerId === driver.id || doc.ownerId === driver.driverId))
+  );
+
+  const docsTbody = document.getElementById('driver-details-docs-tbody');
+  if (docsTbody) {
+    if (driverDocs.length === 0) {
+      docsTbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 24px; color: #9CA3AF;">No documents uploaded for this driver. Click "+ Add Document" above to upload.</td></tr>`;
+    } else {
+      docsTbody.innerHTML = driverDocs.map(d => {
+        const dExp = getExpiryStatus(d.expiryDate);
+        return `
+          <tr>
+            <td><strong>${escapeHtml(d.documentType || 'Document')}</strong></td>
+            <td><code>${escapeHtml(d.documentNumber || '--')}</code></td>
+            <td>${formatDate(d.issueDate)}</td>
+            <td>${formatDate(d.expiryDate)}</td>
+            <td><span style="font-weight: 700; color: ${dExp.daysRemaining !== null && dExp.daysRemaining < 0 ? '#DC2626' : (dExp.daysRemaining !== null && dExp.daysRemaining <= 30 ? '#D97706' : '#16A34A')};">${dExp.daysText}</span></td>
+            <td><span class="status-badge ${d.verificationStatus === 'Verified' ? 'badge-green' : (d.verificationStatus === 'Rejected' ? 'badge-red' : 'badge-orange')}">${escapeHtml(d.verificationStatus || 'Pending')}</span></td>
+            <td style="text-align: right; white-space: nowrap;">
+              <button type="button" class="btn-action-icon btn-action-primary" onclick="window.adminViewDocument('${escapeHtml(d.id)}')">View</button>
+              ${d.verificationStatus !== 'Verified' ? `<button type="button" class="btn-action-icon" onclick="window.adminVerifyDocument('${escapeHtml(d.id)}')">Verify</button>` : ''}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // Driver Audit History
+  const driverLogs = auditLogsCache.filter(l => 
+    l.entityId === driver.id || 
+    l.details?.driverName === driver.name || 
+    l.details?.driverId === driver.id || 
+    l.details?.driverId === driver.driverId
+  );
+
+  const auditContainer = document.getElementById('driver-details-audit-list');
+  if (auditContainer) {
+    if (driverLogs.length === 0) {
+      auditContainer.innerHTML = `<div style="font-size: 13px; color: #9CA3AF; padding: 12px;">No logged administrative events for this driver yet.</div>`;
+    } else {
+      auditContainer.innerHTML = driverLogs.slice(0, 10).map(l => `
+        <div class="driver-audit-item" style="padding: 10px 0; border-bottom: 1px solid #F3F4F6; font-size: 13px;">
+          <div style="display: flex; justify-content: space-between;">
+            <strong style="color: #111827;">${escapeHtml(l.action || 'Event')}</strong>
+            <span style="color: #9CA3AF; font-size: 12px;">${formatDate(l.timestamp || l.createdAt)}</span>
+          </div>
+          <div style="color: #6B7280; margin-top: 2px;">
+            ${escapeHtml(typeof l.details === 'object' ? JSON.stringify(l.details) : (l.details || ''))}
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  document.getElementById('driver-details-modal')?.classList.remove('hidden');
+}
+
+async function handleDeleteDriverDirect(driverId) {
+  const driver = driversCache.find(d => d.id === driverId);
+  if (!confirm(`Are you sure you want to delete driver "${driver ? driver.name : driverId}"? This will unassign any active vehicles.`)) return;
+
+  try {
+    if (driverId.startsWith('DRV-BUS-')) {
+      alert("This driver record was derived from a bus fleet entry. Please update the driver details on the bus directly.");
+      return;
+    }
+
+    await deleteDoc(doc(firestore, 'drivers', driverId));
+    await logAuditEvent('DRIVER_DELETED', 'drivers', driverId, {
+      name: driver?.name,
+      driverId: driver?.driverId
+    });
+
+    // Unassign from busesCache
+    if (driver && driver.name) {
+      const assignedBuses = busesCache.filter(b => b.driverName === driver.name);
+      for (const bus of assignedBuses) {
+        try {
+          await updateDoc(doc(firestore, 'buses', bus.id), {
+            driverName: '',
+            driverContact: '',
+            updatedAt: serverTimestamp()
+          });
+        } catch (bErr) {}
+      }
+    }
+
+    document.getElementById('driver-details-modal')?.classList.add('hidden');
+    alert('Driver deleted successfully.');
+  } catch (err) {
+    alert("Deletion failed: " + err.message);
+  }
+}
+
+// =============================================================================
+// DOCUMENTS CONTROLLERS & MODAL HANDLERS
+// =============================================================================
+
+function showDocUploadError(msg) {
+  const err = document.getElementById('doc-upload-error');
+  if (err) {
+    err.textContent = msg;
+    err.classList.remove('hidden');
+    err.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else {
+    alert(msg);
+  }
+}
+
+function populateDocUploadSelects(ownerType = 'driver', selectedOwnerId = null) {
+  if (!ownerType || typeof ownerType !== 'string' || !['driver', 'vehicle', 'student'].includes(ownerType)) {
+    ownerType = 'driver';
+  }
+  const ownerLabel = document.getElementById('doc-upload-owner-label');
+  const ownerSelect = document.getElementById('doc-upload-owner-id');
+  const typeSelect = document.getElementById('doc-upload-type-select');
+
+  if (!ownerSelect || !typeSelect) return;
+
+  ownerSelect.innerHTML = '<option value="">Select owner...</option>';
+  typeSelect.innerHTML = '';
+
+  if (ownerType === 'driver') {
+    if (ownerLabel) ownerLabel.textContent = 'Select Driver *';
+    (driversCache || []).forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id || d.name;
+      opt.textContent = `${d.name} (${d.phone || 'ID: ' + (d.driverId || d.id)})`;
+      ownerSelect.appendChild(opt);
+    });
+
+    const driverTypes = [
+      'Driving Licence',
+      'Medical Fitness Certificate',
+      'Police Background Clearance',
+      'Commercial Badge',
+      'Driver ID Card',
+      'Other'
+    ];
+    driverTypes.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      typeSelect.appendChild(opt);
+    });
+  } else if (ownerType === 'vehicle') {
+    if (ownerLabel) ownerLabel.textContent = 'Select Vehicle (Bus) *';
+    (busesCache || []).forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = `Bus ${b.busNumber || b.id}`;
+      opt.textContent = `Bus ${b.busNumber || 'N/A'} - ${b.routeName || 'No Route'}`;
+      ownerSelect.appendChild(opt);
+    });
+
+    const vehicleTypes = [
+      'Vehicle Registration (RC)',
+      'Commercial Insurance',
+      'Pollution Certificate (PUC)',
+      'Fitness Certificate (FC)',
+      'Road Tax Token',
+      'State Transport Permit',
+      'Other'
+    ];
+    vehicleTypes.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      typeSelect.appendChild(opt);
+    });
+  } else if (ownerType === 'student') {
+    if (ownerLabel) ownerLabel.textContent = 'Select Student *';
+    const students = (usersCache || []).filter(u => !u.role || u.role === 'student' || u.role === 'user');
+    students.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.name || s.fullName || 'Student'} (${s.regNumber || s.email || s.id})`;
+      ownerSelect.appendChild(opt);
+    });
+
+    const studentTypes = [
+      'Student ID Card',
+      'Transport Pass',
+      'Fee Receipt',
+      'Disability Clearance',
+      'Other'
+    ];
+    studentTypes.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      typeSelect.appendChild(opt);
+    });
+  }
+
+  if (selectedOwnerId) {
+    ownerSelect.value = selectedOwnerId;
+  }
+}
+
+function openDocumentUploadModal(ownerType = 'driver', ownerId = null, editDocId = null) {
+  if (!ownerType || typeof ownerType !== 'string' || !['driver', 'vehicle', 'student'].includes(ownerType)) {
+    ownerType = 'driver';
+  }
+  if (typeof ownerId !== 'string') {
+    ownerId = null;
+  }
+  if (typeof editDocId !== 'string') {
+    editDocId = null;
+  }
+
+  const modal = document.getElementById('document-upload-modal');
+  const title = document.getElementById('doc-upload-modal-title');
+  const err = document.getElementById('doc-upload-error');
+  if (err) {
+    err.textContent = '';
+    err.classList.add('hidden');
+  }
+
+  selectedUploadFile = null;
+  const filenamePreview = document.getElementById('doc-upload-filename-preview');
+  if (filenamePreview) filenamePreview.textContent = '';
+
+  const progressWrap = document.getElementById('doc-upload-progress-container');
+  if (progressWrap) progressWrap.classList.add('hidden');
+
+  const fileInput = document.getElementById('doc-upload-file-input');
+  if (fileInput) fileInput.value = '';
+
+  const ownerTypeSelect = document.getElementById('doc-upload-owner-type');
+  if (ownerTypeSelect) ownerTypeSelect.value = ownerType;
+
+  populateDocUploadSelects(ownerType, ownerId);
+
+  const editIdEl = document.getElementById('doc-upload-edit-id');
+  if (editIdEl) editIdEl.value = editDocId || '';
+
+  const docNumberEl = document.getElementById('doc-upload-number');
+  const issueDateEl = document.getElementById('doc-upload-issue-date');
+  const expiryDateEl = document.getElementById('doc-upload-expiry-date');
+
+  if (editDocId) {
+    const docItem = (documentsCache || []).find(d => d.id === editDocId);
+    if (docItem) {
+      if (title) title.textContent = `Replace Document: ${docItem.documentType || 'Document'}`;
+      if (docNumberEl) docNumberEl.value = docItem.documentNumber || '';
+      if (issueDateEl) issueDateEl.value = docItem.issueDate || '';
+      if (expiryDateEl) expiryDateEl.value = docItem.expiryDate || '';
+      if (ownerTypeSelect) ownerTypeSelect.value = docItem.ownerType || ownerType;
+      populateDocUploadSelects(docItem.ownerType || ownerType, docItem.ownerId || ownerId);
+    }
+  } else {
+    if (title) title.textContent = 'Upload Compliance Document';
+    const todayYMD = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    if (docNumberEl) docNumberEl.value = '';
+    if (issueDateEl) issueDateEl.value = todayYMD;
+    if (expiryDateEl) expiryDateEl.value = '';
+  }
+
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+  }
+}
+
+async function uploadDocumentFile(file, progressCb) {
+  if (!file) return '';
+  try {
+    if (storage) {
+      const storagePath = `documents/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      const storageRef = ref(storage, storagePath);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      return await new Promise((resolve) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            if (typeof progressCb === 'function') progressCb(pct);
+          },
+          (error) => {
+            console.warn('Storage upload encountered error, falling back to base64 data url:', error);
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof progressCb === 'function') progressCb(100);
+              resolve(reader.result);
+            };
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+          },
+          async () => {
+            try {
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              if (typeof progressCb === 'function') progressCb(100);
+              resolve(downloadUrl);
+            } catch (uErr) {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.readAsDataURL(file);
+            }
+          }
+        );
+      });
+    }
+  } catch (err) {
+    console.warn('Storage operation exception, using fallback base64 reader:', err);
+  }
+
+  return await new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof progressCb === 'function') progressCb(100);
+      resolve(reader.result);
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+async function saveDocumentUpload(e) {
+  e.preventDefault();
+  const errBox = document.getElementById('doc-upload-error');
+  if (errBox) errBox.classList.add('hidden');
+
+  const submitBtn = document.getElementById('submit-doc-upload-btn');
+  const editDocId = document.getElementById('doc-upload-edit-id')?.value;
+  const ownerType = document.getElementById('doc-upload-owner-type')?.value;
+  const ownerId = document.getElementById('doc-upload-owner-id')?.value;
+  const docType = document.getElementById('doc-upload-type-select')?.value;
+  const docNumber = document.getElementById('doc-upload-number')?.value.trim();
+  const issueDate = document.getElementById('doc-upload-issue-date')?.value;
+  const expiryDate = document.getElementById('doc-upload-expiry-date')?.value;
+
+  if (!ownerId) return showDocUploadError('Please select an owner entity.');
+  if (!docType) return showDocUploadError('Please select the document type.');
+  if (!docNumber) return showDocUploadError('Please enter the document number.');
+  if (!issueDate) return showDocUploadError('Please specify the issue date.');
+
+  if (expiryDate && issueDate && expiryDate < issueDate) {
+    return showDocUploadError('Document expiry date cannot be earlier than the issue date.');
+  }
+
+  if (!editDocId && !selectedUploadFile) {
+    return showDocUploadError('Please select or drop a valid document file (PDF, PNG, JPG).');
+  }
+
+  if (selectedUploadFile && selectedUploadFile.size > 10 * 1024 * 1024) {
+    return showDocUploadError('Document file size exceeds 10MB limit. Please upload a smaller file.');
+  }
+
+  // Resolve owner display name
+  let ownerName = ownerId;
+  if (ownerType === 'driver') {
+    const d = driversCache.find(x => x.id === ownerId || x.name === ownerId);
+    if (d) ownerName = d.name;
+  } else if (ownerType === 'vehicle') {
+    const b = busesCache.find(x => (x.busNumber && ownerId.includes(x.busNumber)) || x.id === ownerId);
+    if (b) ownerName = `Bus ${b.busNumber}`;
+  } else if (ownerType === 'student') {
+    const s = usersCache.find(x => x.id === ownerId);
+    if (s) ownerName = s.name || s.fullName || ownerId;
+  }
+
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Uploading...';
+    }
+
+    const progressContainer = document.getElementById('doc-upload-progress-container');
+    const progressBar = document.getElementById('doc-upload-progress-bar');
+    const progressPct = document.getElementById('doc-upload-progress-pct');
+
+    if (progressContainer) progressContainer.classList.remove('hidden');
+
+    let uploadedUrl = '';
+    if (selectedUploadFile) {
+      uploadedUrl = await uploadDocumentFile(selectedUploadFile, (pct) => {
+        if (progressBar) progressBar.style.width = `${pct}%`;
+        if (progressPct) progressPct.textContent = `${pct}%`;
+      });
+    }
+
+    if (editDocId && !editDocId.startsWith('DOC-BUS-')) {
+      const updateData = {
+        ownerType,
+        ownerId,
+        ownerName,
+        documentType: docType,
+        documentNumber: docNumber,
+        issueDate,
+        expiryDate: expiryDate || null,
+        verificationStatus: 'Pending',
+        rejectionReason: null,
+        updatedAt: serverTimestamp()
+      };
+      if (uploadedUrl) {
+        updateData.fileUrl = uploadedUrl;
+        updateData.fileName = selectedUploadFile.name;
+        updateData.fileType = selectedUploadFile.type;
+        updateData.fileSize = selectedUploadFile.size;
+      }
+
+      await updateDoc(doc(firestore, 'documents', editDocId), updateData);
+      await logAuditEvent('DOCUMENT_REPLACED', 'documents', editDocId, {
+        ownerType,
+        ownerName,
+        docType,
+        docNumber
+      });
+    } else {
+      const newDoc = {
+        ownerType,
+        ownerId,
+        ownerName,
+        documentType: docType,
+        documentNumber: docNumber,
+        issueDate,
+        expiryDate: expiryDate || null,
+        fileUrl: uploadedUrl,
+        fileName: selectedUploadFile ? selectedUploadFile.name : '',
+        fileType: selectedUploadFile ? selectedUploadFile.type : '',
+        fileSize: selectedUploadFile ? selectedUploadFile.size : 0,
+        verificationStatus: 'Pending',
+        verifiedBy: null,
+        verifiedAt: null,
+        rejectionReason: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      const docRef = await addDoc(collection(firestore, 'documents'), newDoc);
+      await logAuditEvent('DOCUMENT_UPLOADED', 'documents', docRef.id, {
+        ownerType,
+        ownerName,
+        docType,
+        docNumber
+      });
+    }
+
+    const uploadModal = document.getElementById('document-upload-modal');
+    if (uploadModal) {
+      uploadModal.classList.add('hidden');
+      uploadModal.style.display = 'none';
+    }
+    alert('Compliance document uploaded and submitted for verification.');
+  } catch (err) {
+    showDocUploadError("Upload failed: " + err.message);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Upload & Save';
+    }
+  }
+}
+
+function openDocumentViewerModal(docId) {
+  const docItem = documentsCache.find(d => d.id === docId);
+  if (!docItem) {
+    alert('Document not found.');
+    return;
+  }
+  currentInspectingDocId = docId;
+
+  // Title & Badges
+  const title = document.getElementById('doc-viewer-title');
+  if (title) title.textContent = `${docItem.documentType || 'Compliance Document'} - ${docItem.documentNumber || 'N/A'}`;
+
+  const subtitle = document.getElementById('doc-viewer-subtitle');
+  if (subtitle) {
+    subtitle.textContent = `Category: ${docItem.ownerType || 'Entity'} • Owner: ${docItem.ownerName || docItem.ownerId || 'N/A'} • Issued: ${formatDate(docItem.issueDate)} • Expiry: ${formatDate(docItem.expiryDate)}`;
+  }
+
+  const exp = getExpiryStatus(docItem.expiryDate);
+  const expBadge = document.getElementById('doc-viewer-expiry-badge');
+  if (expBadge) {
+    expBadge.className = `status-badge ${exp.badgeClass}`;
+    expBadge.textContent = exp.status;
+  }
+
+  const verifBadge = document.getElementById('doc-viewer-verif-badge');
+  const verif = docItem.verificationStatus || 'Pending';
+  if (verifBadge) {
+    verifBadge.className = `status-badge ${verif === 'Verified' ? 'badge-green' : (verif === 'Rejected' ? 'badge-red' : 'badge-orange')}`;
+    verifBadge.textContent = verif;
+  }
+
+  // Rejection notes warning
+  const rejBox = document.getElementById('doc-viewer-rejection-box');
+  const rejNotes = document.getElementById('doc-viewer-rejection-notes');
+  if (verif === 'Rejected' && docItem.rejectionReason) {
+    if (rejBox) rejBox.classList.remove('hidden');
+    if (rejNotes) rejNotes.textContent = docItem.rejectionReason;
+  } else {
+    if (rejBox) rejBox.classList.add('hidden');
+  }
+
+  // Document file preview
+  const iframe = document.getElementById('doc-viewer-iframe');
+  const img = document.getElementById('doc-viewer-image');
+  const placeholder = document.getElementById('doc-viewer-placeholder');
+  const fileUrl = docItem.fileUrl || docItem.documentUrl;
+
+  if (iframe) iframe.style.display = 'none';
+  if (img) img.style.display = 'none';
+  if (placeholder) placeholder.style.display = 'none';
+
+  if (fileUrl) {
+    const isPdf = String(docItem.fileType || '').includes('pdf') || fileUrl.includes('.pdf') || fileUrl.startsWith('data:application/pdf');
+    const isImg = String(docItem.fileType || '').startsWith('image/') || fileUrl.match(/\.(png|jpg|jpeg|webp|gif)/i) || fileUrl.startsWith('data:image/');
+
+    if (isPdf && iframe) {
+      iframe.src = fileUrl;
+      iframe.style.display = 'block';
+    } else if (isImg && img) {
+      img.src = fileUrl;
+      img.style.display = 'block';
+    } else if (placeholder) {
+      placeholder.style.display = 'block';
+    }
+  } else if (placeholder) {
+    placeholder.style.display = 'block';
+  }
+
+  document.getElementById('document-viewer-modal')?.classList.remove('hidden');
+}
+
+async function handleVerifyDocumentDirect(docId) {
+  const docItem = documentsCache.find(d => d.id === docId);
+  if (!docItem) return;
+
+  try {
+    if (docId.startsWith('DOC-BUS-')) {
+      alert("This document is attached to a fleet bus record. Please verify the vehicle document in the Bus Inspector.");
+      return;
+    }
+
+    await updateDoc(doc(firestore, 'documents', docId), {
+      verificationStatus: 'Verified',
+      verifiedBy: currentAdminUser ? (currentAdminUser.email || 'Admin') : 'Admin',
+      verifiedAt: serverTimestamp(),
+      rejectionReason: null,
+      updatedAt: serverTimestamp()
+    });
+
+    if (String(docItem.ownerType).toLowerCase() === 'driver' && String(docItem.documentType || '').toLowerCase().includes('licen')) {
+      const driver = driversCache.find(d => d.id === docItem.ownerId || d.name === docItem.ownerName);
+      if (driver && driver.id && !driver.id.startsWith('DRV-BUS-')) {
+        try {
+          await updateDoc(doc(firestore, 'drivers', driver.id), {
+            verificationStatus: 'Verified',
+            verificationNotes: 'Driving licence document verified by admin.',
+            updatedAt: serverTimestamp()
+          });
+        } catch (dErr) {}
+      }
+    }
+
+    await logAuditEvent('DOCUMENT_VERIFIED', 'documents', docId, {
+      documentType: docItem.documentType,
+      ownerName: docItem.ownerName
+    });
+
+    document.getElementById('document-viewer-modal')?.classList.add('hidden');
+    alert(`Document "${docItem.documentType}" verified successfully.`);
+  } catch (err) {
+    alert("Verification failed: " + err.message);
+  }
+}
+
+function openDocumentRejectionModal(docId) {
+  pendingRejectDocId = docId;
+  const reasonInput = document.getElementById('doc-reject-reason-input');
+  if (reasonInput) reasonInput.value = '';
+  document.getElementById('document-rejection-modal')?.classList.remove('hidden');
+}
+
+async function handleConfirmDocumentRejection() {
+  if (!pendingRejectDocId) return;
+  const reasonInput = document.getElementById('doc-reject-reason-input');
+  const reason = reasonInput ? reasonInput.value.trim() : '';
+  if (!reason) {
+    alert('Please enter a rejection reason.');
+    return;
+  }
+
+  const docItem = documentsCache.find(d => d.id === pendingRejectDocId);
+  try {
+    if (pendingRejectDocId.startsWith('DOC-BUS-')) {
+      alert("This document is attached to a fleet bus record. Please update the bus record directly.");
+      return;
+    }
+
+    await updateDoc(doc(firestore, 'documents', pendingRejectDocId), {
+      verificationStatus: 'Rejected',
+      rejectionReason: reason,
+      rejectedBy: currentAdminUser ? (currentAdminUser.email || 'Admin') : 'Admin',
+      rejectedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    if (docItem && String(docItem.ownerType).toLowerCase() === 'driver' && String(docItem.documentType || '').toLowerCase().includes('licen')) {
+      const driver = driversCache.find(d => d.id === docItem.ownerId || d.name === docItem.ownerName);
+      if (driver && driver.id && !driver.id.startsWith('DRV-BUS-')) {
+        try {
+          await updateDoc(doc(firestore, 'drivers', driver.id), {
+            verificationStatus: 'Rejected',
+            verificationNotes: `Driving licence rejected: ${reason}`,
+            updatedAt: serverTimestamp()
+          });
+        } catch (dErr) {}
+      }
+    }
+
+    await logAuditEvent('DOCUMENT_REJECTED', 'documents', pendingRejectDocId, {
+      reason,
+      documentType: docItem?.documentType,
+      ownerName: docItem?.ownerName
+    });
+
+    document.getElementById('document-rejection-modal')?.classList.add('hidden');
+    document.getElementById('document-viewer-modal')?.classList.add('hidden');
+    alert('Document rejected successfully.');
+  } catch (err) {
+    alert("Rejection failed: " + err.message);
+  }
+}
+
+async function handleDeleteDocumentDirect(docId) {
+  if (!confirm('Are you sure you want to permanently delete this document record?')) return;
+  try {
+    if (docId.startsWith('DOC-BUS-')) {
+      alert("This document is attached to a fleet bus record. Please remove it from the Bus Inspector / Editor.");
+      return;
+    }
+    const docItem = documentsCache.find(d => d.id === docId);
+    await deleteDoc(doc(firestore, 'documents', docId));
+    await logAuditEvent('DOCUMENT_DELETED', 'documents', docId, {
+      documentType: docItem?.documentType,
+      ownerName: docItem?.ownerName
+    });
+    document.getElementById('document-viewer-modal')?.classList.add('hidden');
+    alert('Document deleted successfully.');
+  } catch (err) {
+    alert("Deletion failed: " + err.message);
+  }
+}
+
+// =============================================================================
+// SETUP: DRIVERS & DOCUMENTS EVENT LISTENERS
+// =============================================================================
+
+function setupDriversAndDocumentsListeners() {
+  // 1. Drivers Sub-navigation Pills
+  const pillList = document.getElementById('driver-subnav-list') || document.getElementById('drivers-subtab-list');
+  const pillComp = document.getElementById('driver-subnav-compliance') || document.getElementById('drivers-subtab-compliance');
+  const pillDocs = document.getElementById('driver-subnav-docs') || document.getElementById('drivers-subtab-documents');
+
+  pillList?.addEventListener('click', () => switchDriverSubtab('list'));
+  pillComp?.addEventListener('click', () => switchDriverSubtab('compliance'));
+  pillDocs?.addEventListener('click', () => switchDriverSubtab('docs'));
+
+  document.querySelectorAll('.view-subnav-pills [data-drivers-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-drivers-tab');
+      switchDriverSubtab(tab === 'documents' ? 'docs' : tab);
+    });
+  });
+
+  // 2. Drivers Filters & Search
+  document.getElementById('drivers-search-input')?.addEventListener('input', () => {
+    driversPagination.page = 1;
+    renderDriversTable();
+  });
+  document.getElementById('drivers-status-filter')?.addEventListener('change', () => {
+    driversPagination.page = 1;
+    renderDriversTable();
+  });
+  document.getElementById('drivers-verification-filter')?.addEventListener('change', () => {
+    driversPagination.page = 1;
+    renderDriversTable();
+  });
+  document.getElementById('drivers-licence-filter')?.addEventListener('change', () => {
+    driversPagination.page = 1;
+    renderDriversTable();
+  });
+  document.getElementById('drivers-bus-filter')?.addEventListener('change', () => {
+    driversPagination.page = 1;
+    renderDriversTable();
+  });
+  document.getElementById('drivers-sort-filter')?.addEventListener('change', () => {
+    driversPagination.page = 1;
+    renderDriversTable();
+  });
+
+  // Drivers Pagination
+  document.getElementById('drivers-prev-btn')?.addEventListener('click', () => {
+    if (driversPagination.page > 1) {
+      driversPagination.page--;
+      renderDriversTable();
+    }
+  });
+  document.getElementById('drivers-next-btn')?.addEventListener('click', () => {
+    driversPagination.page++;
+    renderDriversTable();
+  });
+
+  // Add Driver Button
+  document.getElementById('add-driver-btn')?.addEventListener('click', () => openDriverEditorModal());
+
+  // Driver Editor Modal
+  document.getElementById('close-driver-editor-btn')?.addEventListener('click', () => {
+    document.getElementById('driver-editor-modal')?.classList.add('hidden');
+  });
+  document.getElementById('cancel-driver-editor-btn')?.addEventListener('click', () => {
+    document.getElementById('driver-editor-modal')?.classList.add('hidden');
+  });
+  document.getElementById('driver-editor-form')?.addEventListener('submit', saveDriverRecord);
+
+  // Driver Details Modal
+  document.getElementById('close-driver-details-btn')?.addEventListener('click', () => {
+    document.getElementById('driver-details-modal')?.classList.add('hidden');
+  });
+  document.getElementById('close-driver-details-bottom-btn')?.addEventListener('click', () => {
+    document.getElementById('driver-details-modal')?.classList.add('hidden');
+  });
+  document.getElementById('driver-details-edit-btn')?.addEventListener('click', () => {
+    if (currentInspectingDriverId) {
+      document.getElementById('driver-details-modal')?.classList.add('hidden');
+      openDriverEditorModal(currentInspectingDriverId);
+    }
+  });
+  document.getElementById('driver-details-upload-doc-btn')?.addEventListener('click', () => {
+    openDocumentUploadModal('driver', currentInspectingDriverId || null);
+  });
+  document.getElementById('driver-details-add-doc-trigger')?.addEventListener('click', () => {
+    openDocumentUploadModal('driver', currentInspectingDriverId || null);
+  });
+  document.getElementById('driver-details-assign-bus-btn')?.addEventListener('click', () => {
+    if (currentInspectingDriverId) {
+      const d = driversCache.find(x => x.id === currentInspectingDriverId);
+      document.getElementById('driver-details-modal')?.classList.add('hidden');
+      window.adminOpenDriverAssign(d ? (d.id || d.name) : currentInspectingDriverId);
+    }
+  });
+
+  // 3. Documents Category Tabs
+  document.getElementById('doc-tab-all')?.addEventListener('click', () => switchDocumentCategoryTab('all'));
+  document.getElementById('doc-tab-drivers')?.addEventListener('click', () => switchDocumentCategoryTab('driver'));
+  document.getElementById('doc-tab-students')?.addEventListener('click', () => switchDocumentCategoryTab('student'));
+  document.getElementById('doc-tab-vehicles')?.addEventListener('click', () => switchDocumentCategoryTab('vehicle'));
+
+  // 4. Documents Filters & Search
+  document.getElementById('doc-search-input')?.addEventListener('input', () => {
+    documentsPagination.page = 1;
+    renderDocumentsTable();
+  });
+  document.getElementById('doc-status-filter')?.addEventListener('change', () => {
+    documentsPagination.page = 1;
+    renderDocumentsTable();
+  });
+  document.getElementById('doc-owner-filter')?.addEventListener('change', (e) => {
+    documentsPagination.page = 1;
+    currentDocCategoryFilter = e.target.value;
+    renderDocumentsTable();
+  });
+  document.getElementById('doc-sort-filter')?.addEventListener('change', () => {
+    documentsPagination.page = 1;
+    renderDocumentsTable();
+  });
+
+  // Documents Pagination
+  document.getElementById('doc-prev-btn')?.addEventListener('click', () => {
+    if (documentsPagination.page > 1) {
+      documentsPagination.page--;
+      renderDocumentsTable();
+    }
+  });
+  document.getElementById('doc-next-btn')?.addEventListener('click', () => {
+    documentsPagination.page++;
+    renderDocumentsTable();
+  });
+
+  // Upload Document Trigger Button (supports both IDs and class selectors)
+  const triggerDocUpload = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    openDocumentUploadModal();
+  };
+  document.getElementById('upload-doc-btn')?.addEventListener('click', triggerDocUpload);
+  document.getElementById('upload-document-btn')?.addEventListener('click', triggerDocUpload);
+  document.querySelectorAll('.btn-upload-doc, [data-action="upload-document"]').forEach(b => {
+    b.addEventListener('click', triggerDocUpload);
+  });
+
+  // Document Upload Modal
+  const closeDocUpload = () => {
+    const m = document.getElementById('document-upload-modal');
+    if (m) {
+      m.classList.add('hidden');
+      m.style.display = 'none';
+    }
+  };
+  document.getElementById('close-doc-upload-btn')?.addEventListener('click', closeDocUpload);
+  document.getElementById('cancel-doc-upload-btn')?.addEventListener('click', closeDocUpload);
+  document.getElementById('document-upload-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('document-upload-modal')) {
+      closeDocUpload();
+    }
+  });
+  document.getElementById('document-upload-form')?.addEventListener('submit', saveDocumentUpload);
+
+  document.getElementById('doc-upload-owner-type')?.addEventListener('change', (e) => {
+    populateDocUploadSelects(e.target.value);
+  });
+
+  // Dropzone drag-and-drop & file selection
+  const dropzone = document.getElementById('doc-upload-dropzone');
+  const fileInput = document.getElementById('doc-upload-file-input');
+
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        selectedUploadFile = file;
+        const preview = document.getElementById('doc-upload-filename-preview');
+        if (preview) preview.textContent = `Selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+      }
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropzone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (file) {
+        selectedUploadFile = file;
+        const preview = document.getElementById('doc-upload-filename-preview');
+        if (preview) preview.textContent = `Selected: ${file.name} (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+      }
+    });
+  }
+
+  // Document Viewer Modal
+  const closeDocViewer = () => {
+    const m = document.getElementById('document-viewer-modal');
+    if (m) {
+      m.classList.add('hidden');
+      m.style.display = 'none';
+    }
+  };
+  document.getElementById('close-doc-viewer-btn')?.addEventListener('click', closeDocViewer);
+  document.getElementById('document-viewer-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('document-viewer-modal')) {
+      closeDocViewer();
+    }
+  });
+  document.getElementById('doc-viewer-verify-btn')?.addEventListener('click', () => {
+    if (currentInspectingDocId) handleVerifyDocumentDirect(currentInspectingDocId);
+  });
+  document.getElementById('doc-viewer-reject-btn')?.addEventListener('click', () => {
+    if (currentInspectingDocId) openDocumentRejectionModal(currentInspectingDocId);
+  });
+  document.getElementById('doc-viewer-replace-btn')?.addEventListener('click', () => {
+    if (currentInspectingDocId) {
+      const docItem = documentsCache.find(d => d.id === currentInspectingDocId);
+      const m = document.getElementById('document-viewer-modal');
+      if (m) {
+        m.classList.add('hidden');
+        m.style.display = 'none';
+      }
+      openDocumentUploadModal(docItem?.ownerType || 'driver', docItem?.ownerId || '', currentInspectingDocId);
+    }
+  });
+  document.getElementById('doc-viewer-download-btn')?.addEventListener('click', () => {
+    if (currentInspectingDocId) {
+      const docItem = documentsCache.find(d => d.id === currentInspectingDocId);
+      const url = docItem?.fileUrl || docItem?.documentUrl;
+      if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = docItem.fileName || 'compliance_document';
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        alert('No downloadable file attached to this document record.');
+      }
+    }
+  });
+  document.getElementById('doc-viewer-delete-btn')?.addEventListener('click', () => {
+    if (currentInspectingDocId) handleDeleteDocumentDirect(currentInspectingDocId);
+  });
+
+  // Document Rejection Modal
+  const closeDocReject = () => {
+    const m = document.getElementById('document-rejection-modal');
+    if (m) {
+      m.classList.add('hidden');
+      m.style.display = 'none';
+    }
+  };
+  document.getElementById('close-doc-reject-btn')?.addEventListener('click', closeDocReject);
+  document.getElementById('cancel-doc-reject-btn')?.addEventListener('click', closeDocReject);
+  document.getElementById('document-rejection-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('document-rejection-modal')) {
+      closeDocReject();
+    }
+  });
+  document.getElementById('confirm-doc-reject-btn')?.addEventListener('click', handleConfirmDocumentRejection);
+}
+
+// Global Window exposures for table and card action buttons
+window.adminOpenAddDriver = () => openDriverEditorModal();
+window.adminInspectDriver = (driverId) => openDriverDetailsModal(driverId);
+window.adminEditDriver = (driverId) => openDriverEditorModal(driverId);
+window.adminUploadDriverDoc = (driverId) => openDocumentUploadModal('driver', driverId);
+window.adminDeleteDriver = (driverId) => handleDeleteDriverDirect(driverId);
+window.adminOpenUploadDoc = (ownerType, ownerId) => openDocumentUploadModal(typeof ownerType === 'string' ? ownerType : 'driver', typeof ownerId === 'string' ? ownerId : null);
+window.adminViewDocument = (docId) => openDocumentViewerModal(docId);
+window.adminVerifyDocument = (docId) => handleVerifyDocumentDirect(docId);
+window.adminRejectDocumentPrompt = (docId) => openDocumentRejectionModal(docId);
+window.adminDeleteDocument = (docId) => handleDeleteDocumentDirect(docId);
+
+// Direct global window bindings for templates
+window.openDocumentUploadModal = (ownerType, ownerId, editDocId) => openDocumentUploadModal(typeof ownerType === 'string' ? ownerType : 'driver', typeof ownerId === 'string' ? ownerId : null, editDocId);
+window.openDocumentViewerModal = (docId) => openDocumentViewerModal(docId);
+window.openDriverEditorModal = (driverId) => openDriverEditorModal(driverId);
+window.openDriverDetailsModal = (driverId) => openDriverDetailsModal(driverId);
 
 // =============================================================================
 // RENDER: APPROVALS & AUDIT LOGS
@@ -6155,6 +8278,52 @@ function setupModalListeners() {
           }
         }
 
+        // Bidirectional sync: Update assigned driver in Firestore 'drivers' collection
+        if (matchedDriver && matchedDriver.id && !matchedDriver.id.startsWith('DRV-BUS-')) {
+          try {
+            await updateDoc(doc(firestore, 'drivers', matchedDriver.id), {
+              assignedBusId: finalBusId,
+              assignedBusNumber: busNo || '',
+              assignedBus: busNo || '',
+              assignedVehicle: busNo ? `Bus ${busNo}` : '',
+              assignedRoute: selectedRouteName || '',
+              updatedAt: serverTimestamp()
+            });
+            matchedDriver.assignedBusId = finalBusId;
+            matchedDriver.assignedBusNumber = busNo || '';
+            matchedDriver.assignedBus = busNo || '';
+            matchedDriver.assignedVehicle = busNo ? `Bus ${busNo}` : '';
+            matchedDriver.assignedRoute = selectedRouteName || '';
+          } catch (dErr) {
+            console.warn("Could not sync driver document with assigned bus:", dErr);
+          }
+        }
+
+        // If bus had a previous driver who was replaced or unassigned, clear old driver
+        if (existingBus && existingBus.driverName && existingBus.driverName !== selectedDriver) {
+          const oldDrv = driversCache.find(d => d.name === existingBus.driverName);
+          if (oldDrv && oldDrv.id && !oldDrv.id.startsWith('DRV-BUS-')) {
+            try {
+              await updateDoc(doc(firestore, 'drivers', oldDrv.id), {
+                assignedBusId: '',
+                assignedBusNumber: '',
+                assignedBus: '',
+                assignedVehicle: '',
+                updatedAt: serverTimestamp()
+              });
+              oldDrv.assignedBusId = '';
+              oldDrv.assignedBusNumber = '';
+              oldDrv.assignedBus = '';
+              oldDrv.assignedVehicle = '';
+            } catch (e) {}
+          }
+        }
+
+        deriveDerivedState();
+        renderDriversTable();
+        renderBusesTable();
+        renderDashboardStats();
+
         busEditorModal?.classList.add('hidden');
         alert(`Bus ${busNo} saved successfully.`);
       } catch (err) {
@@ -6191,38 +8360,133 @@ function setupModalListeners() {
       const errorBox = document.getElementById('assign-validation-error');
       if (errorBox) errorBox.classList.add('hidden');
 
-      const driverName = document.getElementById('assign-driver-select').value;
+      const driverVal = document.getElementById('assign-driver-select').value;
       const busId = document.getElementById('assign-bus-select').value;
+      const routeVal = document.getElementById('assign-route-select')?.value || '';
 
       // VALIDATION ENGINE
-      const driver = driversCache.find(d => d.name === driverName);
-      const targetBus = busesCache.find(b => b.id === busId);
+      const driver = driversCache.find(d => d.id === driverVal || d.name === driverVal || d.driverId === driverVal);
+      const targetBus = busesCache.find(b => b.id === busId || String(b.busNumber).trim() === String(busId).trim());
 
       if (!driver || !targetBus) {
         showAssignError('Please select both a valid driver and bus.');
         return;
       }
 
-      if (targetBus.status === 'Maintenance') {
-        showAssignError(`Cannot assign driver. Bus ${targetBus.busNumber} is currently under Maintenance.`);
+      // 1. Bus status safety check
+      if (targetBus.status === 'Maintenance' || targetBus.status === 'Inactive') {
+        showAssignError(`Cannot assign driver. Bus ${targetBus.busNumber || targetBus.id} is currently ${targetBus.status}.`);
         return;
       }
 
-      if (driver.licenseStatus !== 'Valid') {
-        showAssignError(`Driver ${driver.name} cannot be assigned because their license verification is pending/expired.`);
+      // 2. Driver status check
+      if (driver.status && driver.status !== 'Active') {
+        showAssignError(`Cannot assign driver. Driver ${driver.name} is currently ${driver.status}. Only Active drivers can be assigned.`);
         return;
+      }
+
+      // 3. Driver driving licence expiry check
+      const licExpiry = getExpiryStatus(driver.licenseExpiry || driver.licenceExpiry);
+      if (licExpiry.status === 'Expired') {
+        showAssignError(`Cannot assign driver. Driving licence for ${driver.name} expired on ${driver.licenseExpiry || driver.licenceExpiry || 'N/A'}. Expired drivers cannot be assigned.`);
+        return;
+      }
+
+      // 4. Driver verification status check
+      if (driver.verificationStatus && driver.verificationStatus !== 'Verified') {
+        showAssignError(`Cannot assign driver. Driver ${driver.name} verification status is "${driver.verificationStatus}". Must be Verified.`);
+        return;
+      }
+
+      // 5. Driver compliance document validation
+      const driverLicDoc = documentsCache.find(doc => 
+        (doc.ownerId === driver.id || doc.ownerName === driver.name) && 
+        String(doc.documentType || '').toLowerCase().includes('licen')
+      );
+      if (driverLicDoc) {
+        const docExp = getExpiryStatus(driverLicDoc.expiryDate);
+        if (docExp.status === 'Expired') {
+          showAssignError(`Cannot assign driver. Driving licence document is expired (${driverLicDoc.expiryDate}).`);
+          return;
+        }
+        if (driverLicDoc.verificationStatus === 'Rejected') {
+          showAssignError(`Cannot assign driver. Driving licence document was rejected: ${driverLicDoc.rejectionReason || 'Compliance failed'}.`);
+          return;
+        }
       }
 
       try {
+        const finalRoute = routeVal || targetBus.routeName || targetBus.route || '';
         await updateDoc(doc(firestore, 'buses', targetBus.id), {
           driverName: driver.name,
-          driverContact: driver.phone,
+          driverContact: driver.phone || '',
+          driverLicense: driver.licenseNumber || driver.licenceNumber || '',
+          assignedDriverId: driver.id || driver.driverId || '',
+          assignedDriverName: driver.name,
+          ...(routeVal ? { routeName: routeVal, route: routeVal } : {}),
           updatedAt: serverTimestamp()
         });
 
+        targetBus.driverName = driver.name;
+        targetBus.driverContact = driver.phone || '';
+        targetBus.driverLicense = driver.licenseNumber || driver.licenceNumber || '';
+        targetBus.assignedDriverId = driver.id || driver.driverId || '';
+        targetBus.assignedDriverName = driver.name;
+        if (routeVal) {
+          targetBus.routeName = routeVal;
+          targetBus.route = routeVal;
+        }
+
+        // Also update driver's document if stored in drivers collection
+        if (driver.id && !driver.id.startsWith('DRV-BUS-')) {
+          try {
+            await updateDoc(doc(firestore, 'drivers', driver.id), {
+              assignedBusId: targetBus.id,
+              assignedBusNumber: targetBus.busNumber || '',
+              assignedBus: targetBus.busNumber || '',
+              assignedVehicle: targetBus.busNumber ? `Bus ${targetBus.busNumber}` : '',
+              assignedRoute: finalRoute,
+              updatedAt: serverTimestamp()
+            });
+          } catch (dErr) {
+            console.warn("Could not update driver record directly:", dErr);
+          }
+        }
+
+        driver.assignedBusId = targetBus.id;
+        driver.assignedBusNumber = targetBus.busNumber || '';
+        driver.assignedBus = targetBus.busNumber || '';
+        driver.assignedVehicle = targetBus.busNumber ? `Bus ${targetBus.busNumber}` : '';
+        driver.assignedRoute = finalRoute || driver.assignedRoute || '';
+
+        // Clear previous bus assigned to this driver
+        const oldBuses = busesCache.filter(b => b.id !== targetBus.id && (b.driverName === driver.name || b.assignedDriverId === driver.id));
+        for (const ob of oldBuses) {
+          try {
+            await updateDoc(doc(firestore, 'buses', ob.id), {
+              driverName: '',
+              driverContact: '',
+              assignedDriverId: null,
+              assignedDriverName: null,
+              updatedAt: serverTimestamp()
+            });
+            ob.driverName = '';
+            ob.driverContact = '';
+            ob.assignedDriverId = null;
+            ob.assignedDriverName = null;
+          } catch (e) {}
+        }
+
+        deriveDerivedState();
+        renderDriversTable();
+        renderBusesTable();
+        renderDashboardStats();
+
         await logAuditEvent('DRIVER_ASSIGNED', 'buses', targetBus.id, {
           driverName: driver.name,
-          busNumber: targetBus.busNumber
+          driverId: driver.id || '',
+          busNumber: targetBus.busNumber || targetBus.id,
+          routeName: finalRoute
         });
 
         driverAssignModal?.classList.add('hidden');
@@ -6246,7 +8510,6 @@ function setupModalListeners() {
     saveTicketBtn.addEventListener('click', async () => {
       if (!currentInspectingTicket) return;
       const newStatus = document.getElementById('modal-ticket-status-select').value;
-      const newPrio = document.getElementById('modal-ticket-prio-select').value;
       const replyText = document.getElementById('modal-ticket-reply').value.trim();
 
       try {
@@ -6258,7 +8521,6 @@ function setupModalListeners() {
 
         const updatePayload = {
           status: newStatus,
-          priority: newPrio,
           adminResponse: replyText,
           resolution: replyText,
           adminReply: replyText,
@@ -6448,13 +8710,17 @@ function showAssignError(msg) {
 function populateDriverAssignSelects() {
   const driverSel = document.getElementById('assign-driver-select');
   const busSel = document.getElementById('assign-bus-select');
+  const routeSel = document.getElementById('assign-route-select');
   if (!driverSel || !busSel) return;
 
   driverSel.innerHTML = '<option value="">Choose Driver...</option>';
   driversCache.forEach(d => {
     const opt = document.createElement('option');
-    opt.value = d.name;
-    opt.textContent = `${d.name} (${d.phone}) - ${d.status}`;
+    opt.value = d.id || d.name;
+    const licExp = getExpiryStatus(d.licenseExpiry || d.licenceExpiry);
+    const busInfo = getDriverAssignedBusInfo(d);
+    const busText = busInfo.hasBus ? `[Currently: ${busInfo.displayBus}]` : '[Unassigned]';
+    opt.textContent = `${d.name} (${d.phone || 'No phone'}) - ${d.status || 'Active'} ${busText} [Licence: ${licExp.status}]`;
     driverSel.appendChild(opt);
   });
 
@@ -6462,9 +8728,19 @@ function populateDriverAssignSelects() {
   busesCache.forEach(b => {
     const opt = document.createElement('option');
     opt.value = b.id;
-    opt.textContent = `Bus ${b.busNumber || 'N/A'} - ${b.routeName || 'No Route'} [${b.status}]`;
+    opt.textContent = `Bus ${b.busNumber || 'N/A'} - ${b.routeName || 'No Route'} [${b.status || 'Active'}]`;
     busSel.appendChild(opt);
   });
+
+  if (routeSel) {
+    routeSel.innerHTML = '<option value="">Keep Bus Default Route</option>';
+    routesCache.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.name;
+      opt.textContent = r.name;
+      routeSel.appendChild(opt);
+    });
+  }
 }
 
 // Global Window Helpers for table actions
@@ -6554,10 +8830,17 @@ window.adminEditBus = (busId) => {
   document.getElementById('bus-editor-modal')?.classList.remove('hidden');
 };
 
-window.adminOpenDriverAssign = (driverName) => {
+window.adminOpenDriverAssign = (driverIdentifier) => {
   populateDriverAssignSelects();
   const driverSel = document.getElementById('assign-driver-select');
-  if (driverSel) driverSel.value = driverName;
+  if (driverSel && driverIdentifier) {
+    const match = driversCache.find(d => d.name === driverIdentifier || d.id === driverIdentifier);
+    if (match) {
+      driverSel.value = match.id || match.name;
+    } else {
+      driverSel.value = driverIdentifier;
+    }
+  }
   document.getElementById('driver-assignment-modal')?.classList.remove('hidden');
 };
 
@@ -6613,19 +8896,12 @@ window.adminOpenTicket = (ticketId) => {
   }
 
   const statusSel = document.getElementById('modal-ticket-status-select');
-  const prioSel = document.getElementById('modal-ticket-prio-select');
   const replyInput = document.getElementById('modal-ticket-reply');
 
   if (statusSel) statusSel.value = ticket.status || 'Under Review';
-  if (prioSel) prioSel.value = ticket.priority || 'Normal';
   if (replyInput) replyInput.value = ticket.adminResponse || ticket.resolution || ticket.adminReply || '';
 
-  const prioBadge = document.getElementById('modal-ticket-prio-badge');
   const statusBadge = document.getElementById('modal-ticket-status-badge');
-  if (prioBadge) {
-    prioBadge.className = `status-badge ${getPriorityBadgeClass(ticket.priority)}`;
-    prioBadge.textContent = ticket.priority || 'Normal';
-  }
   if (statusBadge) {
     statusBadge.className = `status-badge ${getStatusBadgeClass(ticket.status)}`;
     statusBadge.textContent = ticket.status || 'Under Review';
@@ -6986,7 +9262,7 @@ function setupGlobalSearch() {
     if (matchedRoutes.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Routes</div>`;
       matchedRoutes.slice(0, 3).forEach(r => {
-        html += `<div class="search-item" data-action="inspect-route" data-route-id="${escapeHtml(r.id)}"><span><strong>${escapeHtml(r.name)}</strong> (${escapeHtml(r.startPoint || '')} &rarr; ${escapeHtml(r.destination || '')})</span><span class="status-badge badge-blue">Inspect</span></div>`;
+        html += `<div class="search-item" data-action="inspect-route" data-route-id="${escapeHtml(r.id)}"><span class="search-item-info"><strong>${escapeHtml(r.name)}</strong> (${escapeHtml(r.startPoint || '')} &rarr; ${escapeHtml(r.destination || '')})</span><span class="status-badge badge-blue">Inspect</span></div>`;
       });
       html += `</div>`;
     }
@@ -6994,7 +9270,7 @@ function setupGlobalSearch() {
     if (matchedBuses.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Buses</div>`;
       matchedBuses.slice(0, 3).forEach(b => {
-        html += `<div class="search-item" data-action="inspect-bus" data-bus-id="${escapeHtml(b.id)}"><span><strong>Bus ${escapeHtml(b.busNumber)}</strong> - ${escapeHtml(b.routeName || 'Route')}</span><span class="status-badge badge-blue">Inspect</span></div>`;
+        html += `<div class="search-item" data-action="inspect-bus" data-bus-id="${escapeHtml(b.id)}"><span class="search-item-info"><strong>Bus ${escapeHtml(b.busNumber)}</strong> - ${escapeHtml(b.routeName || 'Route')}</span><span class="status-badge badge-blue">Inspect</span></div>`;
       });
       html += `</div>`;
     }
@@ -7002,7 +9278,7 @@ function setupGlobalSearch() {
     if (matchedDrivers.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Drivers</div>`;
       matchedDrivers.slice(0, 3).forEach(d => {
-        html += `<div class="search-item" data-action="assign-driver" data-driver-name="${escapeHtml(d.name)}"><span><strong>${escapeHtml(d.name)}</strong> (${escapeHtml(d.phone || '')})</span><span class="status-badge badge-green">Driver</span></div>`;
+        html += `<div class="search-item" data-action="assign-driver" data-driver-name="${escapeHtml(d.name)}"><span class="search-item-info"><strong>${escapeHtml(d.name)}</strong> (${escapeHtml(d.phone || '')})</span><span class="status-badge badge-green">Driver</span></div>`;
       });
       html += `</div>`;
     }
@@ -7010,13 +9286,13 @@ function setupGlobalSearch() {
     if (matchedTickets.length > 0) {
       html += `<div class="search-category-group"><div class="search-category-title">Support Tickets</div>`;
       matchedTickets.slice(0, 3).forEach(t => {
-        html += `<div class="search-item" data-action="open-ticket" data-ticket-id="${escapeHtml(t.id)}"><span><strong>${escapeHtml(t.reportNumber || 'Ticket')}</strong>: ${escapeHtml(t.subject || 'Issue')}</span><span class="status-badge badge-orange">${escapeHtml(t.status || 'Open')}</span></div>`;
+        html += `<div class="search-item" data-action="open-ticket" data-ticket-id="${escapeHtml(t.id)}"><span class="search-item-info"><strong>${escapeHtml(t.reportNumber || 'Ticket')}</strong>: ${escapeHtml(t.subject || 'Issue')}</span><span class="status-badge badge-orange">${escapeHtml(t.status || 'Open')}</span></div>`;
       });
       html += `</div>`;
     }
 
     if (!html) {
-      html = `<div style="padding: 16px; text-align: center; color: var(--text-secondary); font-size: 13px;">No results found for "${q}".</div>`;
+      html = `<div class="search-no-results">No results found for "${escapeHtml(q)}".</div>`;
     }
 
     resultsBox.innerHTML = html;
@@ -7087,7 +9363,7 @@ function setupFilterListeners() {
     document.getElementById(id)?.addEventListener('change', renderStudentsTable);
   });
 
-  ['admin-rep-search', 'admin-rep-status-filter', 'admin-rep-prio-filter', 'admin-rep-cat-filter'].forEach(id => {
+  ['admin-rep-search', 'admin-rep-status-filter', 'admin-rep-cat-filter'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', renderIssuesTable);
     document.getElementById(id)?.addEventListener('change', renderIssuesTable);
   });
@@ -7108,6 +9384,80 @@ function setElText(id, val) {
 function setElVal(id, val) {
   const el = document.getElementById(id);
   if (el) el.value = val;
+}
+
+function renderPaginationButtons(containerId, totalPages, currentPage, onPageClick) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (totalPages <= 1) return;
+
+  // Prev button
+  const prevBtn = document.createElement('button');
+  prevBtn.type = 'button';
+  prevBtn.className = 'pagination-btn';
+  prevBtn.textContent = '‹ Prev';
+  prevBtn.disabled = currentPage <= 1;
+  prevBtn.addEventListener('click', () => onPageClick(currentPage - 1));
+  container.appendChild(prevBtn);
+
+  // Numbered pages (sliding window of up to 5 pages)
+  let startPage = Math.max(1, currentPage - 2);
+  let endPage = Math.min(totalPages, startPage + 4);
+  if (endPage - startPage < 4) {
+    startPage = Math.max(1, endPage - 4);
+  }
+
+  if (startPage > 1) {
+    const p1 = document.createElement('button');
+    p1.type = 'button';
+    p1.className = 'pagination-btn';
+    p1.textContent = '1';
+    p1.addEventListener('click', () => onPageClick(1));
+    container.appendChild(p1);
+    if (startPage > 2) {
+      const dots = document.createElement('span');
+      dots.textContent = '...';
+      dots.style.padding = '0 4px';
+      dots.style.color = '#9CA3AF';
+      container.appendChild(dots);
+    }
+  }
+
+  for (let i = startPage; i <= endPage; i++) {
+    const pageBtn = document.createElement('button');
+    pageBtn.type = 'button';
+    pageBtn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
+    pageBtn.textContent = String(i);
+    pageBtn.addEventListener('click', () => onPageClick(i));
+    container.appendChild(pageBtn);
+  }
+
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      const dots = document.createElement('span');
+      dots.textContent = '...';
+      dots.style.padding = '0 4px';
+      dots.style.color = '#9CA3AF';
+      container.appendChild(dots);
+    }
+    const pEnd = document.createElement('button');
+    pEnd.type = 'button';
+    pEnd.className = 'pagination-btn';
+    pEnd.textContent = String(totalPages);
+    pEnd.addEventListener('click', () => onPageClick(totalPages));
+    container.appendChild(pEnd);
+  }
+
+  // Next button
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.className = 'pagination-btn';
+  nextBtn.textContent = 'Next ›';
+  nextBtn.disabled = currentPage >= totalPages;
+  nextBtn.addEventListener('click', () => onPageClick(currentPage + 1));
+  container.appendChild(nextBtn);
 }
 
 function getStatusBadgeClass(status) {
@@ -7488,9 +9838,17 @@ function getDashboardSkeletonHTML() {
           ${getRecentUpdatesSkeletonHTML(4)}
         </div>
       </div>
-      <div class="widget-card system-status-card">
-        <h2 class="section-title-plain">System Status</h2>
-        ${getSystemStatusSkeletonHTML()}
+      <div class="widget-card document-alerts-card" id="dashboard-document-alerts-widget">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #E5E7EB;">
+          <h2 style="font-size: 20px; font-weight: 700; color: #000000; letter-spacing: -0.3px; margin: 0;">Document Alerts</h2>
+          <a href="#documents" class="nav-view-all-link" style="font-size: 13px; font-weight: 600; color: #0052FF; text-decoration: none;">View All Documents &rarr;</a>
+        </div>
+        <div class="doc-alerts-list">
+          <div class="skeleton-activity-item" aria-hidden="true">
+            <div class="admin-skeleton admin-skeleton-circle" style="width: 10px; height: 10px; margin-top: 4px; flex-shrink: 0;"></div>
+            <div style="flex: 1;"><div class="admin-skeleton admin-skeleton-line" style="width: 80%; height: 14px;"></div></div>
+          </div>
+        </div>
       </div>
     </div>
   `;

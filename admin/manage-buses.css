@@ -51,17 +51,22 @@
 }
 
 .status-badge {
-  padding: 4px 12px;
-  border-radius: 999px;
+  padding: 3px 8px;
+  border-radius: 6px;
   font-size: 12px;
-  font-weight: 600;
-  display: inline-block;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #F3F4F6 !important;
+  border: 1px solid #E5E7EB !important;
+  color: #1F2937 !important;
 }
 
-.badge-green { background-color: #D1FAE5; color: #059669; }
-.badge-gray { background-color: #F3F4F6; color: #4B5563; }
-.badge-red { background-color: #FEE2E2; color: #DC2626; }
-.badge-orange { background-color: #FEF3C7; color: #D97706; }
+.badge-green { background-color: #F3F4F6 !important; color: #1F2937 !important; border: 1px solid #E5E7EB !important; }
+.badge-gray { background-color: #F3F4F6 !important; color: #4B5563 !important; border: 1px solid #E5E7EB !important; }
+.badge-red { background-color: #F3F4F6 !important; color: #1F2937 !important; border: 1px solid #E5E7EB !important; }
+.badge-orange { background-color: #F3F4F6 !important; color: #1F2937 !important; border: 1px solid #E5E7EB !important; }
 
 .action-btn {
   background: transparent;
@@ -399,9 +404,9 @@
   gap: 8px;
 }
 
-.badge-purple { background-color: #EDE9FE; color: #6D28D9; }
-.badge-blue { background-color: #DBEAFE; color: #1D4ED8; }
-.badge-orange { background-color: #FEF3C7; color: #D97706; }
-.badge-green { background-color: #DCFCE7; color: #16A34A; }
-.badge-red { background-color: #FEE2E2; color: #DC2626; }
+.badge-purple { background-color: #F3F4F6 !important; color: #1F2937 !important; border: 1px solid #E5E7EB !important; }
+.badge-blue { background-color: #F3F4F6 !important; color: #1F2937 !important; border: 1px solid #E5E7EB !important; }
+.badge-orange { background-color: #F3F4F6 !important; color: #1F2937 !important; border: 1px solid #E5E7EB !important; }
+.badge-green { background-color: #F3F4F6 !important; color: #1F2937 !important; border: 1px solid #E5E7EB !important; }
+.badge-red { background-color: #F3F4F6 !important; color: #1F2937 !important; border: 1px solid #E5E7EB !important; }
 

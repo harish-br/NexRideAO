@@ -58,9 +58,9 @@ test('ADMIN DASHBOARD SKELETON LOADING SYSTEM: Comprehensive Verification', asyn
     // Recent updates skeleton rows
     assert.match(htmlContent, /id="recent-updates-list"[^>]*>[\s\S]*?skeleton-activity-item/, 'Recent updates has skeleton rows');
 
-    // System status skeleton and content
-    assert.match(htmlContent, /id="system-status-skeleton"[^>]*aria-hidden="true"/, 'System status skeleton has aria-hidden="true"');
-    assert.match(htmlContent, /id="system-status-content"[^>]*class="[^"]*hidden[^"]*"/, 'System status real content is hidden initially');
+    // Document alerts widget and skeleton
+    assert.match(htmlContent, /id="dashboard-document-alerts-widget"/, 'Dashboard document alerts widget exists in widgets grid');
+    assert.match(htmlContent, /id="dash-doc-alerts-list"[^>]*>[\s\S]*?skeleton-activity-item/, 'Document alerts has initial skeleton item');
   });
 
   await t.test('3. JavaScript Generator Functions & Global Window Exposure', () => {

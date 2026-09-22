@@ -178,32 +178,24 @@ test('SOS EMERGENCY FEATURE: Admin Navigation Badge & Counter Logic', (t) => {
   assert.strictEqual(countActiveAndAck(incidents), 0, 'Open badge count must be 0 when all incidents are resolved');
 });
 
-test('SOS EMERGENCY FEATURE: Admin View & Navigation UI Elements in admin/index.html', (t) => {
+test('SOS EMERGENCY FEATURE: Admin View & Navigation UI Elements Removed from admin/index.html', (t) => {
   const adminHtml = fs.readFileSync(path.join(rootDir, 'admin', 'index.html'), 'utf8');
 
-  // Nav link & badge
-  assert.ok(adminHtml.includes('id="nav-sos-link"'), 'Nav must have #nav-sos-link');
-  assert.ok(adminHtml.includes('id="admin-sos-nav-badge"'), 'Nav must have #admin-sos-nav-badge');
+  // Nav link & badge must not exist
+  assert.ok(!adminHtml.includes('id="nav-sos-link"'), 'Nav must not have #nav-sos-link');
+  assert.ok(!adminHtml.includes('id="admin-sos-nav-badge"'), 'Nav must not have #admin-sos-nav-badge');
 
-  // Dedicated SOS View
-  assert.ok(adminHtml.includes('id="sos-view"'), 'admin/index.html must have #sos-view');
-  assert.ok(adminHtml.includes('id="sos-map-canvas"'), '#sos-view must have #sos-map-canvas');
-  assert.ok(adminHtml.includes('id="sos-radar-markers-layer"'), '#sos-view must have #sos-radar-markers-layer');
-  assert.ok(adminHtml.includes('id="sos-incident-items-container"'), '#sos-view must have #sos-incident-items-container');
-  assert.ok(adminHtml.includes('id="stat-sos-active"'), '#sos-view must have stat-sos-active card');
-  assert.ok(adminHtml.includes('id="stat-sos-acknowledged"'), '#sos-view must have stat-sos-acknowledged card');
-  assert.ok(adminHtml.includes('id="stat-sos-resolved"'), '#sos-view must have stat-sos-resolved card');
+  // Dedicated SOS View must not exist
+  assert.ok(!adminHtml.includes('id="sos-view"'), 'admin/index.html must not have #sos-view');
+  assert.ok(!adminHtml.includes('id="sos-incident-items-container"'), 'admin/index.html must not have #sos-incident-items-container');
 });
 
-test('SOS EMERGENCY FEATURE: Admin Controller Methods Exposed in admin/admin.js', (t) => {
+test('SOS EMERGENCY FEATURE: Admin Controller Methods Cleaned from admin/admin.js', (t) => {
   const adminJs = fs.readFileSync(path.join(rootDir, 'admin', 'admin.js'), 'utf8');
 
-  assert.ok(adminJs.includes('function listenToSOSIncidents()'), 'admin.js must implement listenToSOSIncidents');
-  assert.ok(adminJs.includes('function renderSOSView()'), 'admin.js must implement renderSOSView');
-  assert.ok(adminJs.includes('function adminAcknowledgeSOS('), 'admin.js must implement adminAcknowledgeSOS');
-  assert.ok(adminJs.includes('function adminResolveSOS('), 'admin.js must implement adminResolveSOS');
-  assert.ok(adminJs.includes('window.adminAcknowledgeSOS'), 'adminAcknowledgeSOS must be exposed to window');
-  assert.ok(adminJs.includes('window.adminResolveSOS'), 'adminResolveSOS must be exposed to window');
+  assert.ok(!adminJs.includes('function listenToSOSIncidents()'), 'admin.js must not implement listenToSOSIncidents');
+  assert.ok(!adminJs.includes('function renderSOSView()'), 'admin.js must not implement renderSOSView');
+  assert.ok(!adminJs.includes('window.adminAcknowledgeSOS'), 'adminAcknowledgeSOS must not be exposed to window');
 });
 
 test('SOS EMERGENCY FEATURE: Client Main.js Connects Slider to SOS Service', (t) => {

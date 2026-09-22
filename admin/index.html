@@ -53,8 +53,16 @@
         </div>
         <ul class="nav-links">
           <li><a href="#dashboard" class="nav-item active" data-view="dashboard-view">Dashboard</a></li>
+          <li class="nav-dropdown">
+            <a href="#drivers" class="nav-item" data-view="drivers-view" id="nav-drivers-item">Drivers</a>
+            <div class="nav-dropdown-menu hidden" id="nav-drivers-dropdown">
+              <a href="#drivers" class="dropdown-item" data-view="drivers-view" data-drivers-tab="list">Drivers List</a>
+              <a href="#drivers" class="dropdown-item" data-view="drivers-view" data-drivers-tab="compliance">Licence Expiry &amp; Compliance</a>
+              <a href="#documents?ownerType=driver" class="dropdown-item" data-view="documents-view" data-drivers-tab="docs">Driver Documents</a>
+            </div>
+          </li>
+          <li><a href="#documents" class="nav-item" data-view="documents-view">Documents</a></li>
           <li><a href="#reports" class="nav-item" data-view="issues-view">Reports</a></li>
-          <li><a href="#sos" class="nav-item" data-view="sos-view" id="nav-sos-link" style="display: inline-flex; align-items: center; gap: 6px;">SOS <span id="admin-sos-nav-badge" style="display: none; background: #EF4444; color: #FFFFFF; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 9999px; line-height: 1.2; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); animation: pulse 2s infinite;">0</span></a></li>
           <li><a href="#routes" class="nav-item" data-view="routes-view">Routes</a></li>
           <li><a href="#buses" class="nav-item" data-view="buses-view">Buses</a></li>
           <li><a href="#notifications" class="nav-item" data-view="notifications-view">Notifications</a></li>
@@ -237,7 +245,7 @@
           <div class="alert-banner-left">
             <div>
               <div class="alert-banner-title" id="dash-attention-title">Attention Required</div>
-              <div class="alert-banner-desc" id="dash-attention-desc">High priority reports and document expirations
+              <div class="alert-banner-desc" id="dash-attention-desc">Open reports and document expirations
                 detected.</div>
             </div>
           </div>
@@ -286,39 +294,16 @@
             </div>
           </div>
 
-          <!-- SYSTEM STATUS -->
-          <div class="widget-card system-status-card" id="system-status-widget">
-            <h2 class="section-title-plain">System Status</h2>
-
-            <div id="system-status-skeleton" aria-hidden="true">
-              <div class="status-row">
-                <div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div>
-                <div class="admin-skeleton admin-skeleton-pill" style="width: 110px; height: 22px;"></div>
-              </div>
-              <div class="status-row">
-                <div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div>
-                <div class="admin-skeleton admin-skeleton-pill" style="width: 88px; height: 22px;"></div>
-              </div>
-              <div class="status-row">
-                <div class="admin-skeleton admin-skeleton-line" style="width: 105px; height: 14px;"></div>
-                <div class="admin-skeleton admin-skeleton-pill" style="width: 76px; height: 22px;"></div>
-              </div>
+          <!-- DOCUMENT ALERTS WIDGET (Replaced System Status) -->
+          <div class="widget-card document-alerts-card" id="dashboard-document-alerts-widget">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #E5E7EB;">
+              <h2 style="font-size: 20px; font-weight: 700; color: #000000; letter-spacing: -0.3px; margin: 0;">Document Alerts</h2>
+              <a href="#documents" class="nav-view-all-link" style="font-size: 13px; font-weight: 600; color: #0052FF; text-decoration: none;">View All Documents &rarr;</a>
             </div>
-
-            <div id="system-status-content" class="hidden">
-              <div class="status-row">
-                <span class="status-label">Data Model:</span>
-                <span class="status-badge badge-green">100% Compatible</span>
-              </div>
-
-              <div class="status-row">
-                <span class="status-label">Engine Latency:</span>
-                <span class="status-badge badge-green">Low (&lt; 20ms)</span>
-              </div>
-
-              <div class="status-row">
-                <span class="status-label">Pending Queues:</span>
-                <span class="status-badge badge-blue" id="sys-queue">0 Pending</span>
+            <div id="dash-doc-alerts-list" class="doc-alerts-list">
+              <div class="skeleton-activity-item" aria-hidden="true">
+                <div class="admin-skeleton admin-skeleton-circle" style="width: 10px; height: 10px; margin-top: 4px; flex-shrink: 0;"></div>
+                <div style="flex: 1;"><div class="admin-skeleton admin-skeleton-line" style="width: 80%; height: 14px;"></div></div>
               </div>
             </div>
           </div>
@@ -545,92 +530,157 @@
       <section id="drivers-view" class="admin-view hidden">
         <div class="section-header-row">
           <div>
-            <h1>Driver Control Center</h1>
-            <p style="color: var(--text-secondary); font-size: 14px;">Manage drivers, assignments, compliance
-              verifications, and schedules.</p>
+            <h1>Drivers</h1>
+            <p style="color: var(--text-secondary); font-size: 14px;">Manage drivers, licence information, assignments and verification status.</p>
           </div>
-          <div style="display: flex; gap: 10px;">
+          <div style="display: flex; gap: 10px; align-items: center;">
             <button id="assign-driver-trigger-btn" class="secondary-btn">Assign Driver</button>
-            <button id="add-driver-btn" class="primary-btn">+ Register Driver</button>
+            <button id="add-driver-btn" class="primary-btn">+ Add Driver</button>
           </div>
         </div>
 
+        <!-- SUB-NAVIGATION TABS (Requirement 1) -->
+        <div class="view-subnav-pills mb-4">
+          <button type="button" class="subnav-pill-btn active" id="drivers-subtab-list" data-drivers-tab="list">
+            Drivers List
+          </button>
+          <button type="button" class="subnav-pill-btn" id="drivers-subtab-compliance" data-drivers-tab="compliance">
+            Licence Expiry &amp; Compliance
+          </button>
+          <button type="button" class="subnav-pill-btn" id="drivers-subtab-documents" data-drivers-tab="documents">
+            Driver Documents
+          </button>
+        </div>
+
+        <!-- DYNAMIC SUMMARY CARDS (Requirement 2) -->
         <div class="stats-grid mb-6">
-          <div class="stat-card">
+          <div class="stat-card" id="card-total-drivers">
             <div class="stat-title">Total Drivers</div>
             <div class="stat-value" id="stat-total-drivers">0</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">Available Drivers</div>
-            <div class="stat-value text-green" id="stat-available-drivers">0</div>
+          <div class="stat-card" id="card-active-drivers">
+            <div class="stat-title">Active Drivers</div>
+            <div class="stat-value text-green" id="stat-active-drivers">0</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">Currently Assigned</div>
-            <div class="stat-value text-blue" id="stat-assigned-drivers">0</div>
+          <div class="stat-card" id="card-inactive-drivers">
+            <div class="stat-title">Inactive Drivers</div>
+            <div class="stat-value text-gray" id="stat-inactive-drivers">0</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">License Attention</div>
-            <div class="stat-value text-orange" id="stat-driver-alerts">0</div>
+          <div class="stat-card" id="card-licences-expiring">
+            <div class="stat-title">Licences Expiring Soon</div>
+            <div class="stat-value text-orange" id="stat-driver-licences-expiring">0</div>
           </div>
-        </div>
-
-        <div class="table-controls">
-          <div class="table-controls-left">
-            <input type="text" id="drivers-search-input" class="table-search-input"
-              placeholder="Search driver by name, phone, license..." />
-            <select id="drivers-status-filter" class="filter-select">
-              <option value="all">Status: All</option>
-              <option value="Active">Active</option>
-              <option value="Available">Available</option>
-              <option value="On Trip">On Trip</option>
-              <option value="Inactive">Inactive</option>
-            </select>
+          <div class="stat-card" id="card-licences-expired">
+            <div class="stat-title">Expired Licences</div>
+            <div class="stat-value text-red" id="stat-driver-licences-expired">0</div>
           </div>
         </div>
 
-        <div class="data-table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Driver Name</th>
-                <th>Driver ID / Phone</th>
-                <th>Assigned Bus</th>
-                <th>Assigned Route</th>
-                <th>License Status</th>
-                <th>Status</th>
-                <th style="text-align: right;">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="drivers-table-body">
-              <tr class="skeleton-table-row">
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 105px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
-                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
-              </tr>
-              <tr class="skeleton-table-row">
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 115px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 115px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
-                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
-              </tr>
-              <tr class="skeleton-table-row">
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 55px; height: 18px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
-                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- TAB CONTENT: DRIVERS LIST -->
+        <div id="drivers-tab-list-content">
+          <div class="table-controls">
+            <div class="table-controls-left" style="flex-wrap: wrap; gap: 8px;">
+              <input type="text" id="drivers-search-input" class="table-search-input"
+                placeholder="Search by name, driver ID, phone, licence..." style="min-width: 260px;" />
+              <select id="drivers-status-filter" class="filter-select">
+                <option value="all">Status: All</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Suspended">Suspended</option>
+              </select>
+              <select id="drivers-verification-filter" class="filter-select">
+                <option value="all">Verification: All</option>
+                <option value="Verified">Verified</option>
+                <option value="Pending">Pending</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+              <select id="drivers-licence-filter" class="filter-select">
+                <option value="all">Licence: All</option>
+                <option value="valid">Valid</option>
+                <option value="expiring">Expiring within 30 days</option>
+                <option value="expired">Expired</option>
+              </select>
+              <select id="drivers-bus-filter" class="filter-select">
+                <option value="all">Vehicle: All</option>
+                <option value="assigned">Assigned</option>
+                <option value="unassigned">Unassigned</option>
+              </select>
+              <select id="drivers-sort-filter" class="filter-select">
+                <option value="name">Sort: Name (A-Z)</option>
+                <option value="expiry">Sort: Licence Expiry</option>
+                <option value="recent">Sort: Recently Added</option>
+              </select>
+            </div>
+            <div class="table-controls-right">
+              <span id="drivers-count-badge" class="count-badge">0 drivers</span>
+            </div>
+          </div>
+
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Driver ID</th>
+                  <th>Driver Name</th>
+                  <th>Profile Photo</th>
+                  <th>Phone</th>
+                  <th>Licence Number</th>
+                  <th>Licence Expiry</th>
+                  <th>Assigned Vehicle</th>
+                  <th>Assigned Route</th>
+                  <th>Status</th>
+                  <th>Verification</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="drivers-table-body">
+                <tr class="skeleton-table-row">
+                  <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-badge" style="width: 90px; height: 22px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-pill" style="width: 65px; height: 20px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-badge" style="width: 70px; height: 22px;"></div></td>
+                  <td><div class="admin-skeleton admin-skeleton-badge" style="width: 70px; height: 22px;"></div></td>
+                  <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 75px; height: 26px; margin-left: auto;"></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- DRIVERS PAGINATION -->
+          <div class="table-pagination-row" id="drivers-pagination-row">
+            <div class="pagination-info" id="drivers-pagination-info">Showing 0 to 0 of 0 drivers</div>
+            <div class="pagination-buttons" id="drivers-pagination-btns"></div>
+          </div>
+        </div>
+
+        <!-- TAB CONTENT: LICENCE EXPIRY & COMPLIANCE (Requirement 15) -->
+        <div id="drivers-tab-compliance-content" class="hidden">
+          <!-- Licences Expiring Within 1 Month -->
+          <div class="compliance-section-box mb-6">
+            <div class="compliance-header">
+              <h3 style="font-size: 15px; font-weight: 600; color: #111827;">Licences Expiring Within 1 Month</h3>
+              <span class="count-badge" id="compliance-expiring-count">0</span>
+            </div>
+            <div id="drivers-expiring-list" class="compliance-cards-grid">
+              <div class="empty-state-card">No driving licences expiring within 30 days.</div>
+            </div>
+          </div>
+
+          <!-- Expired Licences -->
+          <div class="compliance-section-box">
+            <div class="compliance-header">
+              <h3 style="font-size: 15px; font-weight: 600; color: #111827;">Expired Licences (Immediate Action Required)</h3>
+              <span class="count-badge" id="compliance-expired-count">0</span>
+            </div>
+            <div id="drivers-expired-list" class="compliance-cards-grid">
+              <div class="empty-state-card">No expired driving licences found.</div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -906,123 +956,6 @@
         </div>
       </section>
 
-      <!-- =============================================
-           SOS EMERGENCY RESPONSE CENTER VIEW
-           ============================================= -->
-      <section id="sos-view" class="admin-view hidden">
-        <div class="section-header-row">
-          <div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <h1>SOS Emergency Response Center</h1>
-              <span id="sos-active-badge-top" class="status-badge badge-red" style="font-size: 13px; font-weight: 800;">0 ACTIVE</span>
-            </div>
-            <p style="color: var(--text-secondary); font-size: 14px; margin-top: 4px;">
-              Live incoming emergency beacons, real-time user GPS tracking, and rapid response authority control.
-            </p>
-          </div>
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <button id="sos-refresh-btn" class="secondary-btn" style="display: flex; align-items: center; gap: 6px;">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-              <span>Refresh Telemetry</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- STATS CARDS -->
-        <div class="stats-grid mb-6">
-          <div class="stat-card sos-stat-card">
-            <div class="sos-stat-top">
-              <span class="stat-title">Active Emergencies</span>
-              <div class="sos-stat-icon-wrapper sos-icon-red">
-                <span class="folder-svg-icon icon-danger" style="width: 17px; height: 17px;"></span>
-              </div>
-            </div>
-            <div class="stat-value" id="stat-sos-active">0</div>
-            <div class="sos-stat-desc">Awaiting immediate response</div>
-          </div>
-          <div class="stat-card sos-stat-card">
-            <div class="sos-stat-top">
-              <span class="stat-title">Acknowledged En Route</span>
-              <div class="sos-stat-icon-wrapper sos-icon-amber">
-                <span class="folder-svg-icon icon-routing" style="width: 17px; height: 17px;"></span>
-              </div>
-            </div>
-            <div class="stat-value" id="stat-sos-acknowledged">0</div>
-            <div class="sos-stat-desc">Authorities dispatched &amp; en route</div>
-          </div>
-          <div class="stat-card sos-stat-card">
-            <div class="sos-stat-top">
-              <span class="stat-title">Resolved Incidents</span>
-              <div class="sos-stat-icon-wrapper sos-icon-emerald">
-                <span class="folder-svg-icon icon-shield-tick" style="width: 17px; height: 17px;"></span>
-              </div>
-            </div>
-            <div class="stat-value" id="stat-sos-resolved">0</div>
-            <div class="sos-stat-desc">Total cleared emergencies</div>
-          </div>
-          <div class="stat-card sos-stat-card">
-            <div class="sos-stat-top">
-              <span class="stat-title">Response SLA</span>
-              <div class="sos-stat-icon-wrapper sos-icon-blue">
-                <span class="folder-svg-icon icon-ai-antenna" style="width: 17px; height: 17px;"></span>
-              </div>
-            </div>
-            <div class="stat-value" id="stat-sos-sla">&lt; 1 min</div>
-            <div class="sos-stat-desc">Target campus dispatch time</div>
-          </div>
-        </div>
-
-        <!-- MAIN SOS EMERGENCY INCIDENTS MANAGEMENT CONSOLE -->
-        <div class="sos-console-card">
-          <div class="sos-console-header">
-            <div>
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <h2 style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin: 0;">Emergency Incidents Queue</h2>
-                <span id="sos-incidents-counter-badge" class="status-badge badge-neutral" style="font-size: 11.5px; font-weight: 700;">0 Recorded</span>
-              </div>
-              <p style="font-size: 13px; color: var(--text-secondary); margin: 4px 0 0 0;">
-                Live distress beacon dispatch queue, student coordinates, and rapid response authority control.
-              </p>
-            </div>
-
-            <div class="sos-console-controls">
-              <div class="sos-tab-pill-group">
-                <button id="sos-filter-active-btn" class="sos-tab-btn active" type="button">Active</button>
-                <button id="sos-filter-all-btn" class="sos-tab-btn" type="button">All</button>
-              </div>
-              <div class="sos-search-container">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                <input type="text" id="sos-incident-search" placeholder="Search by student, ID, phone, location..." />
-              </div>
-            </div>
-          </div>
-
-          <div class="sos-incident-feed-area" id="sos-incident-items-container">
-            <div class="skeleton-list-card">
-              <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
-              <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                <div class="admin-skeleton admin-skeleton-line" style="width: 60%; height: 13px;"></div>
-                <div class="admin-skeleton admin-skeleton-line" style="width: 80%; height: 11px;"></div>
-              </div>
-              <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
-            </div>
-            <div class="skeleton-list-card">
-              <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
-              <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                <div class="admin-skeleton admin-skeleton-line" style="width: 45%; height: 13px;"></div>
-                <div class="admin-skeleton admin-skeleton-line" style="width: 70%; height: 11px;"></div>
-              </div>
-              <div class="admin-skeleton admin-skeleton-pill" style="width: 50px; height: 18px; flex-shrink: 0;"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Hidden hooks for test suite backward compatibility -->
-        <div id="sos-map-canvas" style="display: none;" aria-hidden="true">
-          <div id="sos-radar-markers-layer"></div>
-          <span id="sos-map-active-count">0 Beacons</span>
-        </div>
-      </section>
 
       <!-- =============================================
            9. ISSUES & SUPPORT CONSOLE VIEW
@@ -1070,12 +1003,6 @@
               <option value="Rejected">Rejected</option>
               <option value="Closed">Closed</option>
             </select>
-            <select id="admin-rep-prio-filter" class="filter-select">
-              <option value="All">All Priorities</option>
-              <option value="Urgent">Urgent</option>
-              <option value="High">High</option>
-              <option value="Normal">Normal</option>
-            </select>
             <select id="admin-rep-cat-filter" class="filter-select">
               <option value="All">All Categories</option>
               <option value="bus">Bus Issue</option>
@@ -1103,7 +1030,6 @@
                 <th>Reporter</th>
                 <th>Category &amp; Subject</th>
                 <th>Bus / Route</th>
-                <th>Priority</th>
                 <th>Status</th>
                 <th>Date</th>
                 <th style="text-align: right;">Action</th>
@@ -1115,7 +1041,6 @@
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 90px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
                 <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
@@ -1125,7 +1050,6 @@
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 105px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 125px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
                 <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
@@ -1135,7 +1059,6 @@
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 135px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 155px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 65px; height: 22px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 80px; height: 14px;"></div></td>
                 <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
@@ -1146,48 +1069,105 @@
       </section>
 
       <!-- =============================================
-           10. DOCUMENTS MANAGEMENT VIEW
+           10. DOCUMENTS MANAGEMENT VIEW (CENTRAL COMPLIANCE)
            ============================================= -->
       <section id="documents-view" class="admin-view hidden">
         <div class="section-header-row">
           <div>
-            <h1>Document Control Center</h1>
-            <p style="color: var(--text-secondary); font-size: 14px;">Automated compliance tracking for bus insurance,
-              fitness, permits, and driver licenses.</p>
+            <h1>Documents</h1>
+            <p style="color: var(--text-secondary); font-size: 14px;">Manage and monitor documents for drivers, students and vehicles.</p>
           </div>
-          <button id="upload-doc-btn" class="primary-btn">+ Upload Document</button>
+          <button type="button" id="upload-doc-btn" class="primary-btn btn-upload-doc" onclick="window.adminOpenUploadDoc()">+ Upload Document</button>
         </div>
 
+        <!-- SUMMARY CARDS (Requirement 8) -->
         <div class="stats-grid mb-6">
-          <div class="stat-card">
+          <div class="stat-card" id="card-doc-total">
             <div class="stat-title">Total Documents</div>
             <div class="stat-value" id="stat-doc-total">0</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">Verified &amp; Valid</div>
+          <div class="stat-card" id="card-doc-valid">
+            <div class="stat-title">Valid Documents</div>
             <div class="stat-value text-green" id="stat-doc-valid">0</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-title">Expiring Soon (30 Days)</div>
+          <div class="stat-card" id="card-doc-expiring">
+            <div class="stat-title">Expiring Within 30 Days</div>
             <div class="stat-value text-orange" id="stat-doc-expiring">0</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" id="card-doc-expired">
             <div class="stat-title">Expired Documents</div>
             <div class="stat-value text-red" id="stat-doc-expired">0</div>
           </div>
+          <div class="stat-card" id="card-doc-pending">
+            <div class="stat-title">Pending Verification</div>
+            <div class="stat-value text-blue" id="stat-doc-pending">0</div>
+          </div>
         </div>
 
+        <!-- CATEGORY TABS (Requirement 9: All, Drivers, Students, Vehicles) -->
+        <div class="view-subnav-pills mb-4">
+          <button type="button" class="subnav-pill-btn active" id="tab-doc-all" data-doc-tab="all">
+            All Documents
+          </button>
+          <button type="button" class="subnav-pill-btn" id="tab-doc-drivers" data-doc-tab="driver">
+            Drivers
+          </button>
+          <button type="button" class="subnav-pill-btn" id="tab-doc-students" data-doc-tab="student">
+            Students
+          </button>
+          <button type="button" class="subnav-pill-btn" id="tab-doc-vehicles" data-doc-tab="vehicle">
+            Vehicles
+          </button>
+        </div>
+
+        <!-- PROMINENT SECTION 1: EXPIRING WITHIN 1 MONTH (Requirement 13) -->
+        <div class="compliance-section-box mb-6" id="section-docs-expiring">
+          <div class="compliance-header">
+            <h3 style="font-size: 15px; font-weight: 600; color: #111827;">Expiring Within 1 Month</h3>
+            <span class="count-badge" id="docs-expiring-count-badge">0 documents</span>
+          </div>
+          <div id="docs-expiring-container" class="compliance-cards-grid">
+            <div class="empty-state-card">No documents are expiring within the next 30 days.</div>
+          </div>
+        </div>
+
+        <!-- PROMINENT SECTION 2: EXPIRED DOCUMENTS (Requirement 14) -->
+        <div class="compliance-section-box mb-6" id="section-docs-expired">
+          <div class="compliance-header">
+            <h3 style="font-size: 15px; font-weight: 600; color: #111827;">Expired Documents</h3>
+            <span class="count-badge" id="docs-expired-count-badge">0 expired</span>
+          </div>
+          <div id="docs-expired-container" class="compliance-cards-grid">
+            <div class="empty-state-card">No expired documents found.</div>
+          </div>
+        </div>
+
+        <!-- CENTRAL DOCUMENTS DATA TABLE -->
         <div class="table-controls">
-          <div class="table-controls-left">
+          <div class="table-controls-left" style="flex-wrap: wrap; gap: 8px;">
             <input type="text" id="doc-search-input" class="table-search-input"
-              placeholder="Search document by number, bus, driver..." />
-            <select id="doc-type-filter" class="filter-select">
-              <option value="all">All Document Types</option>
-              <option value="bus">Bus Documents</option>
-              <option value="driver">Driver Documents</option>
-              <option value="expiring">Expiring Soon</option>
-              <option value="expired">Expired</option>
+              placeholder="Search by document number, owner name/ID, type..." style="min-width: 280px;" />
+            <select id="doc-status-filter" class="filter-select">
+              <option value="all">Status: All</option>
+              <option value="Valid">Valid</option>
+              <option value="Expiring Soon">Expiring Soon</option>
+              <option value="Expired">Expired</option>
+              <option value="Pending">Pending Verification</option>
             </select>
+            <select id="doc-owner-filter" class="filter-select">
+              <option value="all">Owner: All</option>
+              <option value="driver">Drivers Only</option>
+              <option value="student">Students Only</option>
+              <option value="vehicle">Vehicles Only</option>
+            </select>
+            <select id="doc-sort-filter" class="filter-select">
+              <option value="expiry">Sort: Expiry Date (Earliest)</option>
+              <option value="type">Sort: Document Type</option>
+              <option value="recent">Sort: Recently Uploaded</option>
+            </select>
+          </div>
+          <div class="table-controls-right">
+            <span id="doc-count-badge" class="count-badge">0 documents</span>
           </div>
         </div>
 
@@ -1195,45 +1175,37 @@
           <table class="data-table">
             <thead>
               <tr>
-                <th>Entity (Bus / Driver)</th>
                 <th>Document Type</th>
+                <th>Owner Name</th>
+                <th>Owner ID</th>
                 <th>Document Number</th>
                 <th>Issue Date</th>
                 <th>Expiry Date</th>
-                <th>Compliance Status</th>
+                <th>Days Remaining</th>
+                <th>Verification Status</th>
                 <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="documents-table-body">
               <tr class="skeleton-table-row">
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 100px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
-                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
-              </tr>
-              <tr class="skeleton-table-row">
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 115px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-pill" style="width: 70px; height: 18px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 110px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 120px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
-                <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
-              </tr>
-              <tr class="skeleton-table-row">
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 95px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 130px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 140px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
-                <td><div class="admin-skeleton admin-skeleton-line" style="width: 85px; height: 14px;"></div></td>
+                <td><div class="admin-skeleton admin-skeleton-badge" style="width: 95px; height: 22px;"></div></td>
                 <td><div class="admin-skeleton admin-skeleton-badge" style="width: 75px; height: 22px;"></div></td>
                 <td style="text-align: right;"><div class="admin-skeleton admin-skeleton-btn" style="width: 65px; height: 26px; margin-left: auto;"></div></td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- DOCUMENTS PAGINATION -->
+        <div class="table-pagination-row" id="documents-pagination-row">
+          <div class="pagination-info" id="documents-pagination-info">Showing 0 to 0 of 0 documents</div>
+          <div class="pagination-buttons" id="documents-pagination-btns"></div>
         </div>
       </section>
 
@@ -1327,7 +1299,7 @@
           <div class="stat-card" style="padding: 18px 20px; border-radius: 16px; border: 1px solid #FEE2E2; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.2s ease;">
             <div class="stat-title" style="font-size: 12.5px; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;">Urgent / Safety Alerts</div>
             <div class="stat-value" id="stat-notif-urgent" style="font-size: 30px; font-weight: 800; color: #DC2626; margin: 6px 0 3px 0; line-height: 1;">0</div>
-            <div style="font-size: 12px; color: #9CA3AF;">Priority campus alerts</div>
+            <div style="font-size: 12px; color: #9CA3AF;">Campus safety alerts</div>
           </div>
 
           <div class="stat-card" style="padding: 18px 20px; border-radius: 16px; border: 1px solid #D1FAE5; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,0.03); transition: all 0.2s ease;">
@@ -1704,7 +1676,7 @@
           <div class="stg-row-2col">
 
             <!-- ╔═ REPORT MANAGEMENT ════════════════════════════════════╗ -->
-            <div class="stg-card" data-stg-section="reports" data-stg-keywords="report submission location category description attachment retention auto close default status priority management">
+            <div class="stg-card" data-stg-section="reports" data-stg-keywords="report submission location category description attachment retention auto close default status management">
               <div class="stg-card-header">
                 <div class="stg-card-icon stg-icon-orange stg-icon-reports">
                   <span class="stg-svg-icon" style="-webkit-mask-image: url('/document-text.svg'); mask-image: url('/document-text.svg');">
@@ -1816,15 +1788,6 @@
                       <option value="Under Review" selected>Under Review</option>
                       <option value="Open">Open</option>
                       <option value="Pending">Pending</option>
-                    </select>
-                  </div>
-                  <div class="stg-field">
-                    <label class="stg-label" for="stg-default-priority">Default Priority</label>
-                    <p class="stg-hint">Priority level assigned to new reports.</p>
-                    <select id="stg-default-priority" class="stg-select">
-                      <option value="Normal" selected>Normal</option>
-                      <option value="Low">Low</option>
-                      <option value="High">High</option>
                     </select>
                   </div>
                 </div>
@@ -2927,6 +2890,474 @@
   </div>
 
   <!-- =============================================
+       MODAL: DRIVER EDITOR (ADD / EDIT DRIVER)
+       ============================================= -->
+  <div id="driver-editor-modal" class="modal-overlay hidden">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2 id="driver-editor-title">Add New Driver</h2>
+        <button id="close-driver-editor-btn" class="close-btn">&times;</button>
+      </div>
+      <form id="driver-editor-form">
+        <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+          <div id="driver-form-error" class="error-msg hidden" style="margin-bottom: 16px;"></div>
+
+          <input type="hidden" id="driver-form-mode" value="add" />
+          <input type="hidden" id="driver-form-doc-id" value="" />
+
+          <!-- SECTION 1: PERSONAL INFORMATION -->
+          <div class="section-title">1. Personal Information</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Full Name *</label>
+              <input type="text" id="driver-form-name" placeholder="e.g. Ramesh Kumar" required />
+            </div>
+            <div class="form-group">
+              <label>Driver ID *</label>
+              <input type="text" id="driver-form-id" placeholder="e.g. DRV-01" required />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Phone Number *</label>
+              <input type="tel" id="driver-form-phone" placeholder="e.g. +91 98765 43210" required />
+            </div>
+            <div class="form-group">
+              <label>Alternate Phone</label>
+              <input type="tel" id="driver-form-alt-phone" placeholder="e.g. +91 91234 56789" />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Email Address *</label>
+              <input type="email" id="driver-form-email" placeholder="driver@nexride.com" required />
+            </div>
+            <div class="form-group">
+              <label>Date of Birth *</label>
+              <input type="date" id="driver-form-dob" required />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Gender *</label>
+              <select id="driver-form-gender" class="filter-select" style="width: 100%;" required>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Profile Photo URL</label>
+              <input type="url" id="driver-form-photo" placeholder="https://..." />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Residential Address *</label>
+            <textarea id="driver-form-address" rows="2" placeholder="Full residential street, area, city, pincode" required style="width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px; font-family: inherit; font-size: 13.5px;"></textarea>
+          </div>
+
+          <!-- SECTION 2: EMPLOYMENT INFORMATION -->
+          <div class="section-title" style="margin-top: 20px;">2. Employment Details</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Employee / Staff ID</label>
+              <input type="text" id="driver-form-staff-id" placeholder="e.g. EMP-4021" />
+            </div>
+            <div class="form-group">
+              <label>Joining Date *</label>
+              <input type="date" id="driver-form-joining-date" required />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Employment Status *</label>
+              <select id="driver-form-emp-status" class="filter-select" style="width: 100%;" required>
+                <option value="Full-time">Full-time</option>
+                <option value="Part-time">Part-time</option>
+                <option value="Contract">Contract</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Operational Status *</label>
+              <select id="driver-form-status" class="filter-select" style="width: 100%;" required>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Suspended">Suspended</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- SECTION 3: DRIVING LICENCE INFORMATION -->
+          <div class="section-title" style="margin-top: 20px;">3. Driving Licence Details</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Licence Number *</label>
+              <input type="text" id="driver-form-license-number" placeholder="e.g. DL-0420110023456" required />
+            </div>
+            <div class="form-group">
+              <label>Licence Type *</label>
+              <select id="driver-form-license-type" class="filter-select" style="width: 100%;" required>
+                <option value="Heavy Commercial Vehicle (HCV)">Heavy Commercial Vehicle (HCV)</option>
+                <option value="Commercial Passenger Transport">Commercial Passenger Transport</option>
+                <option value="Heavy Transport Vehicle (HTV)">Heavy Transport Vehicle (HTV)</option>
+                <option value="Medium Passenger Vehicle (MPV)">Medium Passenger Vehicle (MPV)</option>
+                <option value="Standard Motor Vehicle">Standard Motor Vehicle</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Issuing Authority / RTO *</label>
+              <input type="text" id="driver-form-license-authority" placeholder="e.g. RTO Chennai South" required />
+            </div>
+            <div class="form-group">
+              <label>Licence Issue Date *</label>
+              <input type="date" id="driver-form-license-issue" required />
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Licence Expiry Date *</label>
+              <input type="date" id="driver-form-license-expiry" required />
+            </div>
+            <div class="form-group">
+              <label>Driver Shift</label>
+              <select id="driver-form-shift" class="filter-select" style="width: 100%;">
+                <option value="Both">Both (Morning &amp; Evening)</option>
+                <option value="Morning">Morning Shift</option>
+                <option value="Evening">Evening Shift</option>
+                <option value="General">General / On-Call</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- SECTION 4: VEHICLE & ROUTE ASSIGNMENT -->
+          <div class="section-title" style="margin-top: 20px;">4. Vehicle &amp; Route Assignment</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Assigned Vehicle</label>
+              <select id="driver-form-bus" class="filter-select" style="width: 100%;">
+                <option value="">Unassigned</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Assigned Route</label>
+              <select id="driver-form-route" class="filter-select" style="width: 100%;">
+                <option value="">Campus Default Route</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- SECTION 5: VERIFICATION -->
+          <div class="section-title" style="margin-top: 20px;">5. Verification &amp; Compliance Notes</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Verification Status *</label>
+              <select id="driver-form-verification" class="filter-select" style="width: 100%;" required>
+                <option value="Pending">Pending</option>
+                <option value="Verified">Verified</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Verification Notes</label>
+              <input type="text" id="driver-form-verification-notes" placeholder="e.g. Police background clear, physical license inspected" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancel-driver-editor-btn" class="secondary-btn">Cancel</button>
+          <button type="submit" id="save-driver-btn" class="primary-btn">Save Driver Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =============================================
+       MODAL: DRIVER DETAILS (PROFILE & DOCUMENTS DRAWER)
+       ============================================= -->
+  <div id="driver-details-modal" class="modal-overlay hidden">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <h2 id="driver-details-header-name">Driver Profile</h2>
+          <span id="driver-details-status-badge" class="status-badge badge-green">Active</span>
+          <span id="driver-details-verif-badge" class="status-badge badge-blue">Verified</span>
+        </div>
+        <button id="close-driver-details-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+        
+        <!-- LICENCE EXPIRED CRITICAL SAFETY WARNING (Requirement 25) -->
+        <div id="driver-safety-warning-banner" class="critical-warning-box hidden mb-4">
+          <div style="font-weight: 800; font-size: 14.5px; color: #991B1B;">⚠️ LICENCE EXPIRED</div>
+          <div style="font-size: 13.5px; color: #7F1D1D; margin-top: 4px;">
+            This driver's driving licence has expired. Renew the licence before assigning the driver to an active vehicle/route.
+          </div>
+        </div>
+
+        <!-- PROFILE TOP CARD -->
+        <div class="driver-profile-header-card mb-6">
+          <div class="driver-avatar-large" id="driver-details-avatar">
+            <svg viewBox="0 0 24 24" width="36" height="36" stroke="#4B5563" stroke-width="1.8" fill="none">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+          </div>
+          <div class="driver-profile-header-info">
+            <h3 id="driver-details-name" style="font-size: 20px; font-weight: 800; color: #111827; margin-bottom: 4px;">--</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: #6B7280;">
+              <span><strong>ID:</strong> <span id="driver-details-id">--</span></span>
+              <span><strong>Phone:</strong> <span id="driver-details-phone">--</span></span>
+              <span><strong>Email:</strong> <span id="driver-details-email">--</span></span>
+              <span><strong>Staff ID:</strong> <span id="driver-details-staff-id">--</span></span>
+            </div>
+          </div>
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button type="button" id="driver-details-edit-btn" class="secondary-btn" style="height: 36px; padding: 0 14px; font-size: 13px;">Edit Profile</button>
+            <button type="button" id="driver-details-upload-doc-btn" class="primary-btn" style="height: 36px; padding: 0 14px; font-size: 13px;">+ Upload Document</button>
+          </div>
+        </div>
+
+        <!-- EMPLOYMENT & ASSIGNMENT GRID -->
+        <div class="driver-info-cards-grid mb-6">
+          <div class="driver-info-card">
+            <div class="driver-card-title">Employment Information</div>
+            <div class="driver-info-row"><span>Joining Date:</span><strong id="driver-details-joining">--</strong></div>
+            <div class="driver-info-row"><span>Employment Type:</span><strong id="driver-details-emp-status">--</strong></div>
+            <div class="driver-info-row"><span>Shift:</span><strong id="driver-details-shift">--</strong></div>
+            <div class="driver-info-row"><span>Address:</span><span id="driver-details-address" style="text-align: right; max-width: 60%; color: #374151;">--</span></div>
+          </div>
+          <div class="driver-info-card">
+            <div class="driver-card-title">Current Assignment</div>
+            <div class="driver-info-row"><span>Assigned Bus:</span><strong id="driver-details-assigned-bus" style="color: #0052FF;">--</strong></div>
+            <div class="driver-info-row"><span>Assigned Route:</span><strong id="driver-details-assigned-route">--</strong></div>
+            <div class="driver-info-row"><span>Verification Notes:</span><span id="driver-details-notes" style="color: #6B7280;">--</span></div>
+            <div style="margin-top: 10px; text-align: right;">
+              <button type="button" id="driver-details-assign-bus-btn" class="secondary-btn" style="font-size: 12px; height: 30px; padding: 0 12px;">Change Bus Assignment</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- DRIVING LICENCE DETAILS (Requirement 6) -->
+        <div class="compliance-section-box mb-6">
+          <div class="compliance-header">
+            <h4 style="font-size: 15px; font-weight: 700; color: #111827;">Driving Licence Compliance</h4>
+            <span id="driver-details-licence-expiry-badge" class="status-badge badge-green">Valid</span>
+          </div>
+          <div class="driver-licence-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; padding: 14px 16px;">
+            <div><span style="font-size: 12px; color: #6B7280; display: block;">Licence Number</span><strong id="driver-details-licence-no" style="font-size: 15px;">--</strong></div>
+            <div><span style="font-size: 12px; color: #6B7280; display: block;">Licence Type</span><span id="driver-details-licence-type" style="font-size: 13.5px; font-weight: 600;">--</span></div>
+            <div><span style="font-size: 12px; color: #6B7280; display: block;">Issue Date</span><span id="driver-details-licence-issue" style="font-size: 13.5px;">--</span></div>
+            <div><span style="font-size: 12px; color: #6B7280; display: block;">Expiry Date</span><strong id="driver-details-licence-expiry" style="font-size: 14px;">--</strong></div>
+            <div><span style="font-size: 12px; color: #6B7280; display: block;">Remaining Validity</span><span id="driver-details-licence-remaining" style="font-size: 13.5px; font-weight: 700;">--</span></div>
+          </div>
+        </div>
+
+        <!-- DRIVER DOCUMENTS TABLE (Requirement 6 & 7) -->
+        <div class="section-header-row mb-2" style="align-items: center;">
+          <h4 style="font-size: 16px; font-weight: 700; color: #111827; margin: 0;">Driver Documents</h4>
+          <button type="button" id="driver-details-add-doc-trigger" class="secondary-btn" style="font-size: 12px; height: 32px;">+ Add Document</button>
+        </div>
+        <div class="data-table-container mb-6">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Document Type</th>
+                <th>Document Number</th>
+                <th>Issue Date</th>
+                <th>Expiry Date</th>
+                <th>Days Remaining</th>
+                <th>Status</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="driver-details-docs-tbody">
+              <tr><td colspan="7" style="text-align: center; padding: 24px; color: #9CA3AF;">No documents uploaded for this driver.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- DRIVER AUDIT HISTORY (Requirement 27) -->
+        <div class="section-title" style="margin-top: 24px;">Administrative Audit History</div>
+        <div id="driver-details-audit-list" class="driver-audit-list">
+          <div style="font-size: 13px; color: #9CA3AF; padding: 12px;">No logged events for this driver yet.</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="close-driver-details-bottom-btn" class="secondary-btn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================
+       MODAL: COMPLIANCE DOCUMENT UPLOAD
+       ============================================= -->
+  <div id="document-upload-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="doc-upload-modal-title">Upload Compliance Document</h2>
+        <button id="close-doc-upload-btn" class="close-btn">&times;</button>
+      </div>
+      <form id="document-upload-form">
+        <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+          <div id="doc-upload-error" class="error-msg hidden" style="margin-bottom: 14px;"></div>
+
+          <input type="hidden" id="doc-upload-edit-id" value="" />
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Owner Category *</label>
+              <select id="doc-upload-owner-type" class="filter-select" style="width: 100%;" required>
+                <option value="driver">Driver</option>
+                <option value="vehicle">Vehicle (Bus)</option>
+                <option value="student">Student</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label id="doc-upload-owner-label">Select Driver *</label>
+              <select id="doc-upload-owner-id" class="filter-select" style="width: 100%;" required>
+                <option value="">Select owner...</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Document Type *</label>
+              <select id="doc-upload-type-select" class="filter-select" style="width: 100%;" required>
+                <!-- Dynamically populated based on owner type -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Document Number *</label>
+              <input type="text" id="doc-upload-number" placeholder="e.g. DL-12345 / POL-9981" required />
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Issue Date *</label>
+              <input type="date" id="doc-upload-issue-date" required />
+            </div>
+            <div class="form-group">
+              <label>Expiry Date (if applicable)</label>
+              <input type="date" id="doc-upload-expiry-date" />
+            </div>
+          </div>
+
+          <!-- DRAG & DROP FILE ZONE -->
+          <div class="form-group">
+            <label>Select Document File (PDF, JPG, JPEG, PNG • Max 10MB) *</label>
+            <div class="dropzone-area" id="doc-upload-dropzone">
+              <svg viewBox="0 0 24 24" width="36" height="36" stroke="#0052FF" stroke-width="1.8" fill="none" style="margin-bottom: 8px;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <div style="font-weight: 600; font-size: 14px; color: #111827;">Drag &amp; drop document file here</div>
+              <div style="font-size: 12px; color: #6B7280; margin-top: 4px;">or <span style="color: #0052FF; text-decoration: underline; cursor: pointer;">browse files</span> from your computer</div>
+              <div id="doc-upload-filename-preview" style="margin-top: 8px; font-weight: 600; font-size: 13px; color: #0052FF;"></div>
+              <input type="file" id="doc-upload-file-input" accept=".pdf,image/png,image/jpeg,image/jpg" style="display: none;" />
+            </div>
+          </div>
+
+          <!-- PROGRESS BAR -->
+          <div id="doc-upload-progress-container" class="upload-progress-wrap hidden">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px;">
+              <span>Uploading securely to NexRide Cloud Storage...</span>
+              <span id="doc-upload-progress-pct">0%</span>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="doc-upload-progress-bar" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancel-doc-upload-btn" class="secondary-btn">Cancel</button>
+          <button type="submit" id="submit-doc-upload-btn" class="primary-btn">Upload &amp; Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =============================================
+       MODAL: COMPLIANCE DOCUMENT VIEWER & PREVIEW
+       ============================================= -->
+  <div id="document-viewer-modal" class="modal-overlay hidden">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 id="doc-viewer-title" style="margin: 0;">Document Preview</h2>
+            <span id="doc-viewer-expiry-badge" class="status-badge badge-green">Valid</span>
+            <span id="doc-viewer-verif-badge" class="status-badge badge-blue">Verified</span>
+          </div>
+          <div id="doc-viewer-subtitle" style="font-size: 13px; color: #6B7280; margin-top: 2px;">--</div>
+        </div>
+        <button id="close-doc-viewer-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 16px 20px;">
+        
+        <!-- REJECTION NOTES WARNING (IF REJECTED) -->
+        <div id="doc-viewer-rejection-box" class="critical-warning-box hidden mb-4">
+          <strong style="color: #991B1B;">Rejection Reason:</strong>
+          <div id="doc-viewer-rejection-notes" style="font-size: 13.5px; color: #7F1D1D; margin-top: 2px;"></div>
+        </div>
+
+        <!-- DOCUMENT EMBED FRAME -->
+        <div class="doc-preview-wrapper" id="doc-preview-wrapper" style="width: 100%; min-height: 480px; max-height: 65vh; display: flex; align-items: center; justify-content: center; background: #F3F4F6; border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-color);">
+          <iframe id="doc-viewer-iframe" style="width: 100%; height: 500px; border: none; display: none;"></iframe>
+          <img id="doc-viewer-image" src="" alt="Document Preview" style="max-width: 100%; max-height: 500px; object-fit: contain; display: none;" />
+          <div id="doc-viewer-placeholder" style="text-align: center; color: #6B7280; padding: 32px;">
+            <svg viewBox="0 0 24 24" width="42" height="42" stroke="#9CA3AF" stroke-width="1.8" fill="none" style="margin-bottom: 8px;">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <div>No preview file available for this document record.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between;">
+        <div style="display: flex; gap: 8px;">
+          <button type="button" id="doc-viewer-delete-btn" class="secondary-btn" style="color: #DC2626; border-color: #FCA5A5;">Delete Document</button>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" id="doc-viewer-download-btn" class="secondary-btn">Download</button>
+          <button type="button" id="doc-viewer-replace-btn" class="secondary-btn">Replace</button>
+          <button type="button" id="doc-viewer-reject-btn" class="secondary-btn" style="color: #B91C1C;">Reject</button>
+          <button type="button" id="doc-viewer-verify-btn" class="primary-btn" style="background: #16A34A;">Verify Document</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================
+       MODAL: DOCUMENT REJECTION REASON PROMPT
+       ============================================= -->
+  <div id="document-rejection-modal" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h2 style="color: #B91C1C;">Reject Document</h2>
+        <button id="close-doc-reject-btn" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13.5px; color: #4B5563; margin-bottom: 12px;">
+          Please enter the specific reason for rejecting this document. The reason will be recorded in the audit trail and visible to administrators.
+        </p>
+        <div class="form-group">
+          <label>Rejection Reason *</label>
+          <textarea id="doc-reject-reason-input" rows="3" placeholder="e.g. Image blurry / expired before submission / mismatch with official registry" required style="width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 10px; font-family: inherit; font-size: 13.5px;"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancel-doc-reject-btn" class="secondary-btn">Cancel</button>
+        <button type="button" id="confirm-doc-reject-btn" class="primary-btn" style="background: #DC2626;">Confirm Rejection</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================
        MODAL 3: DRIVER ASSIGNMENT WORKFLOW MODAL
        ============================================= -->
   <div id="driver-assignment-modal" class="modal-overlay hidden">
@@ -2976,7 +3407,6 @@
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 12px;">
           <h2 id="modal-ticket-id">Report Details</h2>
-          <span id="modal-ticket-prio-badge" class="status-badge badge-orange">Urgent</span>
           <span id="modal-ticket-status-badge" class="status-badge badge-blue">Submitted</span>
         </div>
         <button id="close-ticket-modal-btn" class="close-btn">&times;</button>
@@ -3000,26 +3430,16 @@
           </div>
         </div>
 
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Update Status</label>
-            <select id="modal-ticket-status-select" class="filter-select" style="width: 100%;">
-              <option value="Submitted">Submitted</option>
-              <option value="Under Review">Under Review</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Closed">Closed</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Change Priority</label>
-            <select id="modal-ticket-prio-select" class="filter-select" style="width: 100%;">
-              <option value="Normal">Normal</option>
-              <option value="High">High</option>
-              <option value="Urgent">Urgent</option>
-            </select>
-          </div>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label>Update Status</label>
+          <select id="modal-ticket-status-select" class="filter-select" style="width: 100%;">
+            <option value="Submitted">Submitted</option>
+            <option value="Under Review">Under Review</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Closed">Closed</option>
+          </select>
         </div>
 
         <div class="form-group">
@@ -3158,20 +3578,9 @@
             <span style="font-size: 11.5px; color: #6B7280; margin-top: 4px; display: block;">Select or type a student roll number, email, or UID.</span>
           </div>
 
-          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px;">
-            <div class="form-group">
-              <label style="font-weight: 600; font-size: 13px; color: #374151; margin-bottom: 6px; display: block;">Title *</label>
-              <input type="text" id="notif-manage-title" required placeholder="e.g. Bus 32 Delayed by 15 mins" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #D1D5DB; box-sizing: border-box;" />
-            </div>
-
-            <div class="form-group">
-              <label style="font-weight: 600; font-size: 13px; color: #374151; margin-bottom: 6px; display: block;">Priority Level</label>
-              <select id="notif-manage-priority" class="filter-select" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #D1D5DB;">
-                <option value="Normal">Normal</option>
-                <option value="High">High</option>
-                <option value="Urgent">Urgent / Red Alert</option>
-              </select>
-            </div>
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label style="font-weight: 600; font-size: 13px; color: #374151; margin-bottom: 6px; display: block;">Title *</label>
+            <input type="text" id="notif-manage-title" required placeholder="e.g. Bus 32 Delayed by 15 mins" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #D1D5DB; box-sizing: border-box;" />
           </div>
 
           <div class="form-group" style="margin-bottom: 14px;">
@@ -3427,8 +3836,8 @@
     </div>
   </div>
 
-  <!-- pptxgenjs — Audit Log PPTX Export -->
-  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <!-- pptxgenjs — Audit Log PPTX Export (deferred to prevent blocking page startup) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 
   <!-- Core Scripts -->
   <script type="module" src="./admin.js"></script>
