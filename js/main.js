@@ -1,7 +1,10 @@
 import "./instrument.js";
 import { notificationClient } from "./notifications/notification-service.js";
 import { submitSOSIncident } from "./sos-service.js";
-import { subscribeStudentBus, setManualStudentId, getActiveStudentData, resolveStudentAssignedBus } from "./student-bus-service.js";
+import { resolveStudentAssignedBus } from "./student-bus-service.js";
+
+// Automatically resolve student assigned bus in background for E-Pass and Live Tracking
+resolveStudentAssignedBus().catch(() => {});
 
 // Automatically trigger system OS permission and OS notification popup on app entry
 notificationClient.triggerSystemPromptOnAppEntry();
@@ -410,149 +413,6 @@ if (blueCard && sosThumb) {
   };
 
   blueCard.addEventListener('click', handleTap);
-}
-
-// =============================================================================
-// HOME PAGE ASSIGNED BUS WIDGET LOGIC
-// =============================================================================
-function initHomeAssignedBusWidget() {
-  const assignedCard = document.getElementById('home-assigned-bus-card');
-  const linkCard = document.getElementById('home-link-bus-card');
-  if (!assignedCard || !linkCard) return;
-
-  const busBadge = document.getElementById('hab-bus-badge');
-  const routeTitle = document.getElementById('hab-route-title');
-  const stageBold = document.getElementById('hab-stage-bold');
-  const studentName = document.getElementById('hab-student-name');
-  const studentIdEl = document.getElementById('hab-student-id');
-  const trackBtn = document.getElementById('hab-track-btn');
-  const passBtn = document.getElementById('hab-pass-btn');
-  const changeIdBtn = document.getElementById('hab-change-id-btn');
-
-  const studentInput = document.getElementById('home-student-id-input');
-  const linkBtn = document.getElementById('home-link-student-btn');
-  const linkStatus = document.getElementById('home-link-status');
-
-  function renderHomeStudentBus(student) {
-    if (student && student.assignedBus) {
-      const busNum = String(student.assignedBus).trim();
-      const stage = student.stage || student.pickupStop || 'Campus Stop';
-      const route = student.routeId || `Route ${busNum}`;
-      const name = student.name && student.name !== 'User' ? student.name : 'Student';
-      const stuId = student.studentId || student.regno || student.id || '';
-      const phone = student.cleanPhone || (student.phone ? String(student.phone).replace(/\D/g, '').slice(-10) : '') || localStorage.getItem('nexride_user_phone') || '';
-
-      if (busBadge) busBadge.textContent = `Bus ${busNum}`;
-      if (routeTitle) routeTitle.textContent = `${route} • Campus Route`;
-      if (stageBold) stageBold.textContent = stage;
-      if (studentName) studentName.textContent = name;
-      if (studentIdEl) studentIdEl.textContent = stuId ? `${stuId}${phone ? ` (+91 ${phone})` : ''}` : (phone ? `+91 ${phone}` : 'Enrolled');
-
-      assignedCard.style.display = 'flex';
-      linkCard.style.display = 'none';
-    } else {
-      assignedCard.style.display = 'none';
-      linkCard.style.display = 'flex';
-
-      const userPhone = localStorage.getItem('nexride_user_phone');
-      if (linkStatus && userPhone) {
-        linkStatus.style.display = 'block';
-        linkStatus.style.color = '#6B7280';
-        linkStatus.textContent = `Logged in with +91 ${userPhone} • No bus assigned yet.`;
-      }
-    }
-  }
-
-  // Navigation: Track Live
-  if (trackBtn) {
-    trackBtn.onclick = () => {
-      const navLive = document.getElementById('nav-live');
-      if (navLive) navLive.click();
-    };
-  }
-
-  // Navigation: Digital Pass
-  if (passBtn) {
-    passBtn.onclick = () => {
-      const epassBtn = document.getElementById('epass-btn');
-      if (epassBtn) epassBtn.click();
-    };
-  }
-
-  // Switch or Relink Student ID
-  if (changeIdBtn) {
-    changeIdBtn.onclick = () => {
-      assignedCard.style.display = 'none';
-      linkCard.style.display = 'flex';
-      if (studentInput) {
-        studentInput.focus();
-        const current = getActiveStudentData();
-        if (current && (current.studentId || current.regno)) {
-          studentInput.value = current.studentId || current.regno;
-        }
-      }
-    };
-  }
-
-  // Manual linking by Student ID or Phone
-  if (linkBtn && studentInput) {
-    const doLink = async () => {
-      const val = studentInput.value.trim();
-      if (!val) return;
-      linkBtn.disabled = true;
-      linkBtn.textContent = 'Linking...';
-      if (linkStatus) {
-        linkStatus.style.display = 'block';
-        linkStatus.style.color = '#2563EB';
-        linkStatus.textContent = 'Searching Firestore database...';
-      }
-
-      try {
-        const res = await setManualStudentId(val);
-        if (res && res.assignedBus) {
-          if (linkStatus) {
-            linkStatus.style.color = '#10B981';
-            linkStatus.textContent = `Assigned to Bus ${res.assignedBus}!`;
-          }
-        } else {
-          if (linkStatus) {
-            linkStatus.style.color = '#EF4444';
-            linkStatus.textContent = 'No bus assignment found for this ID/mobile.';
-          }
-        }
-      } catch (err) {
-        if (linkStatus) {
-          linkStatus.style.color = '#EF4444';
-          linkStatus.textContent = 'Error linking bus. Please check network.';
-        }
-      } finally {
-        linkBtn.disabled = false;
-        linkBtn.textContent = 'Link Bus';
-      }
-    };
-
-    linkBtn.onclick = doLink;
-    studentInput.onkeydown = (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        doLink();
-      }
-    };
-  }
-
-  // Subscribe to real-time student bus changes from Firestore database
-  subscribeStudentBus((data) => {
-    renderHomeStudentBus(data);
-  });
-
-  // Initial render with current state or cached data
-  renderHomeStudentBus(getActiveStudentData());
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initHomeAssignedBusWidget);
-} else {
-  initHomeAssignedBusWidget();
 }
 
 

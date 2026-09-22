@@ -135,16 +135,13 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
     assert.match(epassContent, /idEl\.textContent\s*=\s*userIdNum/, 'epass.js must set idEl.textContent');
   });
 
-  await t.test('6. Bus Search screen shows My Assigned Bus banner and quick tracking', () => {
-    // HTML container
-    assert.ok(indexHtmlContent.includes('id="bs-assigned-bus-container"'), 'index.html must have #bs-assigned-bus-container');
+  await t.test('6. Find Your Bus clean layout: assigned bus container is cleanly removed', () => {
+    // HTML container removed
+    assert.ok(!indexHtmlContent.includes('id="bs-assigned-bus-container"'), 'index.html must not contain #bs-assigned-bus-container');
 
-    // Bus Search JS integration
-    assert.match(busSearchContent, /import\s*\{[^}]*getActiveStudentData[^}]*\}\s*from\s*['"]\.\/student-bus-service\.js['"]/, 'bus-search.js must import getActiveStudentData');
-    assert.match(busSearchContent, /import\s*\{[^}]*subscribeStudentBus[^}]*\}\s*from\s*['"]\.\/student-bus-service\.js['"]/, 'bus-search.js must import subscribeStudentBus');
-    assert.match(busSearchContent, /bs-assigned-bus-container/, 'bus-search.js must reference bs-assigned-bus-container');
-    assert.match(busSearchContent, /Your Assigned Bus/, 'bus-search.js must render Your Assigned Bus title');
-    assert.match(busSearchContent, /bs-track-assigned-btn/, 'bus-search.js must provide track button');
+    // Bus Search JS clean
+    assert.ok(!busSearchContent.includes('bs-assigned-bus-container'), 'bus-search.js must not reference bs-assigned-bus-container');
+    assert.ok(!busSearchContent.includes('bs-track-assigned-btn'), 'bus-search.js must not reference bs-track-assigned-btn');
   });
 
   await t.test('7. Personal Info page displays Student ID & Assigned Bus and supports linking', () => {
@@ -161,29 +158,16 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
     assert.match(profileContent, /subscribeStudentBus/, 'profile.js must subscribe to student bus changes');
   });
 
-  await t.test('8. Home Screen displays dedicated Your Assigned Bus widget and interactive linking', () => {
-    // HTML Elements
-    assert.ok(indexHtmlContent.includes('id="home-assigned-bus-card"'), 'index.html must have #home-assigned-bus-card');
-    assert.ok(indexHtmlContent.includes('id="hab-bus-badge"'), 'index.html must have #hab-bus-badge');
-    assert.ok(indexHtmlContent.includes('id="hab-status-pill"'), 'index.html must have #hab-status-pill');
-    assert.ok(indexHtmlContent.includes('id="hab-route-title"'), 'index.html must have #hab-route-title');
-    assert.ok(indexHtmlContent.includes('id="hab-stage-bold"'), 'index.html must have #hab-stage-bold');
-    assert.ok(indexHtmlContent.includes('id="hab-track-btn"'), 'index.html must have #hab-track-btn');
-    assert.ok(indexHtmlContent.includes('id="hab-pass-btn"'), 'index.html must have #hab-pass-btn');
-    assert.ok(indexHtmlContent.includes('id="home-link-bus-card"'), 'index.html must have #home-link-bus-card');
-    assert.ok(indexHtmlContent.includes('id="home-student-id-input"'), 'index.html must have #home-student-id-input');
-    assert.ok(indexHtmlContent.includes('id="home-link-student-btn"'), 'index.html must have #home-link-student-btn');
-
-    // CSS Styling
-    assert.ok(styleCssContent.includes('.home-assigned-bus-card'), 'style.css must define .home-assigned-bus-card');
-    assert.ok(styleCssContent.includes('.hab-bus-badge'), 'style.css must define .hab-bus-badge');
-    assert.ok(styleCssContent.includes('.home-link-bus-card'), 'style.css must define .home-link-bus-card');
+  await t.test('8. Home Screen clean layout: bus and bus status widget is cleanly removed', () => {
+    // HTML Elements removed
+    assert.ok(!indexHtmlContent.includes('id="home-assigned-bus-card"'), 'index.html must not have #home-assigned-bus-card');
+    assert.ok(!indexHtmlContent.includes('id="hab-bus-badge"'), 'index.html must not have #hab-bus-badge');
+    assert.ok(!indexHtmlContent.includes('id="hab-status-pill"'), 'index.html must not have #hab-status-pill');
+    assert.ok(!indexHtmlContent.includes('id="home-link-bus-card"'), 'index.html must not have #home-link-bus-card');
 
     // JS Integration in main.js
-    assert.match(mainJsContent, /import\s*\{[^}]*subscribeStudentBus[^}]*\}\s*from\s*['"]\.\/student-bus-service\.js['"]/, 'main.js must import subscribeStudentBus');
-    assert.match(mainJsContent, /function\s+initHomeAssignedBusWidget\(\)/, 'main.js must define initHomeAssignedBusWidget');
-    assert.match(mainJsContent, /busBadge\.textContent\s*=\s*`Bus \$\{busNum\}`/, 'main.js must populate bus badge');
-    assert.match(mainJsContent, /subscribeStudentBus\(\(data\)\s*=>/, 'main.js must subscribe to student bus changes');
+    assert.ok(!mainJsContent.includes('initHomeAssignedBusWidget'), 'main.js must not contain initHomeAssignedBusWidget');
+    assert.match(mainJsContent, /resolveStudentAssignedBus/, 'main.js still resolves student bus in background for e-pass & tracking');
   });
 
   await t.test('9. Student Bus Service provides dual ID/phone lookup, updatedAt sorting, and real-time adoption', () => {

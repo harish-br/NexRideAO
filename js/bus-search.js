@@ -2,7 +2,6 @@ import { firestore as db } from './firebase-config.js';
 import { collection, getDocs, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { repository } from './offline/repository.js';
 import { cacheSet } from './offline/db.js';
-import { getActiveStudentData, subscribeStudentBus } from './student-bus-service.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const busSearchBtn = document.getElementById('bus-search-btn');
@@ -863,41 +862,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function renderSmartSuggestions() {
-    // Render My Assigned Bus card if student has an active bus from Firestore database
-    const assignedBusContainer = document.getElementById('bs-assigned-bus-container');
-    const student = getActiveStudentData();
-    if (assignedBusContainer) {
-      if (student && student.assignedBus) {
-        assignedBusContainer.innerHTML = `
-          <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #BFDBFE; border-radius: 18px; padding: 16px 18px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(37,99,235,0.08);">
-            <div style="display: flex; align-items: center; gap: 14px;">
-              <div style="width: 44px; height: 44px; border-radius: 12px; background: #2563EB; color: white; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; box-shadow: 0 2px 6px rgba(37,99,235,0.3);">
-                ${student.assignedBus}
-              </div>
-              <div>
-                <div style="font-size: 11px; font-weight: 700; color: #1D4ED8; text-transform: uppercase; letter-spacing: 0.5px;">Your Assigned Bus</div>
-                <div style="font-size: 15px; font-weight: 700; color: #111827; margin-top: 1px;">Bus ${student.assignedBus} &bull; ${student.stage || 'College Route'}</div>
-                <div style="font-size: 12px; color: #4B5563; margin-top: 2px;">Route: ${student.routeId || 'Campus Corridor'}</div>
-              </div>
-            </div>
-            <button type="button" id="bs-track-assigned-btn" style="background: #2563EB; color: white; border: none; padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 4px rgba(37,99,235,0.2);">Track Live</button>
-          </div>
-        `;
-        const trackBtn = document.getElementById('bs-track-assigned-btn');
-        if (trackBtn) {
-          trackBtn.onclick = () => {
-            closeModal();
-            const navLive = document.getElementById('nav-live');
-            if (navLive) navLive.click();
-          };
-        }
-        assignedBusContainer.style.display = 'block';
-      } else {
-        assignedBusContainer.innerHTML = '';
-        assignedBusContainer.style.display = 'none';
-      }
-    }
-
     // nearbyStopsContainer is now handled dynamically in detectLocation
     renderRecentRoutesSkeleton();
 
@@ -931,10 +895,5 @@ document.addEventListener('DOMContentLoaded', () => {
       recentRoutesContainer.innerHTML = '<div class="bs-subtitle" style="padding: 16px 0; font-size: 14px; color: #EF4444; text-align: center; width: 100%;">Failed to load recent routes.</div>';
     }
   }
-
-  // Subscribe to real-time database student updates
-  subscribeStudentBus(() => {
-    renderSmartSuggestions();
-  });
 
 });
