@@ -18,11 +18,13 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
   const profileJsPath = path.join(rootDir, 'js', 'profile.js');
   const mainJsPath = path.join(rootDir, 'js', 'main.js');
   const styleCssPath = path.join(rootDir, 'css', 'style.css');
+  const authUiJsPath = path.join(rootDir, 'js', 'auth-ui.js');
   const indexHtmlPath = path.join(rootDir, 'index.html');
 
   assert.ok(fs.existsSync(rulesPath), 'firestore.rules must exist');
   assert.ok(fs.existsSync(serviceJsPath), 'js/student-bus-service.js must exist');
   assert.ok(fs.existsSync(mainJsPath), 'js/main.js must exist');
+  assert.ok(fs.existsSync(authUiJsPath), 'js/auth-ui.js must exist');
 
   const rulesContent = fs.readFileSync(rulesPath, 'utf8');
   const adminJsContent = fs.readFileSync(adminJsPath, 'utf8');
@@ -33,6 +35,7 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
   const profileContent = fs.readFileSync(profileJsPath, 'utf8');
   const mainJsContent = fs.readFileSync(mainJsPath, 'utf8');
   const styleCssContent = fs.readFileSync(styleCssPath, 'utf8');
+  const authUiContent = fs.readFileSync(authUiJsPath, 'utf8');
   const indexHtmlContent = fs.readFileSync(indexHtmlPath, 'utf8');
 
   await t.test('1. Firestore Security Rules permit public/student read access to users and pass collections', () => {
@@ -195,5 +198,32 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
     // Real-time adoption when unassigned
     assert.match(serviceJsContent, /if\s*\(!activeStudentData\s*\|\|\s*!activeStudentData\.assignedBus\)\s*\{\s*isMatch\s*=\s*true;/, 'Service must auto-adopt newly assigned student when unassigned');
   });
+
+  await t.test('10. Automatic login mobile number detection and per-user bus isolation', () => {
+    // Auth UI detects and saves login mobile number
+    assert.match(authUiContent, /localStorage\.setItem\('nexride_user_phone',\s*mobileVal\)/, 'auth-ui.js must save entered mobile number on continue');
+    assert.match(authUiContent, /localStorage\.setItem\('nexride_user_phone',\s*cleanPhone\)/, 'auth-ui.js must save verified clean mobile number');
+    assert.match(authUiContent, /resolveStudentAssignedBus\(user\)/, 'auth-ui.js must trigger bus resolution on OTP verify & session restore');
+    assert.match(authUiContent, /localStorage\.removeItem\('nexride_user_phone'\)/, 'auth-ui.js must clear user phone on logout');
+
+    // Student Bus Service auto-detects login mobile and matches database
+    assert.match(serviceJsContent, /let\s+loginPhoneClean\s*=\s*null/, 'Service must track active loginPhoneClean');
+    assert.match(serviceJsContent, /user\.phoneNumber.*replace\(/, 'Service must extract 10 digits from user.phoneNumber');
+    assert.match(serviceJsContent, /localStorage\.getItem\('nexride_user_phone'\)/, 'Service must read nexride_user_phone');
+
+    // Per-user mobile queries and comprehensive scan
+    assert.match(serviceJsContent, /Automatic mobile detection:\s*\+91/, 'Service must log automatic mobile detection');
+    assert.match(serviceJsContent, /where\('phoneNumber',\s*'==',\s*`\+91\$\{loginPhoneClean\}`\)/, 'Service must query +91 format');
+    assert.match(serviceJsContent, /where\('phone',\s*'==',\s*loginPhoneClean\)/, 'Service must query 10-digit phone');
+    assert.match(serviceJsContent, /where\('mobile',\s*'==',\s*loginPhoneClean\)/, 'Service must query mobile field');
+
+    // Strict User Isolation (each user sees only their own bus, never someone else's)
+    assert.match(serviceJsContent, /Strict user isolation applied/, 'Service must log strict user isolation');
+    assert.match(serviceJsContent, /if\s*\(!foundData\s*\|\|\s*!\(foundData\.assignedBus/, 'Service must enforce no other user bus when mobile not allocated');
+
+    // Real-time listener checks current user's mobile number specifically
+    assert.match(serviceJsContent, /changePhones\.includes\(currentMobile\)/, 'Listener must match allocations specifically to current user mobile');
+  });
 });
+
 

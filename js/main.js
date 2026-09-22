@@ -440,18 +440,26 @@ function initHomeAssignedBusWidget() {
       const route = student.routeId || `Route ${busNum}`;
       const name = student.name && student.name !== 'User' ? student.name : 'Student';
       const stuId = student.studentId || student.regno || student.id || '';
+      const phone = student.cleanPhone || (student.phone ? String(student.phone).replace(/\D/g, '').slice(-10) : '') || localStorage.getItem('nexride_user_phone') || '';
 
       if (busBadge) busBadge.textContent = `Bus ${busNum}`;
       if (routeTitle) routeTitle.textContent = `${route} • Campus Route`;
       if (stageBold) stageBold.textContent = stage;
       if (studentName) studentName.textContent = name;
-      if (studentIdEl) studentIdEl.textContent = stuId || 'Enrolled';
+      if (studentIdEl) studentIdEl.textContent = stuId ? `${stuId}${phone ? ` (+91 ${phone})` : ''}` : (phone ? `+91 ${phone}` : 'Enrolled');
 
       assignedCard.style.display = 'flex';
       linkCard.style.display = 'none';
     } else {
       assignedCard.style.display = 'none';
       linkCard.style.display = 'flex';
+
+      const userPhone = localStorage.getItem('nexride_user_phone');
+      if (linkStatus && userPhone) {
+        linkStatus.style.display = 'block';
+        linkStatus.style.color = '#6B7280';
+        linkStatus.textContent = `Logged in with +91 ${userPhone} • No bus assigned yet.`;
+      }
     }
   }
 

@@ -9,6 +9,7 @@ import {
   setPersistence
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { resolveStudentAssignedBus } from './student-bus-service.js';
 
 // --- GLOBAL ERROR CAPTURE ---
 window.onerror = (msg, src, line, col, err) => {
@@ -229,12 +230,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const splash = document.getElementById('splash-screen');
       if (splash) splash.style.display = 'none';
 
-      // Bypass auth entirely on localhost for development
+      // Bypass auth entirely on localhost for development unless user has phone login
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
         console.log("[DEBUG] Localhost detected. Bypassing auth for dev beta.");
         authPage.classList.add('hidden');
         otpPage.classList.add('hidden');
         if (appContainer) appContainer.style.display = 'flex';
+        if (user && user.phoneNumber) {
+          const cleanPhone = user.phoneNumber.replace(/\D/g, '').slice(-10);
+          if (cleanPhone) localStorage.setItem('nexride_user_phone', cleanPhone);
+        }
+        await resolveStudentAssignedBus(user);
         if (!user) {
           try {
             await signInAnonymously(auth);
@@ -247,6 +253,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (user && !user.isAnonymous) {
         console.log("[DEBUG] User is logged in securely with phone:", user.phoneNumber);
+        if (user.phoneNumber) {
+          const cleanPhone = user.phoneNumber.replace(/\D/g, '').slice(-10);
+          if (cleanPhone) localStorage.setItem('nexride_user_phone', cleanPhone);
+        }
+        await resolveStudentAssignedBus(user);
         authPage.classList.add('hidden');
         otpPage.classList.add('hidden');
         if (appContainer) appContainer.style.display = 'flex';
@@ -355,6 +366,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
+      localStorage.setItem('nexride_user_phone', mobileVal);
       const phoneNumber = '+91' + mobileVal;
 
       // Check if reCAPTCHA has been completed
@@ -609,6 +621,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const user = result.user;
 
         console.log("[DEBUG] after verify. result SUCCESS:", user.uid);
+        const cleanPhone = (user.phoneNumber || mobileInput?.value || '').replace(/\D/g, '').slice(-10);
+        if (cleanPhone) {
+          localStorage.setItem('nexride_user_phone', cleanPhone);
+        }
+        await resolveStudentAssignedBus(user);
 
         // Reset auth state on successful login
         resetAuthState();
@@ -639,6 +656,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     logoutBtn.addEventListener('click', async () => {
       console.log("[DEBUG] --- Logging Out ---");
       resetAuthState();
+      localStorage.removeItem('nexride_user_phone');
+      localStorage.removeItem('nexride_student_id');
+      localStorage.removeItem('nexride_assigned_bus');
       if (auth) {
         try {
           await signOut(auth);
