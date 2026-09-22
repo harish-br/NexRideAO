@@ -9393,6 +9393,9 @@ async function handleStudentAllocationSubmit(e) {
   const isPaid = balance === 'Fully Paid';
   const feesStatus = isPaid ? 'Paid' : (balance === 'Partially Paid' ? 'Partially Paid' : 'Pending');
 
+  const clean10Phone = mobile ? mobile.replace(/\D/g, '').slice(-10) : '';
+  const intlPhone = clean10Phone ? `+91${clean10Phone}` : mobile;
+
   const payload = {
     name: studentName,
     id: studentId,
@@ -9405,9 +9408,12 @@ async function handleStudentAllocationSubmit(e) {
     passengerType: passengerType,
     passenger_type: passengerType,
     year: year,
-    phone: mobile,
-    mobile: mobile,
-    contact: mobile,
+    phone: clean10Phone || mobile,
+    mobile: clean10Phone || mobile,
+    phoneNumber: intlPhone,
+    rawPhone: clean10Phone,
+    cleanPhone: clean10Phone,
+    contact: clean10Phone || mobile,
     'parent_gaurdian contact': mobile,
     assignedBus: busNumber,
     bus: busNumber,
@@ -9454,13 +9460,40 @@ async function handleStudentAllocationSubmit(e) {
       saveBtn.textContent = 'Saving Record...';
     }
 
-    const docRef = doc(firestore, 'users', targetDocId);
-    await setDoc(docRef, payload, { merge: true });
+    // Collect all Firestore user document IDs to update (targetDocId plus any existing auth user with matching phone or studentId)
+    const docIdsToUpdate = new Set([targetDocId]);
+    if (studentId) docIdsToUpdate.add(studentId);
 
-    // Sync digital pass subcollection for mobile app compatibility
-    try {
-      await setDoc(doc(firestore, 'users', targetDocId, 'DigitalID', 'userpass'), payload, { merge: true });
-    } catch (e) {}
+    // Scan usersCache for any existing client auth records matching phone or studentId
+    usersCache.forEach(u => {
+      const uDocId = u.docId || u.id;
+      if (!uDocId) return;
+      if (u.id === studentId || u.regno === studentId) {
+        docIdsToUpdate.add(uDocId);
+      }
+      if (clean10Phone) {
+        const uPhoneClean = String(u.phone || u.mobile || u.contact || u.raw?.phoneNumber || '').replace(/\D/g, '').slice(-10);
+        if (uPhoneClean && uPhoneClean === clean10Phone) {
+          docIdsToUpdate.add(uDocId);
+        }
+      }
+    });
+
+    // Write to all matching document IDs and digital ID subcollections
+    for (const dId of docIdsToUpdate) {
+      try {
+        const docRef = doc(firestore, 'users', dId);
+        await setDoc(docRef, payload, { merge: true });
+        await setDoc(doc(firestore, 'users', dId, 'DigitalID', 'userpass'), payload, { merge: true });
+        await setDoc(doc(firestore, 'users', dId, 'epass', 'latest'), {
+          ...payload,
+          isActive: true,
+          expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000
+        }, { merge: true });
+      } catch (errSync) {
+        console.warn(`[Admin] Failed syncing student allocation to user doc ${dId}:`, errSync);
+      }
+    }
 
     await logAuditEvent(
       editDocId ? 'STUDENT_UPDATED' : 'STUDENT_ALLOCATED',
@@ -9468,6 +9501,12 @@ async function handleStudentAllocationSubmit(e) {
       targetDocId,
       { studentName, studentId, busNumber, stage, balance, feesAmount }
     );
+
+    // Synchronize to localStorage for instant local/cross-tab resolution
+    try {
+      localStorage.setItem('nexride_student_id', studentId);
+      localStorage.setItem('nexride_assigned_bus', busNumber);
+    } catch (e) {}
 
     // Update in-memory cache immediately
     const existingIdx = usersCache.findIndex(u => u.docId === targetDocId || u.id === studentId);
@@ -9606,15 +9645,36 @@ async function removeStudentFromBus() {
 
   const targetDocId = stu.docId || stu.id;
   try {
-    const docRef = doc(firestore, 'users', targetDocId);
-    await updateDoc(docRef, {
+    const unassignPayload = {
       assignedBus: '',
       bus: '',
       busNumber: '',
       bus_no: '',
       'bus no': '',
       updatedAt: serverTimestamp()
+    };
+
+    const docIdsToClear = new Set([targetDocId]);
+    if (stu.id) docIdsToClear.add(stu.id);
+
+    const clean10 = String(stu.phone || stu.mobile || '').replace(/\D/g, '').slice(-10);
+    usersCache.forEach(u => {
+      const uDocId = u.docId || u.id;
+      if (!uDocId) return;
+      if (u.id === stu.id || u.regno === stu.id) docIdsToClear.add(uDocId);
+      if (clean10) {
+        const uPhoneClean = String(u.phone || u.mobile || u.contact || u.raw?.phoneNumber || '').replace(/\D/g, '').slice(-10);
+        if (uPhoneClean && uPhoneClean === clean10) docIdsToClear.add(uDocId);
+      }
     });
+
+    for (const dId of docIdsToClear) {
+      try {
+        await updateDoc(doc(firestore, 'users', dId), unassignPayload);
+        await setDoc(doc(firestore, 'users', dId, 'DigitalID', 'userpass'), unassignPayload, { merge: true });
+        await setDoc(doc(firestore, 'users', dId, 'epass', 'latest'), unassignPayload, { merge: true });
+      } catch (errSync) {}
+    }
 
     await logAuditEvent('STUDENT_UNASSIGNED_BUS', 'users', targetDocId, {
       studentName: stu.name,

@@ -2,6 +2,7 @@ import { firestore } from './firebase-config.js';
 import { doc, getDoc, collection, onSnapshot, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { cacheGet, cacheSet } from './offline/db.js';
+import { subscribeStudentBus, resolveStudentAssignedBus, setManualStudentId, getActiveStudentData } from './student-bus-service.js';
 
 // Fetch stops from Firestore (checks route_bus_<busNum>, routes where assignedBus == busNum, or bus_<busNum>)
 async function fetchRouteStops(busNum) {
@@ -501,66 +502,81 @@ export function initLiveTracking() {
     if (stopsList && stopItemsEl.length === 0) {
         showLiveTrackingSkeleton(5);
     }
-    
-    const auth = getAuth();
-    onAuthStateChanged(auth, async (user) => {
-        if (!user) {
-            if (assignedBusEl) assignedBusEl.textContent = "N/A";
+
+    let currentTrackedBusNum = null;
+
+    function applyAssignedStudentBus(studentData) {
+        if (!studentData || !studentData.assignedBus) {
+            // Check if there is still any active student data from memory/cache
+            const fallback = getActiveStudentData();
+            if (fallback && fallback.assignedBus) {
+                studentData = fallback;
+            }
+        }
+
+        if (studentData && studentData.assignedBus) {
+            const busNum = String(studentData.assignedBus).trim();
+            currentUserStage = studentData.stage || studentData.pickupStop || '';
+
+            console.log(`[LiveTracking] Displaying assigned Bus ${busNum} (Stage: ${currentUserStage}) from Firestore`);
+
+            if (assignedBusEl) {
+                assignedBusEl.textContent = busNum;
+                assignedBusEl.classList.remove('skeleton-shimmer');
+            }
+
+            if (currentTrackedBusNum !== busNum) {
+                currentTrackedBusNum = busNum;
+                stopItemsEl = [];
+                routeStops = [];
+                startBusTracking(`bus_${busNum}`, busNum);
+            }
+        } else {
+            // No bus assigned in database for this student profile
+            if (assignedBusEl) assignedBusEl.textContent = "None";
             if (busStatusEl) {
-                busStatusEl.textContent = "Login required";
+                busStatusEl.textContent = "No bus assigned";
                 busStatusEl.style.color = "#6B7280";
             }
-            if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">Please login to view tracking.</div>';
-            return;
-        }
+            if (stopsList) {
+                stopsList.innerHTML = `
+                    <div style="padding: 24px 20px; text-align: center; color: #4B5563; font-size: 14px; background: white; border-radius: 16px; margin: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                        <div style="font-weight: 700; font-size: 15px; color: #111827; margin-bottom: 6px;">No Bus Assigned Yet</div>
+                        <div style="font-size: 13px; color: #6B7280; margin-bottom: 14px; line-height: 1.5;">When an administrator assigns you to a college bus in the admin panel, your bus and live tracking will appear here automatically.</div>
+                        <div style="display: flex; gap: 8px; justify-content: center; max-width: 280px; margin: 0 auto;">
+                            <input type="text" id="manual-student-id-input" placeholder="e.g. 732225CS101" style="flex: 1; padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 13px; text-transform: uppercase;">
+                            <button type="button" id="manual-student-id-btn" style="background: #2563EB; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Link</button>
+                        </div>
+                    </div>
+                `;
 
-        try {
-            // 1. Fetch user's assigned bus
-            let busNum = null;
-            const userRef = doc(firestore, 'users', user.uid);
-            const userSnap = await getDoc(userRef);
-            
-            if (userSnap.exists()) {
-                const userData = userSnap.data();
-                busNum = userData.bus || userData.busNumber || userData['bus no'] || userData.bus_no;
-                currentUserStage = userData.stage || '';
-            }
-            
-            // Fallback check in epass subcollection just in case
-            if (!busNum || !currentUserStage) {
-                const epassRef = collection(firestore, `users/${user.uid}/epass`);
-                const epassSnap = await getDocs(epassRef);
-                if (!epassSnap.empty) {
-                    const epassData = epassSnap.docs[0].data();
-                    if (!busNum) busNum = epassData.bus || epassData.busNumber || epassData['bus no'] || epassData.bus_no;
-                    if (!currentUserStage) currentUserStage = epassData.stage || '';
+                const linkBtn = document.getElementById('manual-student-id-btn');
+                const linkInput = document.getElementById('manual-student-id-input');
+                if (linkBtn && linkInput) {
+                    linkBtn.onclick = async () => {
+                        const val = linkInput.value.trim();
+                        if (val) {
+                            linkBtn.disabled = true;
+                            linkBtn.textContent = 'Linking...';
+                            await setManualStudentId(val);
+                            linkBtn.disabled = false;
+                            linkBtn.textContent = 'Link';
+                        }
+                    };
                 }
             }
-
-            if (!busNum) {
-                if (assignedBusEl) assignedBusEl.textContent = "None";
-                if (busStatusEl) {
-                    busStatusEl.textContent = "No bus assigned";
-                    busStatusEl.style.color = "#6B7280";
-                }
-                if (stopsList) stopsList.innerHTML = '<div style="padding: 20px; text-align: center; color: #666; font-size: 14px;">No bus assigned to your profile.</div>';
-                if (busTrackerEl) busTrackerEl.style.display = 'none';
-                return;
-            }
-
-            busNum = String(busNum).trim();
-
-            if (assignedBusEl) assignedBusEl.textContent = busNum;
-
-            // 2. We don't need a query, the doc ID is just bus_{busNum}
-            // By bypassing getDocs(), we avoid throwing a fatal offline error on slow networks!
-            startBusTracking(`bus_${busNum}`, busNum);
-
-        } catch (error) {
-            console.error("Error loading live tracking:", error);
-            // We explicitly do NOT show this error in the UI. 
-            // It just silently falls back, leaving the UI clean.
+            if (busTrackerEl) busTrackerEl.style.display = 'none';
         }
+    }
+
+    // Subscribe to live student bus updates from Firestore
+    subscribeStudentBus((data) => {
+        applyAssignedStudentBus(data);
+    });
+
+    const auth = getAuth();
+    onAuthStateChanged(auth, async (user) => {
+        await resolveStudentAssignedBus(user);
     });
 }
 

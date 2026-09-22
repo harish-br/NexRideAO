@@ -3,6 +3,7 @@ import { onAuthStateChanged, updateProfile } from 'https://www.gstatic.com/fireb
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
 import { notificationClient } from './notifications/notification-service.js';
+import { getActiveStudentData, subscribeStudentBus, setManualStudentId } from './student-bus-service.js';
 
 let currentUser = null;
 let processedPhoto = null; // { dataUrl: string, blob: Blob }
@@ -301,6 +302,21 @@ function applyProfileData(data) {
     const photo = data.photoURL || data.profilePic || data.avatar || null;
     if (photo) {
         updateAllProfileImages(photo);
+    }
+
+    // Display Student ID / Registration Number
+    const valStudentId = document.getElementById('val-student-id');
+    if (valStudentId) {
+        const stuId = data.studentId || data.regno || data.id || localStorage.getItem('nexride_student_id');
+        valStudentId.textContent = (stuId && stuId !== data.uid) ? stuId : "Not linked";
+    }
+
+    // Display Assigned College Bus
+    const valAssignedBus = document.getElementById('val-assigned-bus');
+    if (valAssignedBus) {
+        const busNum = data.assignedBus || data.bus || data.busNumber || '';
+        const stageStr = data.stage || data.pickupStop || '';
+        valAssignedBus.textContent = busNum ? `Bus ${busNum}${stageStr ? ` (${stageStr})` : ''}` : "No bus assigned";
     }
 
     if (data.preferences || data.notificationPreferences) {
@@ -768,4 +784,25 @@ allToggleMappings.forEach(({ el, key }) => {
         });
     }
 });
+
+// Student ID Linking click listener
+const rowStudentId = document.getElementById('row-student-id');
+if (rowStudentId) {
+    rowStudentId.addEventListener('click', async () => {
+        const curId = localStorage.getItem('nexride_student_id') || '';
+        const inputId = prompt('Enter your Student ID / Registration No (e.g. 732225CS101):', curId);
+        if (inputId && inputId.trim()) {
+            const clean = inputId.trim();
+            await setManualStudentId(clean);
+        }
+    });
+}
+
+// Subscribe to real-time student bus updates from Firestore
+subscribeStudentBus((studentData) => {
+    if (studentData) {
+        applyProfileData(studentData);
+    }
+});
+
 

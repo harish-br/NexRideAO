@@ -1,6 +1,7 @@
 import { auth, firestore } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { getActiveStudentData, subscribeStudentBus } from './student-bus-service.js';
 
 let barcodeLoaded = false;
 let loadedPassUserId = null;
@@ -24,6 +25,14 @@ onAuthStateChanged(auth, async (user) => {
         const mockPassId = generateUUID();
         renderBarcode(mockPassId);
         await renderHologram(null);
+    }
+});
+
+// Real-time listener for database student bus updates
+subscribeStudentBus(async (studentData) => {
+    if (studentData && studentData.assignedBus) {
+        const currentUid = auth.currentUser ? auth.currentUser.uid : null;
+        await renderHologram(currentUid || studentData.docId);
     }
 });
 
@@ -222,41 +231,55 @@ async function renderHologram(userId) {
     // Default SVG Icon Data URI
     const defaultProfilePic = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23007aff'><circle cx='12' cy='8' r='4' /><ellipse cx='12' cy='17' rx='7' ry='3.5' /></svg>";
 
-    if (userId) {
+    if (userId || getActiveStudentData()) {
         try {
             let data = null;
+            const activeStudent = getActiveStudentData();
 
-            // Fetch root user doc for stage, fees_status, and potentially name/photo
-            const userRef = doc(firestore, 'users', userId);
-            const userSnap = await getDoc(userRef);
-            const rootData = userSnap.exists() ? userSnap.data() : {};
+            // 1. Check in-memory resolved student data from database first
+            if (activeStudent && (activeStudent.assignedBus || activeStudent.name !== 'User')) {
+                data = activeStudent.raw || activeStudent;
+            }
 
-            // Try fetching DigitalID first
-            const digitalIdRef = doc(firestore, 'users', userId, 'DigitalID', 'userpass');
-            const digitalIdSnap = await getDoc(digitalIdRef);
+            // Fetch root user doc for stage, fees_status, and potentially name/photo if not already resolved
+            let rootData = {};
+            if (userId) {
+                try {
+                    const userRef = doc(firestore, 'users', userId);
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) rootData = userSnap.data();
+                } catch (e) {}
+            }
 
-            if (digitalIdSnap.exists()) {
-                data = digitalIdSnap.data();
-            } else {
-                // Fallback to standard user profile if DigitalID is not created yet
-                const profileRef = doc(firestore, 'users', userId, 'profile');
-                const profileSnap = await getDoc(profileRef);
-                if (profileSnap.exists()) {
-                    data = profileSnap.data();
-                    // Profile uses different field names (studentId, busNumber)
-                    data.id = data.studentId;
-                    data.bus = data.busNumber;
+            // Try fetching DigitalID if data is not complete
+            if (!data && userId) {
+                const digitalIdRef = doc(firestore, 'users', userId, 'DigitalID', 'userpass');
+                const digitalIdSnap = await getDoc(digitalIdRef);
+                if (digitalIdSnap.exists()) {
+                    data = digitalIdSnap.data();
                 }
             }
 
-            if (data) {
-                const userName = (rootData.name || data.name || 'USER').toUpperCase();
-                const userIdNum = (rootData.regno || data.id || 'ID000');
-                const busNum = (rootData.bus || rootData.busNumber || rootData['bus no'] || rootData.bus_no || data.bus || data.busNumber || data['bus no'] || data.bus_no || '00');
-                const stageStr = (rootData.stage || data.stage || 'N/A');
-                const feesStr = (rootData.fees_status || data.fees_status || 'N/A');
-                const contactStr = (rootData['parent_gaurdian contact'] || data.contact || 'N/A');
-                const profileImgUrl = rootData.photoURL || data.photoURL || data.profilePic || data.avatar || data.profileImageUrl || null;
+            // If still not found, check stored student ID
+            if (!data) {
+                const storedId = localStorage.getItem('nexride_student_id');
+                if (storedId) {
+                    try {
+                        const sSnap = await getDoc(doc(firestore, 'users', storedId));
+                        if (sSnap.exists()) data = sSnap.data();
+                    } catch (e) {}
+                }
+            }
+
+            if (data || (activeStudent && activeStudent.assignedBus)) {
+                const merged = { ...rootData, ...(data || {}), ...(activeStudent || {}) };
+                const userName = (merged.name || 'STUDENT').toUpperCase();
+                const userIdNum = (merged.studentId || merged.regno || merged.id || 'ID000');
+                const busNum = (merged.assignedBus || merged.bus || merged.busNumber || merged.bus_no || merged['bus no'] || '00');
+                const stageStr = (merged.stage || merged.pickupStop || 'N/A');
+                const feesStr = (merged.fees_status || merged.balance || 'Paid');
+                const contactStr = (merged.phone || merged.mobile || merged['parent_gaurdian contact'] || merged.contact || 'N/A');
+                const profileImgUrl = merged.photoURL || merged.profilePic || merged.avatar || merged.profileImageUrl || null;
 
                 const nameNoSpace = userName.replace(/\s+/g, '');
                 sigStr = `${nameNoSpace}${userIdNum}BUSNO${busNum}`;
@@ -269,7 +292,7 @@ async function renderHologram(userId) {
                 if (contactEl) contactEl.textContent = contactStr;
                 if (feesEl) {
                     feesEl.textContent = feesStr;
-                    feesEl.style.color = (feesStr.toLowerCase() === 'paid') ? '#10B981' : '#EF4444'; // Green if paid, Red otherwise
+                    feesEl.style.color = (feesStr.toLowerCase() === 'paid' || feesStr.toLowerCase() === 'fully paid') ? '#10B981' : '#EF4444';
                 }
                 if (profilePicEl) {
                     profilePicEl.src = profileImgUrl ? profileImgUrl : defaultProfilePic;
