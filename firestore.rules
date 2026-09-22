@@ -88,7 +88,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /drivers/{document=**} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAuthenticated();
     }
     match /timings/{document=**} {

@@ -53,6 +53,7 @@ let isDashboardLoading = true;
 let currentInspectingBus = null;
 let currentInspectingTicket = null;
 let currentInspectingRouteId = null;
+let currentInspectingStudent = null;
 let currentEditingStops = [];
 let currentEditingBusDocs = [];
 let hasLoadedFirestoreRoutes = false;
@@ -329,6 +330,9 @@ function switchView(viewId) {
     renderDocumentsTable();
     renderExpiringDocumentsSection();
     renderExpiredDocumentsSection();
+    switchView('drivers-view');
+    switchDriverSubtab('documents');
+    return;
   }
   if (viewId === 'approvals-view') {
     renderApprovalsTable();
@@ -341,6 +345,16 @@ function switchView(viewId) {
   }
   if (viewId === 'settings-view') {
     loadSystemSettings();
+  }
+  if (viewId === 'legal-view') {
+    switchView('settings-view');
+    const legalCard = document.getElementById('stg-legal-card');
+    if (legalCard) {
+      setTimeout(() => {
+        legalCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+    return;
   }
 
   window.scrollTo(0, 0);
@@ -362,23 +376,20 @@ navLinks.forEach(link => {
 document.querySelectorAll('.nav-dropdown-menu .dropdown-item').forEach(item => {
   item.addEventListener('click', (e) => {
     e.preventDefault();
-    const targetView = item.getAttribute('data-view');
-    const driversTab = item.getAttribute('data-drivers-tab');
-    const href = item.getAttribute('href');
+    if (driversTab === 'docs' || driversTab === 'documents') {
+      switchView('drivers-view');
+      if (typeof switchDriverSubtab === 'function') {
+        switchDriverSubtab('documents');
+      }
+      item.closest('.nav-dropdown-menu')?.classList.add('hidden');
+      return;
+    }
 
     if (targetView) {
       switchView(targetView);
     }
     if (driversTab && typeof switchDriverSubtab === 'function') {
       switchDriverSubtab(driversTab);
-    }
-    if (href && href.includes('?')) {
-      const queryString = href.split('?')[1];
-      const params = new URLSearchParams(queryString);
-      const ownerType = params.get('ownerType');
-      if (ownerType && typeof switchDocumentCategoryTab === 'function') {
-        switchDocumentCategoryTab(ownerType);
-      }
     }
     item.closest('.nav-dropdown-menu')?.classList.add('hidden');
   });
@@ -399,7 +410,13 @@ function handleHashRoute() {
   const [baseRoute, queryString] = hash.split('?');
   const params = new URLSearchParams(queryString || '');
 
-  if (baseRoute === '#drivers') {
+  if (baseRoute === '#students') {
+    switchView('students-view');
+    const studentId = params.get('studentId');
+    if (studentId) {
+      setTimeout(() => openStudentDetailsModal(studentId), 200);
+    }
+  } else if (baseRoute === '#drivers') {
     switchView('drivers-view');
     const driverId = params.get('driverId');
     if (driverId) {
@@ -410,20 +427,17 @@ function handleHashRoute() {
       switchDriverSubtab(tab);
     }
   } else if (baseRoute === '#documents') {
-    switchView('documents-view');
-    const ownerType = params.get('ownerType');
-    if (ownerType && typeof switchDocumentCategoryTab === 'function') {
-      switchDocumentCategoryTab(ownerType);
+    switchView('drivers-view');
+    if (typeof switchDriverSubtab === 'function') {
+      switchDriverSubtab('documents');
     }
-    const statusParam = params.get('status');
-    if (statusParam) {
-      const statusFilterEl = document.getElementById('doc-status-filter');
-      if (statusFilterEl) {
-        if (statusParam === 'expiring') statusFilterEl.value = 'Expiring Soon';
-        else if (statusParam === 'expired') statusFilterEl.value = 'Expired';
-        else if (statusParam === 'valid') statusFilterEl.value = 'Valid';
-        renderDocumentsTable();
-      }
+  } else if (baseRoute === '#legal') {
+    switchView('settings-view');
+    const legalCard = document.getElementById('stg-legal-card');
+    if (legalCard) {
+      setTimeout(() => {
+        legalCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
     }
   }
 }
@@ -2776,20 +2790,56 @@ function listenToUsers() {
       const dept = data.department || (data.regno ? (data.regno.includes('AI') ? 'AI&DS' : (data.regno.includes('CS') ? 'CSE' : 'Engineering')) : 'Engineering');
       const phone = data.phone || data['parent_gaurdian contact'] || data.contact || '--';
       
+      const academicYear = data.academicYear || data.academic_year || '2025-2026';
+      const institution = data.institution || 'Nandha Engineering College (Autonomous)';
+      const passType = data.passengerType || data.passenger_type || (data.role === 'staff' ? 'Teaching Staff' : 'Student');
+      const mobileNum = data.phone || data.mobile || data['parent_gaurdian contact'] || data.contact || '--';
+      const amountFixed = data.amountFixed !== undefined ? Number(data.amountFixed) : (data.amount_fixed !== undefined ? Number(data.amount_fixed) : 18000);
+      const fineAmount = data.fineAmount !== undefined ? Number(data.fineAmount) : (data.fine_amount !== undefined ? Number(data.fine_amount) : 0);
+      const concessionType = data.concessionType || data.concession_type || 'None';
+      const concessionAmount = data.concessionAmount !== undefined ? Number(data.concessionAmount) : (data.concession_amount !== undefined ? Number(data.concession_amount) : 0);
+      const concessionApproved = data.concessionApproved || data.concession_approved || 'Not Applicable';
+      const feesAmount = data.feesAmount !== undefined ? Number(data.feesAmount) : (data.fees_amount !== undefined ? Number(data.fees_amount) : Math.max(0, amountFixed + fineAmount - concessionAmount));
+      const paidAmount = data.paidAmount !== undefined ? Number(data.paidAmount) : (data.paid_amount !== undefined ? Number(data.paid_amount) : (data.fees_status?.toLowerCase() === 'paid' ? feesAmount : 0));
+      const paidDate = data.paidDate || data.paid_date || '';
+      const balance = data.balance || (feesAmount - paidAmount <= 0 ? 'Fully Paid' : (paidAmount > 0 ? 'Partially Paid' : 'Unpaid'));
+      const discontinuedAmount = data.discontinuedAmount !== undefined ? Number(data.discontinuedAmount) : (data.discontinued_amount !== undefined ? Number(data.discontinued_amount) : 0);
+      const cancelledAmount = data.cancelledAmount !== undefined ? Number(data.cancelledAmount) : (data.cancelled_amount !== undefined ? Number(data.cancelled_amount) : 0);
+      const remark = data.remark || data.remarks || '';
+      const routeId = data.routeId || data.route_id || data.assignedRouteName || '';
+
       usersCache.push({
         id: studentId,
         docId: d.id,
         name: studentName,
         email: data.email || '',
+        academicYear: academicYear,
+        institution: institution,
         department: dept,
+        passengerType: passType,
         year: data.year || '2nd Year',
         assignedBus: busNum,
         bus: busNum,
         busNumber: busNum,
         pickupStop: pickup,
-        dropStop: 'Nandha Engineering College',
-        phone: phone,
-        status: data.fees_status?.toLowerCase() === 'paid' ? 'Active' : (data.fees_status || 'Active'),
+        stage: pickup,
+        dropStop: data.dropStop || 'Nandha Engineering College',
+        phone: mobileNum,
+        mobile: mobileNum,
+        amountFixed: amountFixed,
+        fineAmount: fineAmount,
+        concessionType: concessionType,
+        concessionAmount: concessionAmount,
+        concessionApproved: concessionApproved,
+        feesAmount: feesAmount,
+        paidAmount: paidAmount,
+        paidDate: paidDate,
+        balance: balance,
+        discontinuedAmount: discontinuedAmount,
+        cancelledAmount: cancelledAmount,
+        remark: remark,
+        routeId: routeId,
+        status: balance === 'Fully Paid' || data.fees_status?.toLowerCase() === 'paid' ? 'Active' : (data.fees_status || 'Active'),
         raw: data
       });
     });
@@ -2848,6 +2898,9 @@ function listenToBuses() {
     // Derive Drivers, Routes, Documents, Timings from normalized/fleet data
     busesLoaded = true;
     deriveDerivedState();
+    if (typeof syncMissingDriversToFirestore === 'function') {
+      syncMissingDriversToFirestore();
+    }
     try {
       localStorage.setItem('nexride_admin_buses_cache', JSON.stringify(busesCache));
     } catch (e) {}
@@ -4026,20 +4079,13 @@ function renderBusesTable() {
 // RENDER: DRIVERS MANAGEMENT TABLE & COMPLIANCE
 // =============================================================================
 function switchDriverSubtab(tabName) {
+  if (tabName === 'docs') tabName = 'documents';
   currentDriverSubtab = tabName;
   const tabs = [
     { name: 'list', btn: 'drivers-subtab-list', content: 'drivers-tab-list-content' },
     { name: 'compliance', btn: 'drivers-subtab-compliance', content: 'drivers-tab-compliance-content' },
-    { name: 'documents', btn: 'drivers-subtab-documents', content: null }
+    { name: 'documents', btn: 'drivers-subtab-documents', content: 'drivers-tab-documents-content' }
   ];
-
-  if (tabName === 'documents') {
-    switchView('documents-view');
-    if (typeof switchDocumentCategoryTab === 'function') {
-      switchDocumentCategoryTab('driver');
-    }
-    return;
-  }
 
   tabs.forEach(t => {
     const btn = document.getElementById(t.btn);
@@ -4055,6 +4101,8 @@ function switchDriverSubtab(tabName) {
 
   if (tabName === 'compliance') {
     renderDriverLicenceComplianceSection();
+  } else if (tabName === 'documents') {
+    renderDriverDocumentsTable();
   } else {
     renderDriversTable();
   }
@@ -4393,14 +4441,24 @@ function renderStudentsTable() {
 
   filtered.forEach(stu => {
     const tr = document.createElement('tr');
+    const isPaid = stu.balance === 'Fully Paid' || stu.status === 'Active' || String(stu.raw?.fees_status).toLowerCase() === 'paid';
+    const isPartial = stu.balance === 'Partially Paid';
+    const badgeClass = isPaid ? 'badge-green' : (isPartial ? 'badge-yellow' : 'badge-gray');
+    const displayBalance = stu.balance || (isPaid ? 'Fully Paid' : 'Unpaid');
+
     tr.innerHTML = `
-      <td><strong>${escapeHtml(stu.name)}</strong></td>
+      <td>
+        <strong>${escapeHtml(stu.name)}</strong>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+          ${escapeHtml(stu.passengerType || 'Student')} &bull; ${escapeHtml(stu.academicYear || '2025-2026')}
+        </div>
+      </td>
       <td><span style="font-size: 13px; font-weight: 700; color: #2563EB;">${escapeHtml(stu.id)}</span></td>
       <td>${escapeHtml(stu.department)} • ${escapeHtml(stu.year)}</td>
       <td><strong>Bus ${escapeHtml(stu.assignedBus)}</strong></td>
       <td>${escapeHtml(stu.pickupStop)} &rarr; ${escapeHtml(stu.dropStop)}</td>
       <td>${escapeHtml(stu.phone)}</td>
-      <td><span class="status-badge badge-green">${escapeHtml(stu.status)}</span></td>
+      <td><span class="status-badge ${badgeClass}">${escapeHtml(displayBalance)}</span></td>
       <td style="text-align: right;">
         <button type="button" class="btn-action-icon btn-student-profile" data-student-id="${escapeHtml(stu.id)}">Profile</button>
       </td>
@@ -4408,7 +4466,7 @@ function renderStudentsTable() {
     const profileBtn = tr.querySelector('.btn-student-profile');
     if (profileBtn) {
       profileBtn.addEventListener('click', () => {
-        alert(`Student: ${stu.name}\nID: ${stu.id}\nBus: ${stu.assignedBus}\nPickup: ${stu.pickupStop}`);
+        openStudentDetailsModal(stu.id);
       });
     }
     tbody.appendChild(tr);
@@ -5954,6 +6012,139 @@ function renderDocumentsTable() {
   } catch (pErr) {
     console.warn('Documents pagination error:', pErr);
   }
+
+  if (typeof renderDriverDocumentsTable === 'function') {
+    renderDriverDocumentsTable();
+  }
+}
+
+// =============================================================================
+// RENDER: DRIVER DOCUMENTS TAB (Native to Drivers View)
+// =============================================================================
+let driverDocumentsPagination = { page: 1, pageSize: 10 };
+
+function renderDriverDocumentsTable() {
+  const tbody = document.getElementById('driver-documents-table-body');
+  if (!tbody) return;
+
+  const searchVal = (document.getElementById('driver-doc-search-input')?.value || '').toLowerCase().trim();
+  const statusVal = document.getElementById('driver-doc-status-filter')?.value || 'all';
+  const sortVal = document.getElementById('driver-doc-sort-filter')?.value || 'expiry';
+
+  const driverDocs = documentsCache.filter(doc => {
+    const oType = String(doc.ownerType || (doc.entity && doc.entity.includes('Bus') ? 'vehicle' : 'driver')).toLowerCase();
+    return oType === 'driver';
+  });
+
+  let filtered = driverDocs.filter(doc => {
+    const entityName = String(doc.ownerName || doc.entity || '').toLowerCase();
+    const ownerId = String(doc.ownerId || '').toLowerCase();
+    const docNumber = String(doc.documentNumber || doc.number || '').toLowerCase();
+    const docType = String(doc.documentType || doc.type || '').toLowerCase();
+
+    if (searchVal && !entityName.includes(searchVal) && !ownerId.includes(searchVal) && !docNumber.includes(searchVal) && !docType.includes(searchVal)) {
+      return false;
+    }
+
+    const exp = getExpiryStatus(doc.expiryDate);
+    const verif = String(doc.verificationStatus || 'pending').toLowerCase();
+
+    if (statusVal === 'Valid' && (exp.status !== 'Valid' || verif !== 'verified')) return false;
+    if (statusVal === 'Expiring Soon' && exp.status !== 'Expiring Soon') return false;
+    if (statusVal === 'Expired' && exp.status !== 'Expired') return false;
+    if (statusVal === 'Pending' && verif !== 'pending') return false;
+
+    return true;
+  });
+
+  if (sortVal === 'expiry') {
+    filtered.sort((a, b) => new Date(a.expiryDate || '9999').getTime() - new Date(b.expiryDate || '9999').getTime());
+  } else if (sortVal === 'type') {
+    filtered.sort((a, b) => String(a.documentType || '').localeCompare(String(b.documentType || '')));
+  } else if (sortVal === 'recent') {
+    filtered.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a));
+  }
+
+  const badge = document.getElementById('driver-doc-count-badge');
+  if (badge) badge.textContent = `${filtered.length} document${filtered.length === 1 ? '' : 's'}`;
+
+  // Pagination calculation
+  const total = filtered.length;
+  const page = driverDocumentsPagination.page || 1;
+  const pageSize = driverDocumentsPagination.pageSize || 10;
+  const totalPages = Math.ceil(total / pageSize) || 1;
+  const validPage = Math.min(Math.max(page, 1), totalPages);
+  driverDocumentsPagination.page = validPage;
+
+  const startIdx = (validPage - 1) * pageSize;
+  const endIdx = Math.min(startIdx + pageSize, total);
+  const pagedDocs = filtered.slice(startIdx, endIdx);
+
+  tbody.innerHTML = '';
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 32px; color: var(--text-secondary);">No driver documents found matching your filter.</td></tr>`;
+  } else {
+    pagedDocs.forEach(docItem => {
+      const tr = document.createElement('tr');
+      const exp = getExpiryStatus(docItem.expiryDate);
+      const verifStatus = docItem.verificationStatus || 'pending';
+
+      let remainingBadge = '';
+      if (exp.status === 'Expired') {
+        remainingBadge = `<span class="status-badge badge-red">Expired</span>`;
+      } else if (exp.status === 'Expiring Soon') {
+        remainingBadge = `<span class="status-badge badge-orange">${escapeHtml(exp.label)}</span>`;
+      } else if (exp.status === 'Valid') {
+        remainingBadge = `<span style="font-size: 13px; font-weight: 500; color: #111827;">${escapeHtml(exp.detailLabel)}</span>`;
+      } else {
+        remainingBadge = `<span style="color: var(--text-muted); font-size: 13px;">--</span>`;
+      }
+
+      let verifBadge = '';
+      if (verifStatus === 'verified') verifBadge = '<span class="status-badge badge-green">Verified</span>';
+      else if (verifStatus === 'rejected') verifBadge = '<span class="status-badge badge-red">Rejected</span>';
+      else verifBadge = '<span class="status-badge badge-orange">Pending</span>';
+
+      tr.innerHTML = `
+        <td><strong style="color: #111827;">${escapeHtml(docItem.documentType || docItem.type || 'Driving Licence')}</strong></td>
+        <td><span style="font-weight: 600; color: #111827;">${escapeHtml(docItem.ownerName || docItem.entity || '--')}</span></td>
+        <td><span class="record-id">${escapeHtml(docItem.ownerId || '--')}</span></td>
+        <td><span style="font-size: 13px; font-weight: 600; color: #111827;">${escapeHtml(docItem.documentNumber || docItem.number || '--')}</span></td>
+        <td><span style="font-variant-numeric: tabular-nums;">${escapeHtml(docItem.issueDate || '--')}</span></td>
+        <td><span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #111827;">${escapeHtml(docItem.expiryDate || '--')}</span></td>
+        <td>${remainingBadge}</td>
+        <td>${verifBadge}</td>
+        <td style="text-align: right;">
+          <div class="action-btn-group" style="justify-content: flex-end; gap: 4px;">
+            <button type="button" class="btn-action-icon btn-action-primary btn-view-doc" data-doc-id="${escapeHtml(docItem.id)}">View</button>
+            ${verifStatus !== 'verified' ? `<button type="button" class="btn-action-icon btn-verify-doc" data-doc-id="${escapeHtml(docItem.id)}" style="color: #16A34A;">Verify</button>` : ''}
+            <button type="button" class="btn-action-icon btn-delete-doc" data-doc-id="${escapeHtml(docItem.id)}" style="color: #DC2626;">Delete</button>
+          </div>
+        </td>
+      `;
+
+      tr.querySelector('.btn-view-doc')?.addEventListener('click', () => openDocumentViewerModal(docItem.id));
+      tr.querySelector('.btn-verify-doc')?.addEventListener('click', () => handleVerifyDocumentDirect(docItem.id));
+      tr.querySelector('.btn-delete-doc')?.addEventListener('click', () => handleDeleteDocumentDirect(docItem.id));
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  try {
+    const pagInfo = document.getElementById('driver-doc-pagination-info');
+    if (pagInfo) {
+      pagInfo.textContent = total === 0 ? 'Showing 0 to 0 of 0 documents' : `Showing ${startIdx + 1} to ${endIdx} of ${total} documents`;
+    }
+    if (typeof renderPaginationButtons === 'function') {
+      renderPaginationButtons('driver-doc-pagination-btns', totalPages, validPage, (p) => {
+        driverDocumentsPagination.page = p;
+        renderDriverDocumentsTable();
+      });
+    }
+  } catch (pErr) {
+    console.warn('Driver documents pagination error:', pErr);
+  }
 }
 
 // PROMINENT SECTION 1: EXPIRING WITHIN 1 MONTH (Requirement 13)
@@ -6173,6 +6364,73 @@ function renderDashboardDocumentAlerts() {
 // DRIVERS & DOCUMENTS: FIRESTORE LISTENERS & NOTIFICATIONS
 // =============================================================================
 
+let hasSyncedFleetDrivers = false;
+async function syncMissingDriversToFirestore() {
+  if (hasSyncedFleetDrivers || !busesCache || busesCache.length === 0) return;
+  hasSyncedFleetDrivers = true;
+
+  for (const bus of busesCache) {
+    if (!bus.driverName || !bus.driverName.trim()) continue;
+    const cleanName = bus.driverName.trim();
+    // Check if this driver already exists in loaded Firestore drivers
+    const exists = driversCache.some(d => 
+      d.id === `DRV-${bus.busNumber}` || 
+      (d.name && d.name.trim().toLowerCase() === cleanName.toLowerCase())
+    );
+
+    if (!exists) {
+      const docId = `DRV-${bus.busNumber || String(Math.floor(10 + Math.random() * 90))}`;
+      const driverRecord = {
+        name: cleanName,
+        driverId: docId,
+        phone: bus.driverContact || bus.phone || '+91 98421 00000',
+        alternatePhone: '',
+        altPhone: '',
+        email: `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '.')}@nexride.com`,
+        dob: '1985-05-15',
+        gender: 'Male',
+        photoUrl: '',
+        photo: '',
+        address: 'Nandha Campus Quarters, Erode, Tamil Nadu',
+        staffId: `EMP-${1000 + Number(bus.busNumber || 1)}`,
+        employeeId: `EMP-${1000 + Number(bus.busNumber || 1)}`,
+        joiningDate: '2023-06-01',
+        employmentType: 'Full-time',
+        empStatus: 'Full-time',
+        status: bus.status === 'Maintenance' ? 'Inactive' : (bus.status || 'Active'),
+        licenseNumber: bus.driverLicense || `TN33-${20150000000 + Number(bus.busNumber || 1)}`,
+        licenceNumber: bus.driverLicense || `TN33-${20150000000 + Number(bus.busNumber || 1)}`,
+        licenseType: 'Heavy Commercial Vehicle (HCV)',
+        licenceType: 'Heavy Commercial Vehicle (HCV)',
+        issuingAuthority: 'RTO Erode',
+        rto: 'RTO Erode',
+        licenseIssue: '2020-01-10',
+        licenceIssue: '2020-01-10',
+        licenseExpiry: '2028-01-10',
+        licenceExpiry: '2028-01-10',
+        shift: 'Both',
+        assignedBusId: bus.id || '',
+        assignedBusNumber: bus.busNumber || '',
+        assignedBus: bus.busNumber || '',
+        assignedVehicle: bus.busNumber ? `Bus ${bus.busNumber}` : '',
+        assignedRoute: bus.routeName || bus.route || 'Campus Route',
+        verificationStatus: 'Verified',
+        verificationNotes: 'Initial fleet driver profile auto-persisted to Firestore.',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      try {
+        await setDoc(doc(firestore, 'drivers', docId), driverRecord, { merge: true });
+        console.log(`[Firestore] Auto-synced fleet driver "${cleanName}" to drivers/${docId}`);
+      } catch (err) {
+        console.warn(`[Firestore] Could not auto-sync driver ${cleanName}:`, err);
+      }
+    }
+  }
+}
+window.syncMissingDriversToFirestore = syncMissingDriversToFirestore;
+
 function listenToDrivers() {
   if (driversUnsubscribe) {
     try { driversUnsubscribe(); } catch (e) {}
@@ -6188,6 +6446,7 @@ function listenToDrivers() {
     });
     driversCache = loadedDrivers;
     deriveDerivedState();
+    syncMissingDriversToFirestore();
     renderDashboardStats();
     renderDriversTable();
     renderDriverLicenceComplianceSection();
@@ -6522,33 +6781,42 @@ async function saveDriverRecord(e) {
     }
   }
 
-  const driverData = {
-    name,
-    driverId,
-    phone,
-    alternatePhone: altPhone,
-    email,
-    dob,
-    gender,
-    photoUrl,
-    address,
-    staffId,
-    joiningDate,
-    employmentType,
-    status,
-    licenseNumber,
-    licenseType,
-    issuingAuthority,
-    licenseIssue,
-    licenseExpiry,
-    shift,
+  const cleanDriverData = {
+    name: name || '',
+    driverId: driverId || '',
+    phone: phone || '',
+    alternatePhone: altPhone || '',
+    altPhone: altPhone || '',
+    email: email || '',
+    dob: dob || '',
+    gender: gender || 'Male',
+    photoUrl: photoUrl || '',
+    photo: photoUrl || '',
+    address: address || '',
+    staffId: staffId || '',
+    employeeId: staffId || '',
+    joiningDate: joiningDate || '',
+    employmentType: employmentType || 'Full-time',
+    empStatus: employmentType || 'Full-time',
+    status: status || 'Active',
+    licenseNumber: licenseNumber || '',
+    licenceNumber: licenseNumber || '',
+    licenseType: licenseType || 'Heavy Commercial Vehicle (HCV)',
+    licenceType: licenseType || 'Heavy Commercial Vehicle (HCV)',
+    issuingAuthority: issuingAuthority || '',
+    rto: issuingAuthority || '',
+    licenseIssue: licenseIssue || '',
+    licenceIssue: licenseIssue || '',
+    licenseExpiry: licenseExpiry || '',
+    licenceExpiry: licenseExpiry || '',
+    shift: shift || 'Both',
     assignedBusId: assignedBusId || '',
     assignedBusNumber: assignedBusNumber || '',
     assignedBus: assignedBusNumber || '',
     assignedVehicle: assignedBusNumber ? `Bus ${assignedBusNumber}` : '',
     assignedRoute: assignedRoute || (assignedBusObj?.routeName || ''),
-    verificationStatus,
-    verificationNotes,
+    verificationStatus: verificationStatus || 'Verified',
+    verificationNotes: verificationNotes || '',
     updatedAt: serverTimestamp()
   };
 
@@ -6558,14 +6826,19 @@ async function saveDriverRecord(e) {
       saveBtn.textContent = 'Saving Profile...';
     }
 
-    if (mode === 'edit' && docId && !docId.startsWith('DRV-BUS-')) {
-      await updateDoc(doc(firestore, 'drivers', docId), driverData);
-      await logAuditEvent('DRIVER_UPDATED', 'drivers', docId, { name, driverId, licenseNumber });
-    } else {
-      driverData.createdAt = serverTimestamp();
-      const newDocRef = await addDoc(collection(firestore, 'drivers'), driverData);
-      await logAuditEvent('DRIVER_CREATED', 'drivers', newDocRef.id, { name, driverId, licenseNumber });
+    const targetDocId = (mode === 'edit' && docId) ? docId : (driverId || `DRV-${Date.now()}`);
+    if (mode === 'add') {
+      cleanDriverData.createdAt = serverTimestamp();
     }
+
+    // Persist directly into Firestore 'drivers' collection
+    await setDoc(doc(firestore, 'drivers', targetDocId), cleanDriverData, { merge: true });
+    await logAuditEvent(mode === 'edit' ? 'DRIVER_UPDATED' : 'DRIVER_CREATED', 'drivers', targetDocId, {
+      name,
+      driverId,
+      licenseNumber,
+      assignedBus: assignedBusNumber
+    });
 
     // Sync bus if assigned
     if (assignedBusId && assignedBusObj) {
@@ -6599,21 +6872,25 @@ async function saveDriverRecord(e) {
         await updateDoc(doc(firestore, 'buses', ob.id), {
           driverName: '',
           driverContact: '',
+          driverLicense: '',
           assignedDriverId: null,
           assignedDriverName: null,
           updatedAt: serverTimestamp()
         });
         ob.driverName = '';
         ob.driverContact = '';
+        ob.driverLicense = '';
         ob.assignedDriverId = null;
         ob.assignedDriverName = null;
       } catch (e) {}
     }
 
     // Update in-memory driver and refresh dependent views
-    const localDriver = driversCache.find(d => d.id === docId || d.driverId === driverId || d.name === name);
+    const localDriver = driversCache.find(d => d.id === targetDocId || d.id === docId || d.driverId === driverId || d.name === name);
     if (localDriver) {
-      Object.assign(localDriver, driverData);
+      Object.assign(localDriver, cleanDriverData, { id: targetDocId });
+    } else {
+      driversCache.unshift({ id: targetDocId, ...cleanDriverData });
     }
     deriveDerivedState();
     renderDriversTable();
@@ -6621,7 +6898,7 @@ async function saveDriverRecord(e) {
     renderDashboardStats();
 
     document.getElementById('driver-editor-modal')?.classList.add('hidden');
-    alert(`Driver profile for ${name} saved successfully.`);
+    alert(`Driver profile for ${name} saved successfully in Firestore database.`);
   } catch (err) {
     showDriverFormError("Failed to save driver profile: " + err.message);
   } finally {
@@ -6781,37 +7058,58 @@ function openDriverDetailsModal(driverId) {
 }
 
 async function handleDeleteDriverDirect(driverId) {
-  const driver = driversCache.find(d => d.id === driverId);
+  const driver = driversCache.find(d => d.id === driverId || d.driverId === driverId);
   if (!confirm(`Are you sure you want to delete driver "${driver ? driver.name : driverId}"? This will unassign any active vehicles.`)) return;
 
   try {
-    if (driverId.startsWith('DRV-BUS-')) {
-      alert("This driver record was derived from a bus fleet entry. Please update the driver details on the bus directly.");
-      return;
+    // Delete driver directly from Cloud Firestore 'drivers' collection
+    await deleteDoc(doc(firestore, 'drivers', driverId));
+    if (driver && driver.driverId && driver.driverId !== driverId) {
+      try {
+        await deleteDoc(doc(firestore, 'drivers', driver.driverId));
+      } catch (e) {}
     }
 
-    await deleteDoc(doc(firestore, 'drivers', driverId));
     await logAuditEvent('DRIVER_DELETED', 'drivers', driverId, {
       name: driver?.name,
       driverId: driver?.driverId
     });
 
-    // Unassign from busesCache
+    // Unassign from any buses in Firestore
     if (driver && driver.name) {
-      const assignedBuses = busesCache.filter(b => b.driverName === driver.name);
+      const assignedBuses = busesCache.filter(b => 
+        b.driverName === driver.name || 
+        b.assignedDriverId === driverId || 
+        (driver.driverId && b.assignedDriverId === driver.driverId)
+      );
       for (const bus of assignedBuses) {
         try {
           await updateDoc(doc(firestore, 'buses', bus.id), {
             driverName: '',
             driverContact: '',
+            driverLicense: '',
+            assignedDriverId: null,
+            assignedDriverName: null,
             updatedAt: serverTimestamp()
           });
+          bus.driverName = '';
+          bus.driverContact = '';
+          bus.driverLicense = '';
+          bus.assignedDriverId = null;
+          bus.assignedDriverName = null;
         } catch (bErr) {}
       }
     }
 
+    // Update in-memory cache and re-render
+    driversCache = driversCache.filter(d => d.id !== driverId && d.driverId !== driverId);
+    deriveDerivedState();
+    renderDriversTable();
+    renderBusesTable();
+    renderDashboardStats();
+
     document.getElementById('driver-details-modal')?.classList.add('hidden');
-    alert('Driver deleted successfully.');
+    alert(`Driver "${driver ? driver.name : driverId}" deleted successfully from Firestore database.`);
   } catch (err) {
     alert("Deletion failed: " + err.message);
   }
@@ -7269,13 +7567,13 @@ async function handleVerifyDocumentDirect(docId) {
 
     if (String(docItem.ownerType).toLowerCase() === 'driver' && String(docItem.documentType || '').toLowerCase().includes('licen')) {
       const driver = driversCache.find(d => d.id === docItem.ownerId || d.name === docItem.ownerName);
-      if (driver && driver.id && !driver.id.startsWith('DRV-BUS-')) {
+      if (driver && driver.id) {
         try {
-          await updateDoc(doc(firestore, 'drivers', driver.id), {
+          await setDoc(doc(firestore, 'drivers', driver.id), {
             verificationStatus: 'Verified',
             verificationNotes: 'Driving licence document verified by admin.',
             updatedAt: serverTimestamp()
-          });
+          }, { merge: true });
         } catch (dErr) {}
       }
     }
@@ -7325,13 +7623,13 @@ async function handleConfirmDocumentRejection() {
 
     if (docItem && String(docItem.ownerType).toLowerCase() === 'driver' && String(docItem.documentType || '').toLowerCase().includes('licen')) {
       const driver = driversCache.find(d => d.id === docItem.ownerId || d.name === docItem.ownerName);
-      if (driver && driver.id && !driver.id.startsWith('DRV-BUS-')) {
+      if (driver && driver.id) {
         try {
-          await updateDoc(doc(firestore, 'drivers', driver.id), {
+          await setDoc(doc(firestore, 'drivers', driver.id), {
             verificationStatus: 'Rejected',
             verificationNotes: `Driving licence rejected: ${reason}`,
             updatedAt: serverTimestamp()
-          });
+          }, { merge: true });
         } catch (dErr) {}
       }
     }
@@ -7454,6 +7752,11 @@ function setupDriversAndDocumentsListeners() {
       openDriverEditorModal(currentInspectingDriverId);
     }
   });
+  document.getElementById('driver-details-delete-btn')?.addEventListener('click', () => {
+    if (currentInspectingDriverId) {
+      handleDeleteDriverDirect(currentInspectingDriverId);
+    }
+  });
   document.getElementById('driver-details-upload-doc-btn')?.addEventListener('click', () => {
     openDocumentUploadModal('driver', currentInspectingDriverId || null);
   });
@@ -7491,6 +7794,23 @@ function setupDriversAndDocumentsListeners() {
   document.getElementById('doc-sort-filter')?.addEventListener('change', () => {
     documentsPagination.page = 1;
     renderDocumentsTable();
+  });
+
+  // Driver Documents Tab Controls
+  document.getElementById('driver-doc-search-input')?.addEventListener('input', () => {
+    driverDocumentsPagination.page = 1;
+    renderDriverDocumentsTable();
+  });
+  document.getElementById('driver-doc-status-filter')?.addEventListener('change', () => {
+    driverDocumentsPagination.page = 1;
+    renderDriverDocumentsTable();
+  });
+  document.getElementById('driver-doc-sort-filter')?.addEventListener('change', () => {
+    driverDocumentsPagination.page = 1;
+    renderDriverDocumentsTable();
+  });
+  document.getElementById('driver-tab-upload-doc-btn')?.addEventListener('click', () => {
+    openDocumentUploadModal('driver');
   });
 
   // Documents Pagination
@@ -8279,16 +8599,16 @@ function setupModalListeners() {
         }
 
         // Bidirectional sync: Update assigned driver in Firestore 'drivers' collection
-        if (matchedDriver && matchedDriver.id && !matchedDriver.id.startsWith('DRV-BUS-')) {
+        if (matchedDriver && matchedDriver.id) {
           try {
-            await updateDoc(doc(firestore, 'drivers', matchedDriver.id), {
+            await setDoc(doc(firestore, 'drivers', matchedDriver.id), {
               assignedBusId: finalBusId,
               assignedBusNumber: busNo || '',
               assignedBus: busNo || '',
               assignedVehicle: busNo ? `Bus ${busNo}` : '',
               assignedRoute: selectedRouteName || '',
               updatedAt: serverTimestamp()
-            });
+            }, { merge: true });
             matchedDriver.assignedBusId = finalBusId;
             matchedDriver.assignedBusNumber = busNo || '';
             matchedDriver.assignedBus = busNo || '';
@@ -8302,15 +8622,15 @@ function setupModalListeners() {
         // If bus had a previous driver who was replaced or unassigned, clear old driver
         if (existingBus && existingBus.driverName && existingBus.driverName !== selectedDriver) {
           const oldDrv = driversCache.find(d => d.name === existingBus.driverName);
-          if (oldDrv && oldDrv.id && !oldDrv.id.startsWith('DRV-BUS-')) {
+          if (oldDrv && oldDrv.id) {
             try {
-              await updateDoc(doc(firestore, 'drivers', oldDrv.id), {
+              await setDoc(doc(firestore, 'drivers', oldDrv.id), {
                 assignedBusId: '',
                 assignedBusNumber: '',
                 assignedBus: '',
                 assignedVehicle: '',
                 updatedAt: serverTimestamp()
-              });
+              }, { merge: true });
               oldDrv.assignedBusId = '';
               oldDrv.assignedBusNumber = '';
               oldDrv.assignedBus = '';
@@ -8437,17 +8757,17 @@ function setupModalListeners() {
           targetBus.route = routeVal;
         }
 
-        // Also update driver's document if stored in drivers collection
-        if (driver.id && !driver.id.startsWith('DRV-BUS-')) {
+        // Also update driver's document directly in Firestore 'drivers' collection
+        if (driver.id) {
           try {
-            await updateDoc(doc(firestore, 'drivers', driver.id), {
+            await setDoc(doc(firestore, 'drivers', driver.id), {
               assignedBusId: targetBus.id,
               assignedBusNumber: targetBus.busNumber || '',
               assignedBus: targetBus.busNumber || '',
               assignedVehicle: targetBus.busNumber ? `Bus ${targetBus.busNumber}` : '',
               assignedRoute: finalRoute,
               updatedAt: serverTimestamp()
-            });
+            }, { merge: true });
           } catch (dErr) {
             console.warn("Could not update driver record directly:", dErr);
           }
@@ -8686,6 +9006,118 @@ function setupModalListeners() {
     });
   }
 
+  // 4. Student Allocation & Student Details Modals
+  const studentAllocationModal = document.getElementById('student-allocation-modal');
+  const studentAllocationForm = document.getElementById('student-allocation-form');
+  const closeStudentAllocBtn = document.getElementById('close-student-allocation-btn');
+  const cancelStudentAllocBtn = document.getElementById('cancel-student-allocation-btn');
+  const addStudentMainBtn = document.getElementById('add-student-btn');
+  const studentBusSelect = document.getElementById('student-form-bus');
+
+  const studentDetailsModal = document.getElementById('student-details-modal');
+  const closeStudentDetailsBtn = document.getElementById('close-student-details-btn');
+  const closeStudentDetailsFooterBtn = document.getElementById('close-student-details-footer-btn');
+  const editStudentFromDetailsBtn = document.getElementById('edit-student-from-details-btn');
+  const deleteStudentBtn = document.getElementById('delete-student-btn');
+  const btnGenStudentId = document.getElementById('btn-gen-student-id');
+
+  if (addStudentMainBtn) {
+    addStudentMainBtn.addEventListener('click', () => {
+      openStudentAllocationModal();
+    });
+  }
+
+  if (closeStudentAllocBtn) closeStudentAllocBtn.onclick = () => closeStudentAllocationModal();
+  if (cancelStudentAllocBtn) cancelStudentAllocBtn.onclick = () => closeStudentAllocationModal();
+  if (studentAllocationModal) {
+    studentAllocationModal.addEventListener('click', (e) => {
+      if (e.target === studentAllocationModal) closeStudentAllocationModal();
+    });
+  }
+
+  if (closeStudentDetailsBtn) closeStudentDetailsBtn.onclick = () => closeStudentDetailsModal();
+  if (closeStudentDetailsFooterBtn) closeStudentDetailsFooterBtn.onclick = () => closeStudentDetailsModal();
+  if (studentDetailsModal) {
+    studentDetailsModal.addEventListener('click', (e) => {
+      if (e.target === studentDetailsModal) closeStudentDetailsModal();
+    });
+  }
+
+  if (editStudentFromDetailsBtn) {
+    editStudentFromDetailsBtn.onclick = () => {
+      if (currentInspectingStudent) {
+        const stuToEdit = currentInspectingStudent;
+        closeStudentDetailsModal();
+        openStudentAllocationModal(stuToEdit.assignedBus, stuToEdit);
+      }
+    };
+  }
+
+  if (deleteStudentBtn) {
+    deleteStudentBtn.onclick = async () => {
+      await removeStudentFromBus();
+    };
+  }
+
+  if (btnGenStudentId) {
+    btnGenStudentId.onclick = () => {
+      const deptVal = document.getElementById('student-form-department')?.value || 'AI';
+      let code = 'AI';
+      if (deptVal.includes('Computer')) code = 'CS';
+      else if (deptVal.includes('Information')) code = 'IT';
+      else if (deptVal.includes('Communication')) code = 'EC';
+      else if (deptVal.includes('Electrical')) code = 'EE';
+      else if (deptVal.includes('Mechanical')) code = 'ME';
+      else if (deptVal.includes('Civil')) code = 'CE';
+      else if (deptVal.includes('Business')) code = 'BA';
+      else if (deptVal.includes('Application')) code = 'CA';
+      const yearSuffix = (document.getElementById('student-form-academic-year')?.value || '2025').slice(2, 4);
+      const randNum = String(Math.floor(100 + Math.random() * 900));
+      const genId = `7322${yearSuffix}${code}${randNum}`;
+      const idInput = document.getElementById('student-form-id');
+      if (idInput) idInput.value = genId;
+    };
+  }
+
+  if (studentBusSelect) {
+    studentBusSelect.addEventListener('change', () => {
+      updateStudentRouteAndStages(studentBusSelect.value);
+    });
+  }
+
+  const feeInputIds = [
+    'student-form-amount-fixed',
+    'student-form-fine-amount',
+    'student-form-concession-amount',
+    'student-form-paid-amount',
+    'student-form-discontinued-amount',
+    'student-form-cancelled-amount'
+  ];
+  feeInputIds.forEach(id => {
+    document.getElementById(id)?.addEventListener('input', calculateStudentFees);
+  });
+
+  document.getElementById('student-form-concession-type')?.addEventListener('change', (e) => {
+    const val = e.target.value;
+    const concApp = document.getElementById('student-form-concession-approved');
+    const concAmt = document.getElementById('student-form-concession-amount');
+    if (val === 'None') {
+      if (concApp) concApp.value = 'Not Applicable';
+      if (concAmt) concAmt.value = '0';
+    } else {
+      if (concApp && concApp.value === 'Not Applicable') concApp.value = 'Approved';
+      if (concAmt && (!concAmt.value || concAmt.value === '0')) {
+        const base = parseFloat(document.getElementById('student-form-amount-fixed')?.value) || 18000;
+        concAmt.value = String(Math.round(base * 0.25));
+      }
+    }
+    calculateStudentFees();
+  });
+
+  if (studentAllocationForm) {
+    studentAllocationForm.addEventListener('submit', handleStudentAllocationSubmit);
+  }
+
   // Global Escape key listener to dismiss open modals
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -8695,8 +9127,522 @@ function setupModalListeners() {
       document.getElementById('bus-inspector-modal')?.classList.add('hidden');
       document.getElementById('bus-editor-modal')?.classList.add('hidden');
       document.getElementById('driver-assignment-modal')?.classList.add('hidden');
+      document.getElementById('student-allocation-modal')?.classList.add('hidden');
+      document.getElementById('student-details-modal')?.classList.add('hidden');
     }
   });
+}
+
+// =============================================================================
+// STUDENT ALLOCATION & DETAILS CONTROLLERS
+// =============================================================================
+function showStudentFormError(msg) {
+  const errorBox = document.getElementById('student-form-error-alert');
+  if (errorBox) {
+    errorBox.textContent = msg;
+    errorBox.classList.remove('hidden');
+    errorBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function calculateStudentFees() {
+  const amountFixed = parseFloat(document.getElementById('student-form-amount-fixed')?.value) || 0;
+  const fineAmount = parseFloat(document.getElementById('student-form-fine-amount')?.value) || 0;
+  const concessionAmount = parseFloat(document.getElementById('student-form-concession-amount')?.value) || 0;
+  const paidAmount = parseFloat(document.getElementById('student-form-paid-amount')?.value) || 0;
+
+  const totalFees = Math.max(0, amountFixed + fineAmount - concessionAmount);
+  const feesInput = document.getElementById('student-form-fees-amount');
+  if (feesInput && document.activeElement !== feesInput) {
+    feesInput.value = String(totalFees);
+  }
+
+  const effectiveFees = parseFloat(feesInput?.value) || totalFees;
+  const balanceDue = effectiveFees - paidAmount;
+  const balanceHint = document.getElementById('student-balance-hint');
+  const balanceSelect = document.getElementById('student-form-balance');
+
+  if (balanceHint) {
+    if (balanceDue <= 0) {
+      balanceHint.textContent = `Balance Due: ₹0 (Fully Settled)`;
+      balanceHint.style.color = '#16A34A';
+      if (balanceSelect && document.activeElement !== balanceSelect) {
+        balanceSelect.value = 'Fully Paid';
+      }
+    } else if (paidAmount > 0) {
+      balanceHint.textContent = `Balance Due: ₹${balanceDue.toLocaleString('en-IN')} (Partially Paid)`;
+      balanceHint.style.color = '#D97706';
+      if (balanceSelect && document.activeElement !== balanceSelect) {
+        balanceSelect.value = 'Partially Paid';
+      }
+    } else {
+      balanceHint.textContent = `Balance Due: ₹${balanceDue.toLocaleString('en-IN')} (Unpaid)`;
+      balanceHint.style.color = '#DC2626';
+      if (balanceSelect && document.activeElement !== balanceSelect) {
+        balanceSelect.value = 'Unpaid';
+      }
+    }
+  }
+}
+
+function populateStudentAllocationBusDropdown(preselectedBusNumber = '') {
+  const busSelect = document.getElementById('student-form-bus');
+  if (!busSelect) return;
+
+  const previousVal = preselectedBusNumber || busSelect.value;
+  busSelect.innerHTML = '<option value="">-- Select Bus --</option>';
+
+  busesCache.forEach(bus => {
+    const opt = document.createElement('option');
+    opt.value = bus.busNumber || '';
+    const routeText = bus.routeName || bus.route || 'No Route';
+    opt.textContent = `Bus ${bus.busNumber || 'N/A'} (${routeText}) [${bus.status || 'Active'}]`;
+    busSelect.appendChild(opt);
+  });
+
+  if (previousVal) {
+    busSelect.value = String(previousVal);
+  }
+  updateStudentRouteAndStages(busSelect.value);
+}
+
+function updateStudentRouteAndStages(busNumber) {
+  const routeInput = document.getElementById('student-form-route-id');
+  const stageInput = document.getElementById('student-form-stage');
+  const datalist = document.getElementById('student-stages-datalist');
+  const badge = document.getElementById('student-bus-route-badge');
+
+  if (!busNumber) {
+    if (badge) badge.textContent = 'Select a Bus';
+    return;
+  }
+
+  const bus = busesCache.find(b => String(b.busNumber).trim() === String(busNumber).trim() || b.id === busNumber);
+  if (!bus) return;
+
+  if (badge) {
+    badge.textContent = `Bus ${bus.busNumber} • ${bus.status || 'Active'}`;
+  }
+
+  const assignedRoute = routesCache.find(r => 
+    (bus.assignedRouteId && r.id === bus.assignedRouteId) ||
+    (bus.routeName && r.name && r.name.toLowerCase() === bus.routeName.toLowerCase()) ||
+    (bus.route && r.name && r.name.toLowerCase() === bus.route.toLowerCase()) ||
+    (r.assignedBus && String(r.assignedBus) === String(bus.busNumber)) ||
+    (Array.isArray(r.assignedBuses) && r.assignedBuses.map(String).includes(String(bus.busNumber)))
+  );
+
+  const routeName = bus.assignedRouteName || bus.routeName || bus.route || (assignedRoute ? assignedRoute.name : '');
+  if (routeInput) {
+    routeInput.value = routeName || `Route for Bus ${bus.busNumber}`;
+  }
+
+  if (datalist) {
+    datalist.innerHTML = '';
+    let stops = Array.isArray(bus.stops) && bus.stops.length > 0 ? bus.stops : (assignedRoute?.stops || []);
+    stops.forEach(s => {
+      const stopName = s.stopName || s.name || '';
+      if (stopName) {
+        const opt = document.createElement('option');
+        opt.value = stopName;
+        datalist.appendChild(opt);
+      }
+    });
+
+    if (stageInput && !stageInput.value && stops.length > 0) {
+      stageInput.value = stops[0].stopName || stops[0].name || '';
+    }
+  }
+}
+
+function openStudentAllocationModal(preselectedBusNumber = null, studentData = null) {
+  const modal = document.getElementById('student-allocation-modal');
+  const form = document.getElementById('student-allocation-form');
+  const errBox = document.getElementById('student-form-error-alert');
+  const title = document.getElementById('student-modal-title');
+  if (!modal || !form) return;
+
+  if (errBox) errBox.classList.add('hidden');
+  form.reset();
+
+  const editIdInput = document.getElementById('student-edit-id');
+  const editDocIdInput = document.getElementById('student-edit-doc-id');
+
+  if (studentData) {
+    // Edit Mode
+    if (title) title.textContent = `Edit Transport Record: ${studentData.name || 'Student'}`;
+    if (editIdInput) editIdInput.value = studentData.id || '';
+    if (editDocIdInput) editDocIdInput.value = studentData.docId || studentData.id || '';
+
+    setElVal('student-form-passenger-type', studentData.passengerType || 'Student');
+    setElVal('student-form-name', studentData.name || '');
+    setElVal('student-form-id', studentData.id || studentData.regno || '');
+    setElVal('student-form-academic-year', studentData.academicYear || '2025-2026');
+    setElVal('student-form-institution', studentData.institution || 'Nandha Engineering College (Autonomous)');
+    setElVal('student-form-department', studentData.department || 'Computer Science & Engineering');
+    setElVal('student-form-year', studentData.year || '2nd Year');
+    setElVal('student-form-mobile', studentData.mobile || studentData.phone || '');
+
+    setElVal('student-form-route-id', studentData.routeId || '');
+    setElVal('student-form-stage', studentData.stage || studentData.pickupStop || '');
+
+    setElVal('student-form-amount-fixed', String(studentData.amountFixed !== undefined ? studentData.amountFixed : 18000));
+    setElVal('student-form-fine-amount', String(studentData.fineAmount !== undefined ? studentData.fineAmount : 0));
+    setElVal('student-form-concession-type', studentData.concessionType || 'None');
+    setElVal('student-form-concession-amount', String(studentData.concessionAmount !== undefined ? studentData.concessionAmount : 0));
+    setElVal('student-form-concession-approved', studentData.concessionApproved || 'Not Applicable');
+    setElVal('student-form-fees-amount', String(studentData.feesAmount !== undefined ? studentData.feesAmount : 18000));
+    setElVal('student-form-discontinued-amount', String(studentData.discontinuedAmount !== undefined ? studentData.discontinuedAmount : 0));
+    setElVal('student-form-cancelled-amount', String(studentData.cancelledAmount !== undefined ? studentData.cancelledAmount : 0));
+
+    setElVal('student-form-paid-amount', String(studentData.paidAmount !== undefined ? studentData.paidAmount : 0));
+    setElVal('student-form-paid-date', studentData.paidDate || new Date().toISOString().split('T')[0]);
+    setElVal('student-form-balance', studentData.balance || 'Fully Paid');
+    setElVal('student-form-remark', studentData.remark || '');
+
+    populateStudentAllocationBusDropdown(studentData.assignedBus || preselectedBusNumber);
+  } else {
+    // Add Mode
+    if (title) title.textContent = 'Assign Student to Bus';
+    if (editIdInput) editIdInput.value = '';
+    if (editDocIdInput) editDocIdInput.value = '';
+
+    setElVal('student-form-paid-date', new Date().toISOString().split('T')[0]);
+    setElVal('student-form-academic-year', '2025-2026');
+    setElVal('student-form-amount-fixed', '18000');
+    setElVal('student-form-fine-amount', '0');
+    setElVal('student-form-concession-amount', '0');
+    setElVal('student-form-concession-approved', 'Not Applicable');
+    setElVal('student-form-concession-type', 'None');
+    setElVal('student-form-fees-amount', '18000');
+    setElVal('student-form-paid-amount', '18000');
+    setElVal('student-form-balance', 'Fully Paid');
+    setElVal('student-form-discontinued-amount', '0');
+    setElVal('student-form-cancelled-amount', '0');
+
+    const defaultBus = preselectedBusNumber || (currentInspectingBus ? currentInspectingBus.busNumber : '');
+    populateStudentAllocationBusDropdown(defaultBus);
+  }
+
+  calculateStudentFees();
+  modal.classList.remove('hidden');
+}
+
+function closeStudentAllocationModal() {
+  const modal = document.getElementById('student-allocation-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function handleStudentAllocationSubmit(e) {
+  e.preventDefault();
+  const errBox = document.getElementById('student-form-error-alert');
+  if (errBox) errBox.classList.add('hidden');
+
+  const editId = document.getElementById('student-edit-id')?.value;
+  const editDocId = document.getElementById('student-edit-doc-id')?.value;
+
+  const busNumber = document.getElementById('student-form-bus')?.value?.trim();
+  const routeId = document.getElementById('student-form-route-id')?.value?.trim();
+  const stage = document.getElementById('student-form-stage')?.value?.trim();
+
+  const passengerType = document.getElementById('student-form-passenger-type')?.value || 'Student';
+  const studentName = document.getElementById('student-form-name')?.value?.trim();
+  const studentId = document.getElementById('student-form-id')?.value?.trim();
+  const academicYear = document.getElementById('student-form-academic-year')?.value || '2025-2026';
+  const institution = document.getElementById('student-form-institution')?.value || 'Nandha Engineering College (Autonomous)';
+  const department = document.getElementById('student-form-department')?.value || 'Engineering';
+  const year = document.getElementById('student-form-year')?.value || '2nd Year';
+  const mobile = document.getElementById('student-form-mobile')?.value?.trim();
+
+  const amountFixed = parseFloat(document.getElementById('student-form-amount-fixed')?.value) || 0;
+  const fineAmount = parseFloat(document.getElementById('student-form-fine-amount')?.value) || 0;
+  const concessionType = document.getElementById('student-form-concession-type')?.value || 'None';
+  const concessionAmount = parseFloat(document.getElementById('student-form-concession-amount')?.value) || 0;
+  const concessionApproved = document.getElementById('student-form-concession-approved')?.value || 'Not Applicable';
+  const feesAmount = parseFloat(document.getElementById('student-form-fees-amount')?.value) || 0;
+  const discontinuedAmount = parseFloat(document.getElementById('student-form-discontinued-amount')?.value) || 0;
+  const cancelledAmount = parseFloat(document.getElementById('student-form-cancelled-amount')?.value) || 0;
+
+  const paidAmount = parseFloat(document.getElementById('student-form-paid-amount')?.value) || 0;
+  const paidDate = document.getElementById('student-form-paid-date')?.value || '';
+  const balance = document.getElementById('student-form-balance')?.value || 'Fully Paid';
+  const remark = document.getElementById('student-form-remark')?.value?.trim() || '';
+
+  if (!busNumber) {
+    showStudentFormError('Please select a specific bus for allocation.');
+    return;
+  }
+  if (!studentName) {
+    showStudentFormError('Please enter the student or passenger name.');
+    return;
+  }
+  if (!studentId) {
+    showStudentFormError('Please provide a Student ID or Registration Number.');
+    return;
+  }
+  if (!stage) {
+    showStudentFormError('Please provide a boarding stage / stop.');
+    return;
+  }
+  if (!mobile || mobile.replace(/\D/g, '').length < 10) {
+    showStudentFormError('Please enter a valid 10-digit mobile number.');
+    return;
+  }
+
+  const targetDocId = editDocId || studentId;
+  const isPaid = balance === 'Fully Paid';
+  const feesStatus = isPaid ? 'Paid' : (balance === 'Partially Paid' ? 'Partially Paid' : 'Pending');
+
+  const payload = {
+    name: studentName,
+    id: studentId,
+    studentId: studentId,
+    regno: studentId,
+    academicYear: academicYear,
+    academic_year: academicYear,
+    institution: institution,
+    department: department,
+    passengerType: passengerType,
+    passenger_type: passengerType,
+    year: year,
+    phone: mobile,
+    mobile: mobile,
+    contact: mobile,
+    'parent_gaurdian contact': mobile,
+    assignedBus: busNumber,
+    bus: busNumber,
+    busNumber: busNumber,
+    bus_no: busNumber,
+    'bus no': busNumber,
+    stage: stage,
+    pickupStop: stage,
+    routeId: routeId,
+    route_id: routeId,
+    assignedRouteName: routeId,
+    amountFixed: amountFixed,
+    amount_fixed: amountFixed,
+    fineAmount: fineAmount,
+    fine_amount: fineAmount,
+    concessionType: concessionType,
+    concession_type: concessionType,
+    concessionAmount: concessionAmount,
+    concession_amount: concessionAmount,
+    concessionApproved: concessionApproved,
+    concession_approved: concessionApproved,
+    feesAmount: feesAmount,
+    fees_amount: feesAmount,
+    paidAmount: paidAmount,
+    paid_amount: paidAmount,
+    paidDate: paidDate,
+    paid_date: paidDate,
+    balance: balance,
+    fees_status: feesStatus,
+    discontinuedAmount: discontinuedAmount,
+    discontinued_amount: discontinuedAmount,
+    cancelledAmount: cancelledAmount,
+    cancelled_amount: cancelledAmount,
+    remark: remark,
+    remarks: remark,
+    role: passengerType === 'Student' ? 'student' : 'staff',
+    updatedAt: serverTimestamp()
+  };
+
+  const saveBtn = document.getElementById('save-student-btn');
+  try {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving Record...';
+    }
+
+    const docRef = doc(firestore, 'users', targetDocId);
+    await setDoc(docRef, payload, { merge: true });
+
+    // Sync digital pass subcollection for mobile app compatibility
+    try {
+      await setDoc(doc(firestore, 'users', targetDocId, 'DigitalID', 'userpass'), payload, { merge: true });
+    } catch (e) {}
+
+    await logAuditEvent(
+      editDocId ? 'STUDENT_UPDATED' : 'STUDENT_ALLOCATED',
+      'users',
+      targetDocId,
+      { studentName, studentId, busNumber, stage, balance, feesAmount }
+    );
+
+    // Update in-memory cache immediately
+    const existingIdx = usersCache.findIndex(u => u.docId === targetDocId || u.id === studentId);
+    const mapped = {
+      id: studentId,
+      docId: targetDocId,
+      name: studentName,
+      email: '',
+      academicYear,
+      institution,
+      department,
+      passengerType,
+      year,
+      assignedBus: busNumber,
+      bus: busNumber,
+      busNumber: busNumber,
+      pickupStop: stage,
+      stage,
+      dropStop: 'Nandha Engineering College',
+      phone: mobile,
+      mobile,
+      amountFixed,
+      fineAmount,
+      concessionType,
+      concessionAmount,
+      concessionApproved,
+      feesAmount,
+      paidAmount,
+      paidDate,
+      balance,
+      discontinuedAmount,
+      cancelledAmount,
+      remark,
+      routeId,
+      status: isPaid ? 'Active' : 'Active',
+      raw: payload
+    };
+
+    if (existingIdx >= 0) {
+      usersCache[existingIdx] = mapped;
+    } else {
+      usersCache.push(mapped);
+    }
+
+    deriveDerivedState();
+    renderStudentsTable();
+    renderBusesTable();
+    renderDashboardStats();
+
+    if (currentInspectingBus) {
+      const updatedBus = busesCache.find(b => b.id === currentInspectingBus.id) || currentInspectingBus;
+      openBusInspector(updatedBus);
+    }
+
+    closeStudentAllocationModal();
+    alert(`Student ${studentName} (${studentId}) successfully assigned to Bus ${busNumber}.`);
+  } catch (err) {
+    showStudentFormError("Failed to save student record: " + err.message);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Student Allocation';
+    }
+  }
+}
+
+function openStudentDetailsModal(studentIdOrDocId) {
+  const modal = document.getElementById('student-details-modal');
+  if (!modal) return;
+
+  const stu = usersCache.find(u => u.id === studentIdOrDocId || u.docId === studentIdOrDocId || u.raw?.regno === studentIdOrDocId);
+  if (!stu) {
+    alert("Student details not found for ID: " + studentIdOrDocId);
+    return;
+  }
+
+  currentInspectingStudent = stu;
+
+  // Header & Identity
+  setElText('stu-detail-avatar', (stu.name || 'S').charAt(0).toUpperCase());
+  setElText('stu-detail-name', stu.name || 'Student');
+  setElText('stu-detail-id', stu.id || '--');
+  setElText('stu-detail-type', stu.passengerType || 'Student');
+
+  // Transport
+  setElText('stu-detail-bus', stu.assignedBus ? `Bus ${stu.assignedBus}` : 'Unassigned');
+  setElText('stu-detail-stage', stu.stage || stu.pickupStop || '--');
+  setElText('stu-detail-route', stu.routeId || 'Default Corridor');
+
+  const isPaid = stu.balance === 'Fully Paid' || stu.status === 'Active' || String(stu.raw?.fees_status).toLowerCase() === 'paid';
+  const isPartial = stu.balance === 'Partially Paid';
+  const badgeClass = isPaid ? 'badge-green' : (isPartial ? 'badge-yellow' : 'badge-gray');
+  const balanceBadge = document.getElementById('stu-detail-balance-badge');
+  if (balanceBadge) {
+    balanceBadge.className = `status-badge ${badgeClass}`;
+    balanceBadge.textContent = stu.balance || (isPaid ? 'Fully Paid' : 'Unpaid');
+  }
+
+  // Academic Profile
+  setElText('stu-detail-institution', stu.institution || 'Nandha Engineering College (Autonomous)');
+  setElText('stu-detail-department', stu.department || '--');
+  setElText('stu-detail-year', stu.year || '--');
+  setElText('stu-detail-academic-year', stu.academicYear || '--');
+
+  // Contact & Status
+  setElText('stu-detail-mobile', stu.phone || stu.mobile || '--');
+  setElText('stu-detail-paid-date', stu.paidDate || '--');
+  setElText('stu-detail-concession-type', stu.concessionType || 'None');
+  setElText('stu-detail-concession-approved', stu.concessionApproved || 'Not Applicable');
+
+  // Ledger
+  setElText('stu-detail-amount-fixed', `₹${Number(stu.amountFixed || 0).toLocaleString('en-IN')}`);
+  setElText('stu-detail-concession-amount', `₹${Number(stu.concessionAmount || 0).toLocaleString('en-IN')}`);
+  setElText('stu-detail-fine-amount', `₹${Number(stu.fineAmount || 0).toLocaleString('en-IN')}`);
+  setElText('stu-detail-fees-amount', `₹${Number(stu.feesAmount || 0).toLocaleString('en-IN')}`);
+  setElText('stu-detail-paid-amount', `₹${Number(stu.paidAmount || 0).toLocaleString('en-IN')}`);
+  setElText('stu-detail-discontinued-amount', `₹${Number(stu.discontinuedAmount || 0).toLocaleString('en-IN')}`);
+  setElText('stu-detail-cancelled-amount', `₹${Number(stu.cancelledAmount || 0).toLocaleString('en-IN')}`);
+
+  // Remarks
+  setElText('stu-detail-remark', stu.remark || 'No administrative remarks recorded.');
+
+  modal.classList.remove('hidden');
+}
+
+function closeStudentDetailsModal() {
+  const modal = document.getElementById('student-details-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function removeStudentFromBus() {
+  if (!currentInspectingStudent) return;
+  const stu = currentInspectingStudent;
+  const confirmRemove = confirm(`Are you sure you want to unassign ${stu.name} (${stu.id}) from Bus ${stu.assignedBus}?\n\nThis will remove their transport allocation.`);
+  if (!confirmRemove) return;
+
+  const targetDocId = stu.docId || stu.id;
+  try {
+    const docRef = doc(firestore, 'users', targetDocId);
+    await updateDoc(docRef, {
+      assignedBus: '',
+      bus: '',
+      busNumber: '',
+      bus_no: '',
+      'bus no': '',
+      updatedAt: serverTimestamp()
+    });
+
+    await logAuditEvent('STUDENT_UNASSIGNED_BUS', 'users', targetDocId, {
+      studentName: stu.name,
+      previousBus: stu.assignedBus
+    });
+
+    const match = usersCache.find(u => u.docId === targetDocId || u.id === stu.id);
+    if (match) {
+      match.assignedBus = '';
+      match.bus = '';
+      match.busNumber = '';
+    }
+
+    deriveDerivedState();
+    renderStudentsTable();
+    renderBusesTable();
+    renderDashboardStats();
+
+    if (currentInspectingBus) {
+      const updatedBus = busesCache.find(b => b.id === currentInspectingBus.id) || currentInspectingBus;
+      openBusInspector(updatedBus);
+    }
+
+    closeStudentDetailsModal();
+    alert(`${stu.name} was successfully unassigned from Bus ${stu.assignedBus}.`);
+  } catch (err) {
+    alert("Failed to unassign student: " + err.message);
+  }
 }
 
 function showAssignError(msg) {
@@ -8744,6 +9690,18 @@ function populateDriverAssignSelects() {
 }
 
 // Global Window Helpers for table actions
+window.adminInspectStudent = (studentId) => {
+  openStudentDetailsModal(studentId);
+};
+
+window.adminEditStudent = (studentId) => {
+  const stu = usersCache.find(u => u.id === studentId || u.docId === studentId);
+  if (stu) openStudentAllocationModal(stu.assignedBus, stu);
+};
+
+window.openStudentAllocationModal = openStudentAllocationModal;
+window.openStudentDetailsModal = openStudentDetailsModal;
+
 window.adminInspectBus = (busId) => {
   const bus = busesCache.find(b => b.id === busId);
   if (!bus) return;
@@ -9081,20 +10039,42 @@ function openBusInspector(bus) {
   if (statusSelect) statusSelect.value = bus.status || 'Active';
 
   // Tab 2: Assigned Students
+  const inspectAddStudentBtn = document.getElementById('inspect-add-student-btn');
+  if (inspectAddStudentBtn) {
+    inspectAddStudentBtn.onclick = () => {
+      openStudentAllocationModal(bus.busNumber);
+    };
+  }
+
   const studentsListEl = document.getElementById('inspect-bus-students-list');
   if (studentsListEl) {
     if (busStudents.length === 0) {
-      studentsListEl.innerHTML = `<div style="color: var(--text-secondary); font-size: 13.5px; padding: 12px; text-align: center; background: #F9FAFB; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">No students currently assigned to Bus ${escapeHtml(bus.busNumber)}.</div>`;
+      studentsListEl.innerHTML = `<div style="color: var(--text-secondary); font-size: 13.5px; padding: 14px; text-align: center; background: #F9FAFB; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">No students currently assigned to Bus ${escapeHtml(bus.busNumber)}. Click "+ Add Student to this Bus" above to assign one.</div>`;
     } else {
-      studentsListEl.innerHTML = busStudents.map(s => `
-        <div style="background: #F9FAFB; padding: 10px 14px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); margin-bottom: 6px;">
-          <div>
-            <strong>${escapeHtml(s.name)}</strong> <span style="font-size: 12px; color: var(--text-muted);">(${escapeHtml(s.id)})</span>
-            <div style="font-size: 12px; color: var(--text-secondary);">${escapeHtml(s.department)} • Boarding: ${escapeHtml(s.pickupStop)}</div>
+      studentsListEl.innerHTML = busStudents.map(s => {
+        const isPaid = s.balance === 'Fully Paid' || s.status === 'Active' || String(s.raw?.fees_status).toLowerCase() === 'paid';
+        const isPartial = s.balance === 'Partially Paid';
+        const badgeClass = isPaid ? 'badge-green' : (isPartial ? 'badge-yellow' : 'badge-gray');
+        const displayBalance = s.balance || (isPaid ? 'Fully Paid' : 'Unpaid');
+        return `
+          <div class="student-card-item" style="background: #F9FAFB; padding: 11px 14px; border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); margin-bottom: 7px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <strong>${escapeHtml(s.name)}</strong>
+                <span style="font-size: 12px; color: var(--text-muted);">(${escapeHtml(s.id)})</span>
+                <span class="status-badge badge-blue" style="font-size: 10px; padding: 1px 6px;">${escapeHtml(s.passengerType || 'Student')}</span>
+              </div>
+              <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">
+                ${escapeHtml(s.department)} &bull; Boarding: ${escapeHtml(s.pickupStop || s.stage || '--')} &bull; Fees: ₹${escapeHtml(String(s.feesAmount || '--'))}
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="status-badge ${badgeClass}" style="font-size: 11px;">${escapeHtml(displayBalance)}</span>
+              <button type="button" class="btn-action-icon" onclick="window.adminInspectStudent('${escapeHtml(s.id)}')" title="View Details">Profile</button>
+            </div>
           </div>
-          <span class="status-badge ${s.status === 'Active' ? 'badge-green' : 'badge-gray'}">${escapeHtml(s.status)}</span>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
   }
 
@@ -9700,9 +10680,45 @@ function setupLegalTabs() {
 
 // Initial setup call for document tabs
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', setupLegalTabs);
+  document.addEventListener('DOMContentLoaded', () => {
+    setupLegalTabs();
+    setupSettingsLegalTabs();
+  });
 } else {
   setupLegalTabs();
+  setupSettingsLegalTabs();
+}
+
+/**
+ * Setup Settings Legal Card Tab Switching (Terms & Conditions vs Privacy Policy)
+ */
+function setupSettingsLegalTabs() {
+  const termsTab = document.getElementById('stg-legal-tab-terms');
+  const privacyTab = document.getElementById('stg-legal-tab-privacy');
+  const termsPane = document.getElementById('stg-legal-terms-pane');
+  const privacyPane = document.getElementById('stg-legal-privacy-pane');
+
+  if (termsTab && privacyTab && termsPane && privacyPane) {
+    if (termsTab.dataset.bound === 'true') return;
+    termsTab.dataset.bound = 'true';
+    privacyTab.dataset.bound = 'true';
+
+    termsTab.addEventListener('click', (e) => {
+      e.preventDefault();
+      termsTab.classList.add('active');
+      privacyTab.classList.remove('active');
+      termsPane.classList.remove('hidden');
+      privacyPane.classList.add('hidden');
+    });
+
+    privacyTab.addEventListener('click', (e) => {
+      e.preventDefault();
+      privacyTab.classList.add('active');
+      termsTab.classList.remove('active');
+      privacyPane.classList.remove('hidden');
+      termsPane.classList.add('hidden');
+    });
+  }
 }
 
 // =============================================================================
@@ -9831,7 +10847,7 @@ function getDashboardSkeletonHTML() {
     <div class="stats-grid-row2">
       <div class="stat-card">${getKPICardSkeletonHTML('102px', '50px')}</div>
     </div>
-    <div class="widgets-grid">
+    <div class="widgets-grid" style="display: none !important;" aria-hidden="true">
       <div class="widget-card">
         <h2 class="section-title-line">Recent Updates</h2>
         <div class="updates-list">

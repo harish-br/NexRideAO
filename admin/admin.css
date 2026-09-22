@@ -944,9 +944,19 @@ code, kbd, samp, pre,
    WIDGETS & 2-COLUMN GRID
 ----------------------------- */
 .widgets-grid {
-  display: grid;
+  display: none !important;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+}
+
+/* Notification bell in header near profile - hidden per user request */
+.header-notif-container {
+  display: none !important;
+}
+
+/* Standalone generic documents view - hidden per user request (Driver documents lives inside Drivers view) */
+#documents-view {
+  display: none !important;
 }
 
 .widget-card {
@@ -2828,8 +2838,96 @@ form.modal-content {
    ============================================================================= */
 
 #legal-view {
+  display: none !important;
   padding-bottom: 80px;
   width: 100%;
+}
+
+/* ── Settings Legal Card Tabs & Content ──────────────────────────────────── */
+.stg-legal-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-color, #F3F4F6);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #E5E7EB);
+  gap: 4px;
+}
+
+.stg-legal-tab {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary, #6B7280);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-family);
+  white-space: nowrap;
+}
+
+.stg-legal-tab:hover:not(.active) {
+  color: var(--text-primary, #111827);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.stg-legal-tab.active {
+  background: var(--card-bg, #FFFFFF);
+  color: var(--primary-color, #2563EB);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.stg-legal-card-body {
+  padding: 22px 24px 28px;
+  max-height: 560px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: #F9FAFB;
+  border: 1px solid var(--border-color, #E5E7EB);
+  margin: 16px 20px 20px;
+  box-sizing: border-box;
+}
+
+.stg-legal-card-body .legal-doc-content {
+  color: #111827;
+}
+
+.stg-legal-card-body .legal-main-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 6px;
+}
+
+.stg-legal-card-body .legal-article-section {
+  margin-top: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.stg-legal-card-body .legal-article-section:last-child {
+  border-bottom: none;
+}
+
+.stg-legal-card-body .legal-article-heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1F2937;
+  margin-bottom: 6px;
+}
+
+.stg-legal-card-body .legal-article-body {
+  font-size: 13.5px;
+  color: #4B5563;
+  line-height: 1.6;
+  margin-bottom: 6px;
+}
+
+.stg-legal-pane.hidden {
+  display: none !important;
 }
 
 /* Document Container - Single-page continuous corporate legal document */
@@ -3889,4 +3987,32 @@ form.modal-content {
   border-radius: var(--radius-md, 8px);
   border: 1px dashed var(--border-color, #E5E7EB);
   font-size: 13.5px;
+}
+
+/* Student Allocation & Detail Modal Styles */
+#student-allocation-modal .modal-content,
+#student-details-modal .modal-content {
+  border-radius: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+#student-allocation-form input:focus,
+#student-allocation-form select:focus,
+#student-allocation-form textarea:focus {
+  border-color: #2563EB;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+#student-balance-hint {
+  transition: all 0.2s ease;
+}
+
+.student-card-item {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.student-card-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }

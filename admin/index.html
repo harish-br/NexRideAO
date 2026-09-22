@@ -52,7 +52,8 @@
           <img src="/NexRide-AO.svg" alt="NexRide AO" />
         </div>
         <ul class="nav-links">
-          <li><a href="#dashboard" class="nav-item active" data-view="dashboard-view">Dashboard</a></li>
+          <li><a href="#buses" class="nav-item" data-view="buses-view">Buses</a></li>
+          <li><a href="#routes" class="nav-item" data-view="routes-view">Routes</a></li>
           <li class="nav-dropdown">
             <a href="#drivers" class="nav-item" data-view="drivers-view" id="nav-drivers-item">Drivers</a>
             <div class="nav-dropdown-menu hidden" id="nav-drivers-dropdown">
@@ -61,14 +62,11 @@
               <a href="#documents?ownerType=driver" class="dropdown-item" data-view="documents-view" data-drivers-tab="docs">Driver Documents</a>
             </div>
           </li>
-          <li><a href="#documents" class="nav-item" data-view="documents-view">Documents</a></li>
+          <li><a href="#students" class="nav-item" data-view="students-view" id="nav-students-item">Students</a></li>
           <li><a href="#reports" class="nav-item" data-view="issues-view">Reports</a></li>
-          <li><a href="#routes" class="nav-item" data-view="routes-view">Routes</a></li>
-          <li><a href="#buses" class="nav-item" data-view="buses-view">Buses</a></li>
           <li><a href="#notifications" class="nav-item" data-view="notifications-view">Notifications</a></li>
           <li><a href="#audit-logs" class="nav-item" data-view="audit-logs-view">Audit Logs</a></li>
           <li><a href="#settings" class="nav-item" data-view="settings-view">Settings</a></li>
-          <li><a href="#legal" class="nav-item" data-view="legal-view">Legal</a></li>
         </ul>
       </div>
 
@@ -85,8 +83,8 @@
           <div id="global-search-results" class="search-results-box hidden"></div>
         </div>
 
-        <!-- ADMIN NOTIFICATION BELL -->
-        <div class="header-notif-container" style="position: relative; margin-right: 12px; display: flex; align-items: center;">
+        <!-- ADMIN NOTIFICATION BELL (Hidden per user request: removed notification option in header near profile) -->
+        <div class="header-notif-container" style="display: none !important;" aria-hidden="true">
           <button id="admin-notif-btn" class="header-icon-btn" title="Admin Notifications" aria-label="Notifications" style="position: relative; background: #F3F4F6; border: none; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.15s, transform 0.15s;">
             <svg viewBox="0 0 24 24" width="18" height="18" stroke="#374151" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
@@ -252,8 +250,8 @@
           <div class="alert-banner-tags" id="dash-attention-tags"></div>
         </div>
 
-        <!-- BOTTOM WIDGETS -->
-        <div class="widgets-grid">
+        <!-- BOTTOM WIDGETS (Hidden per user request: Recent Updates & Document Alerts) -->
+        <div class="widgets-grid" style="display: none !important;" aria-hidden="true">
 
           <!-- RECENT UPDATES -->
           <div class="widget-card">
@@ -682,6 +680,58 @@
             </div>
           </div>
         </div>
+
+        <!-- TAB CONTENT: DRIVER DOCUMENTS (Requirement: Driver documents directly inside drivers view) -->
+        <div id="drivers-tab-documents-content" class="hidden">
+          <div class="table-controls mb-4">
+            <div class="table-controls-left" style="flex-wrap: wrap; gap: 8px;">
+              <input type="text" id="driver-doc-search-input" class="table-search-input"
+                placeholder="Search driver documents by name, licence, ID..." style="min-width: 260px;" />
+              <select id="driver-doc-status-filter" class="filter-select">
+                <option value="all">Status: All</option>
+                <option value="Valid">Valid</option>
+                <option value="Expiring Soon">Expiring Soon</option>
+                <option value="Expired">Expired</option>
+                <option value="Pending">Pending Verification</option>
+              </select>
+              <select id="driver-doc-sort-filter" class="filter-select">
+                <option value="expiry">Sort: Expiry Date (Earliest)</option>
+                <option value="type">Sort: Document Type</option>
+                <option value="recent">Sort: Recently Uploaded</option>
+              </select>
+            </div>
+            <div class="table-controls-right" style="display: flex; gap: 10px; align-items: center;">
+              <span id="driver-doc-count-badge" class="count-badge">0 documents</span>
+              <button type="button" class="primary-btn" onclick="window.adminOpenUploadDoc('driver')">+ Upload Driver Document</button>
+            </div>
+          </div>
+
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Document Type</th>
+                  <th>Driver Name</th>
+                  <th>Driver ID</th>
+                  <th>Document Number</th>
+                  <th>Issue Date</th>
+                  <th>Expiry Date</th>
+                  <th>Days Remaining</th>
+                  <th>Verification Status</th>
+                  <th style="text-align: right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="driver-documents-table-body">
+                <tr><td colspan="9" style="text-align:center; padding: 24px; color: var(--text-secondary);">Loading driver documents...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-pagination-row" id="driver-documents-pagination-row">
+            <div class="pagination-info" id="driver-doc-pagination-info">Showing 0 to 0 of 0 documents</div>
+            <div class="pagination-buttons" id="driver-doc-pagination-btns"></div>
+          </div>
+        </div>
       </section>
 
       <!-- =============================================
@@ -1069,9 +1119,9 @@
       </section>
 
       <!-- =============================================
-           10. DOCUMENTS MANAGEMENT VIEW (CENTRAL COMPLIANCE)
+           10. DOCUMENTS MANAGEMENT VIEW (Hidden per user request: Driver documents accessed via Drivers page)
            ============================================= -->
-      <section id="documents-view" class="admin-view hidden">
+      <section id="documents-view" class="admin-view hidden" style="display: none !important;" aria-hidden="true">
         <div class="section-header-row">
           <div>
             <h1>Documents</h1>
@@ -2253,6 +2303,160 @@
             </div>
           </div>
 
+          <!-- ─── LEGAL & COMPLIANCE ────────────────────────────────────── -->
+          <div class="stg-card stg-card-full" id="stg-legal-card" data-stg-section="legal" data-stg-keywords="legal terms conditions privacy policy compliance agreement user obligations privacy data regulations jurisdiction liability">
+            <div class="stg-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <div class="stg-card-icon stg-icon-blue stg-icon-legal">
+                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/assets/info-circle.svg'); mask-image: url('/assets/info-circle.svg');">
+                    <img src="/assets/info-circle.svg" alt="Legal" />
+                  </span>
+                </div>
+                <div>
+                  <h2 class="stg-card-title">Legal &amp; Compliance</h2>
+                  <p class="stg-card-desc">Terms &amp; conditions, privacy policy, and university transport regulations.</p>
+                </div>
+              </div>
+              <div class="stg-legal-tabs" role="tablist">
+                <button type="button" class="stg-legal-tab active" id="stg-legal-tab-terms" data-legal-target="terms">Terms &amp; Conditions</button>
+                <button type="button" class="stg-legal-tab" id="stg-legal-tab-privacy" data-legal-target="privacy">Privacy Policy</button>
+              </div>
+            </div>
+            <div class="stg-card-body" style="padding: 0;">
+              <div class="stg-legal-card-body">
+                <!-- TERMS & CONDITIONS PANE -->
+                <div id="stg-legal-terms-pane" class="stg-legal-pane active">
+                  <article class="legal-doc-content">
+                    <div class="legal-entity-name">NexRide Technologies Private Limited</div>
+                    <h3 class="legal-main-title">Terms and Conditions</h3>
+                    <div class="legal-meta-block">
+                      <p class="legal-jurisdiction">INDIA</p>
+                    </div>
+                    <div class="legal-preamble-text">
+                      <p>These Terms and Conditions (“Terms”) govern the access or use by you, an individual commuter, student, or transport user, of applications, websites, content, products, and services (the “Services”) made available by NexRide Technologies Private Limited (“NexRide”), a transport orchestration technology platform established in India.</p>
+                      <p>PLEASE READ THESE TERMS CAREFULLY BEFORE ACCESSING OR USING THE SERVICES. This mobile application/platform i.e. <strong>NexRide</strong> (the “App”) is owned and operated by NexRide (the “Platform”). By accessing or using this App, You agree to be bound by these Terms. If You do not agree to these Terms, please refrain from using this App.</p>
+                      <p>This document is an electronic record generated by a computer system and does not require physical or digital signatures. NexRide provides technology-based software services enabling Users (“Users”) to access transportation-related services including live bus tracking, route discovery, stop information, ETA updates, and travel assistance. These Terms govern the relationship between You and NexRide regarding the use of the App and Services.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">1. REGISTRATION AND ACCOUNT</h4>
+                      <p class="legal-article-body"><strong>1.1</strong> Certain features of the App may require account registration using accurate, current, and complete information.</p>
+                      <p class="legal-article-body"><strong>1.2</strong> Users are responsible for maintaining the confidentiality of their login credentials and all activities performed through their account.</p>
+                      <p class="legal-article-body"><strong>1.3</strong> NexRide reserves the right to suspend or terminate accounts containing false, misleading, or unauthorized information, or accounts that violate platform policies.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">2. THE SERVICES</h4>
+                      <p class="legal-article-body"><strong>2.1</strong> The App enables Users to view live bus locations, routes, stop details, and estimated arrival times across campus and designated transit corridors.</p>
+                      <p class="legal-article-body"><strong>2.2</strong> NexRide makes reasonable efforts to ensure accurate real-time information; however, data accuracy may be affected by GPS limitations, network interruptions, traffic conditions, or operational delays.</p>
+                      <p class="legal-article-body"><strong>2.3</strong> Service availability may vary depending on location, operator availability, route scheduling, and technical conditions.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">3. USER OBLIGATIONS</h4>
+                      <p class="legal-article-body"><strong>3.1</strong> Users shall use the App only for lawful, authorized, and intended university transit purposes.</p>
+                      <p class="legal-article-body"><strong>3.2</strong> Users shall not attempt to disrupt, damage, reverse engineer, intercept telemetry streams, or gain unauthorized access to the App or its systems.</p>
+                      <p class="legal-article-body"><strong>3.3</strong> Misuse of the platform may result in restricted access, immediate suspension of account privileges, or account termination.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">4. LIMITATION OF LIABILITY</h4>
+                      <p class="legal-article-body"><strong>4.1</strong> NexRide shall not be liable for delays, route changes, missed buses, traffic disruptions, mechanical failures, or service interruptions caused by third-party operators or external factors.</p>
+                      <p class="legal-article-body"><strong>4.2</strong> NexRide functions as a technology platform and does not directly operate transport vehicles unless otherwise stated.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">5. PRIVACY AND DATA</h4>
+                      <p class="legal-article-body"><strong>5.1</strong> NexRide may collect necessary data including location, route telemetry, and travel-related information to improve service quality, schedule optimization, and user experience.</p>
+                      <p class="legal-article-body"><strong>5.2</strong> User data shall be handled in accordance with applicable privacy and data protection standards as detailed in our Privacy Policy.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">6. MODIFICATION OF SERVICES</h4>
+                      <p class="legal-article-body"><strong>6.1</strong> NexRide reserves the right to modify, suspend, or discontinue any service, route coverage, or application feature at any time without prior notice.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">7. ACCEPTANCE</h4>
+                      <p class="legal-article-body">By continuing to use NexRide, You acknowledge that You have read, understood, and agreed to these Terms and Conditions in their entirety.</p>
+                    </div>
+                  </article>
+                </div>
+
+                <!-- PRIVACY POLICY PANE -->
+                <div id="stg-legal-privacy-pane" class="stg-legal-pane hidden">
+                  <article class="legal-doc-content">
+                    <div class="legal-entity-name">NexRide Technologies Private Limited</div>
+                    <h3 class="legal-main-title">Privacy Policy</h3>
+                    <div class="legal-meta-block">
+                      <p class="legal-jurisdiction">INDIA</p>
+                    </div>
+                    <div class="legal-preamble-text">
+                      <p>This Privacy Policy describes how <strong>NexRide</strong> (the “App”, “Platform”, “We”, “Us”, or “Our”) collects, uses, stores, and protects the information of users (“You” or “Users”) while accessing or using our transportation services. By using NexRide, You agree to the collection and use of information in accordance with this Privacy Policy.</p>
+                      <p>This document is an electronic record generated by a computer system and does not require any physical or digital signature. NexRide is committed to protecting user privacy and ensuring that personal information is handled securely and responsibly.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">1. INFORMATION WE COLLECT</h4>
+                      <p class="legal-article-body"><strong>1.1</strong> NexRide may collect personal information including, but not limited to, name, mobile number, email address, and account-related details during registration or usage of the App.</p>
+                      <p class="legal-article-body"><strong>1.2</strong> We may collect location-related information, including real-time GPS data, to provide live tracking, route assistance, ETA calculations, and other location-based services.</p>
+                      <p class="legal-article-body"><strong>1.3</strong> We may automatically collect device-related information such as device model, operating system, IP address, app version, and usage analytics for service improvement.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">2. USE OF INFORMATION</h4>
+                      <p class="legal-article-body"><strong>2.1</strong> Information collected is used to provide, maintain, and improve NexRide transport orchestration services.</p>
+                      <p class="legal-article-body"><strong>2.2</strong> User data may be used to enable live bus tracking, route planning, service optimization, and better travel assistance.</p>
+                      <p class="legal-article-body"><strong>2.3</strong> Information may also be used to enhance platform security, detect misuse, and improve commuter experience.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">3. DATA SHARING</h4>
+                      <p class="legal-article-body"><strong>3.1</strong> NexRide does not sell, rent, or trade personal information to third parties.</p>
+                      <p class="legal-article-body"><strong>3.2</strong> Information may be shared with trusted service providers or partners only when necessary for service delivery, technical support, or legal compliance.</p>
+                      <p class="legal-article-body"><strong>3.3</strong> We may disclose information if required by law, regulation, or lawful government request.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">4. DATA SECURITY</h4>
+                      <p class="legal-article-body"><strong>4.1</strong> NexRide implements reasonable technical and organizational measures to protect user data against unauthorized access, misuse, alteration, or disclosure.</p>
+                      <p class="legal-article-body"><strong>4.2</strong> While we strive to protect all information, no digital system can guarantee absolute security.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">5. LOCATION DATA</h4>
+                      <p class="legal-article-body"><strong>5.1</strong> Certain NexRide features require access to device location to provide accurate real-time services.</p>
+                      <p class="legal-article-body"><strong>5.2</strong> Users may disable location permissions at any time; however, some features may not function properly without location access.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">6. DATA RETENTION</h4>
+                      <p class="legal-article-body"><strong>6.1</strong> User information shall be retained only for as long as necessary to provide services, comply with legal obligations, or resolve disputes.</p>
+                      <p class="legal-article-body"><strong>6.2</strong> Unnecessary or outdated data may be deleted or anonymized periodically.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">7. USER RIGHTS</h4>
+                      <p class="legal-article-body"><strong>7.1</strong> Users may request access, correction, or deletion of their personal information, subject to applicable laws and service requirements.</p>
+                      <p class="legal-article-body"><strong>7.2</strong> Users may contact NexRide for privacy-related concerns or requests.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">8. CHANGES TO PRIVACY POLICY</h4>
+                      <p class="legal-article-body"><strong>8.1</strong> NexRide reserves the right to modify or update this Privacy Policy at any time.</p>
+                      <p class="legal-article-body"><strong>8.2</strong> Continued use of the App after updates constitutes acceptance of the revised Privacy Policy.</p>
+                    </div>
+
+                    <div class="legal-article-section">
+                      <h4 class="legal-article-heading">9. ACCEPTANCE</h4>
+                      <p class="legal-article-body">By accessing or using NexRide, You acknowledge that You have read, understood, and agreed to this Privacy Policy.</p>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- ─── DANGER ZONE ─────────────────────────────────────────────── -->
           <div class="stg-danger-zone" data-stg-section="danger" data-stg-keywords="danger zone reset configuration clear cache factory reset">
             <div class="stg-danger-header">
@@ -2323,9 +2527,9 @@
 
 
       <!-- =============================================
-           15. LEGAL VIEW
+           15. LEGAL VIEW (Scoped into Settings View as #stg-legal-card)
            ============================================= -->
-      <section id="legal-view" class="admin-view hidden">
+      <section id="legal-view" class="admin-view hidden" style="display: none !important;" aria-hidden="true">
         <!-- DOCUMENT CONTAINER: Continuous Legal Document -->
         <div class="legal-doc-paper">
 
@@ -2573,7 +2777,10 @@
 
           <!-- TAB 2: STUDENTS -->
           <div id="tab-bus-students" class="inspect-panel hidden">
-            <h3 style="font-size: 16px; font-weight: 700; margin-bottom: 14px;">Students Assigned to this Bus</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+              <h3 style="font-size: 16px; font-weight: 700; margin: 0;">Students Assigned to this Bus</h3>
+              <button type="button" id="inspect-add-student-btn" class="primary-btn" style="font-size: 12.5px; padding: 6px 14px; border-radius: 6px;">+ Add Student to this Bus</button>
+            </div>
             <div id="inspect-bus-students-list" style="display: flex; flex-direction: column; gap: 8px;">
               <div class="skeleton-list-card">
                 <div class="admin-skeleton admin-skeleton-circle" style="width: 32px; height: 32px; flex-shrink: 0;"></div>
@@ -3116,6 +3323,7 @@
           <div style="margin-left: auto; display: flex; gap: 8px;">
             <button type="button" id="driver-details-edit-btn" class="secondary-btn" style="height: 36px; padding: 0 14px; font-size: 13px;">Edit Profile</button>
             <button type="button" id="driver-details-upload-doc-btn" class="primary-btn" style="height: 36px; padding: 0 14px; font-size: 13px;">+ Upload Document</button>
+            <button type="button" id="driver-details-delete-btn" class="danger-btn" style="height: 36px; padding: 0 14px; font-size: 13px;">Delete Driver</button>
           </div>
         </div>
 
@@ -3832,6 +4040,341 @@
       <div class="modal-footer">
         <button type="button" id="close-route-inspector-footer-btn" class="secondary-btn">Close</button>
         <button type="button" id="edit-route-from-inspector-btn" class="primary-btn">Edit Route</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================
+       STUDENT / PASSENGER ALLOCATION MODAL
+       ============================================= -->
+  <div id="student-allocation-modal" class="modal-overlay hidden">
+    <div class="modal-content modal-large" style="max-width: 860px;">
+      <div class="modal-header">
+        <div>
+          <h2 id="student-modal-title" style="margin: 0;">Assign Student to Bus</h2>
+          <p style="margin: 4px 0 0; font-size: 13px; color: var(--text-secondary);">Configure passenger details, route corridor, fee structure, concessions, and payment status.</p>
+        </div>
+        <button id="close-student-allocation-btn" type="button" class="close-btn" title="Close dialog">&times;</button>
+      </div>
+      <form id="student-allocation-form">
+        <div class="modal-body" style="max-height: calc(85vh - 140px); overflow-y: auto; padding: 22px 26px;">
+          <input type="hidden" id="student-edit-id" />
+          <input type="hidden" id="student-edit-doc-id" />
+          
+          <div id="student-form-error-alert" class="conflict-warning-box hidden" style="margin-bottom: 18px;"></div>
+
+          <!-- 1. Bus & Route Allocation -->
+          <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
+            <span>1. Bus &amp; Route Corridor Allocation</span>
+            <span id="student-bus-route-badge" class="status-badge badge-blue" style="font-size: 11px;">Active Service</span>
+          </div>
+          <div class="form-grid-3" style="margin-bottom: 18px;">
+            <div class="form-group">
+              <label for="student-form-bus">Specific Bus *</label>
+              <select id="student-form-bus" class="filter-select" required style="width: 100%;">
+                <option value="">-- Select Bus --</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="student-form-route-id">Route ID / Corridor *</label>
+              <input type="text" id="student-form-route-id" required placeholder="e.g. R-01 Bhavani Corridor" />
+            </div>
+            <div class="form-group">
+              <label for="student-form-stage">Boarding Stage / Stop *</label>
+              <input type="text" id="student-form-stage" list="student-stages-datalist" required placeholder="e.g. Bhavani Old Bus Stand" />
+              <datalist id="student-stages-datalist"></datalist>
+            </div>
+          </div>
+
+          <!-- 2. Passenger & Academic Identity -->
+          <div class="section-title" style="margin-top: 20px;">2. Passenger &amp; Academic Identity</div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label for="student-form-passenger-type">Passenger Type *</label>
+              <select id="student-form-passenger-type" class="filter-select" required style="width: 100%;">
+                <option value="Student">Student</option>
+                <option value="Teaching Staff">Teaching Staff</option>
+                <option value="Non-Teaching Staff">Non-Teaching Staff</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="student-form-name">Student / Passenger Name *</label>
+              <input type="text" id="student-form-name" required placeholder="e.g. Rahul Sharma" />
+            </div>
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label for="student-form-id">Student ID / Roll No *</label>
+                <button type="button" id="btn-gen-student-id" style="background: none; border: none; color: #2563EB; font-size: 11px; font-weight: 600; cursor: pointer; padding: 0;">Auto-Gen</button>
+              </div>
+              <input type="text" id="student-form-id" required placeholder="e.g. 732221AI015 or NR-STU-101" />
+            </div>
+          </div>
+
+          <div class="form-grid-3" style="margin-top: 14px;">
+            <div class="form-group">
+              <label for="student-form-academic-year">Academic Year *</label>
+              <select id="student-form-academic-year" class="filter-select" style="width: 100%;">
+                <option value="2026-2027">2026-2027</option>
+                <option value="2025-2026" selected>2025-2026</option>
+                <option value="2024-2025">2024-2025</option>
+                <option value="2023-2024">2023-2024</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="student-form-institution">Institution *</label>
+              <select id="student-form-institution" class="filter-select" style="width: 100%;">
+                <option value="Nandha Engineering College (Autonomous)">Nandha Engineering College (Autonomous)</option>
+                <option value="Nandha College of Technology">Nandha College of Technology</option>
+                <option value="Nandha Arts and Science College">Nandha Arts and Science College</option>
+                <option value="Nandha Pharmacy College">Nandha Pharmacy College</option>
+                <option value="Nandha Physiotherapy College">Nandha Physiotherapy College</option>
+                <option value="Nandha Dental College">Nandha Dental College</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="student-form-department">Department *</label>
+              <select id="student-form-department" class="filter-select" style="width: 100%;">
+                <option value="Artificial Intelligence &amp; Data Science">Artificial Intelligence &amp; Data Science</option>
+                <option value="Computer Science &amp; Engineering">Computer Science &amp; Engineering</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="Electronics &amp; Communication">Electronics &amp; Communication</option>
+                <option value="Electrical &amp; Electronics">Electrical &amp; Electronics</option>
+                <option value="Mechanical Engineering">Mechanical Engineering</option>
+                <option value="Civil Engineering">Civil Engineering</option>
+                <option value="Master of Business Administration (MBA)">Master of Business Administration (MBA)</option>
+                <option value="Master of Computer Applications (MCA)">Master of Computer Applications (MCA)</option>
+                <option value="Science &amp; Humanities">Science &amp; Humanities</option>
+                <option value="Administrative Staff">Administrative Staff</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid" style="margin-top: 14px;">
+            <div class="form-group">
+              <label for="student-form-year">Year of Study *</label>
+              <select id="student-form-year" class="filter-select" style="width: 100%;">
+                <option value="1st Year">1st Year</option>
+                <option value="2nd Year" selected>2nd Year</option>
+                <option value="3rd Year">3rd Year</option>
+                <option value="4th Year">4th Year</option>
+                <option value="Staff / NA">Staff / NA</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="student-form-mobile">Mobile Number *</label>
+              <input type="tel" id="student-form-mobile" required placeholder="e.g. 9876543210" pattern="[0-9]{10}" title="Please enter a valid 10-digit mobile number" />
+            </div>
+          </div>
+
+          <!-- 3. Fee Structure & Concession Configuration -->
+          <div class="section-title" style="margin-top: 22px;">3. Fee Structure &amp; Concession Configuration</div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label for="student-form-amount-fixed">Amount Fixed (Base Fare ₹) *</label>
+              <input type="number" id="student-form-amount-fixed" min="0" step="100" required placeholder="e.g. 18000" value="18000" />
+            </div>
+            <div class="form-group">
+              <label for="student-form-fine-amount">Fine Amount (₹)</label>
+              <input type="number" id="student-form-fine-amount" min="0" step="50" placeholder="0" value="0" />
+            </div>
+            <div class="form-group">
+              <label for="student-form-concession-type">Concession Type</label>
+              <select id="student-form-concession-type" class="filter-select" style="width: 100%;">
+                <option value="None">None</option>
+                <option value="Merit Scholarship">Merit Scholarship</option>
+                <option value="Sports Quota">Sports Quota</option>
+                <option value="Staff Ward">Staff Ward</option>
+                <option value="Economically Weaker Section (EWS)">Economically Weaker Section (EWS)</option>
+                <option value="Sibling Concession">Sibling Concession</option>
+                <option value="Special Management Quota">Special Management Quota</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-grid-3" style="margin-top: 14px;">
+            <div class="form-group">
+              <label for="student-form-concession-amount">Concession Amount (₹)</label>
+              <input type="number" id="student-form-concession-amount" min="0" step="100" placeholder="0" value="0" />
+            </div>
+            <div class="form-group">
+              <label for="student-form-concession-approved">Concession Approved</label>
+              <select id="student-form-concession-approved" class="filter-select" style="width: 100%;">
+                <option value="Not Applicable">Not Applicable</option>
+                <option value="Approved">Approved</option>
+                <option value="Pending">Pending</option>
+                <option value="Rejected">Rejected</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label for="student-form-fees-amount">Total Fees Amount (₹) *</label>
+                <span style="font-size: 11px; color: var(--text-muted);">(Fixed + Fine - Concession)</span>
+              </div>
+              <input type="number" id="student-form-fees-amount" min="0" required placeholder="e.g. 18000" value="18000" />
+            </div>
+          </div>
+
+          <div class="form-grid" style="margin-top: 14px;">
+            <div class="form-group">
+              <label for="student-form-discontinued-amount">Discontinued Amount (₹)</label>
+              <input type="number" id="student-form-discontinued-amount" min="0" placeholder="0" value="0" />
+            </div>
+            <div class="form-group">
+              <label for="student-form-cancelled-amount">Cancelled Amount (₹)</label>
+              <input type="number" id="student-form-cancelled-amount" min="0" placeholder="0" value="0" />
+            </div>
+          </div>
+
+          <!-- 4. Payment Transaction & Settlement -->
+          <div class="section-title" style="margin-top: 22px; display: flex; justify-content: space-between; align-items: center;">
+            <span>4. Payment Transaction &amp; Settlement</span>
+            <div id="student-balance-hint" style="font-size: 13px; font-weight: 700; color: #16A34A;">Balance Due: ₹0</div>
+          </div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label for="student-form-paid-amount">Paid Amount (₹) *</label>
+              <input type="number" id="student-form-paid-amount" min="0" required placeholder="e.g. 18000" value="18000" />
+            </div>
+            <div class="form-group">
+              <label for="student-form-paid-date">Paid Date *</label>
+              <input type="date" id="student-form-paid-date" required />
+            </div>
+            <div class="form-group">
+              <label for="student-form-balance">Balance (Payment Status) *</label>
+              <select id="student-form-balance" class="filter-select" style="width: 100%;">
+                <option value="Fully Paid">Fully Paid</option>
+                <option value="Partially Paid">Partially Paid</option>
+                <option value="Unpaid">Unpaid</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 14px;">
+            <label for="student-form-remark">Remark / Notes</label>
+            <textarea id="student-form-remark" rows="2" placeholder="e.g. Annual transport fee paid in full, digital e-pass provisioned"></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            * Required fields. Synced in real-time to Firestore transport allocation.
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button type="button" id="cancel-student-allocation-btn" class="secondary-btn">Cancel</button>
+            <button type="submit" id="save-student-btn" class="primary-btn">Save Student Allocation</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =============================================
+       STUDENT DETAILS INSPECTION MODAL
+       ============================================= -->
+  <div id="student-details-modal" class="modal-overlay hidden">
+    <div class="modal-content modal-large" style="max-width: 760px;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="width: 44px; height: 44px; border-radius: 50%; background: #EFF6FF; color: #2563EB; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 700;">
+            <span id="stu-detail-avatar">S</span>
+          </div>
+          <div>
+            <h2 id="stu-detail-name" style="margin: 0; font-size: 18px;">Student Details</h2>
+            <div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">
+              <span id="stu-detail-id" style="font-weight: 600; color: #2563EB;">--</span> • 
+              <span id="stu-detail-type" class="status-badge badge-blue" style="font-size: 11px;">Student</span>
+            </div>
+          </div>
+        </div>
+        <button id="close-student-details-btn" type="button" class="close-btn" title="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body" style="max-height: calc(85vh - 140px); overflow-y: auto; padding: 22px 26px;">
+        <!-- Transport Card -->
+        <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: var(--radius-md); padding: 14px 18px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; letter-spacing: 0.5px;">Assigned Vehicle &amp; Stop</div>
+            <div style="font-size: 16px; font-weight: 700; color: #14532D; margin-top: 3px;">
+              <span id="stu-detail-bus">Bus --</span> &bull; <span id="stu-detail-stage">Stage --</span>
+            </div>
+            <div style="font-size: 12.5px; color: #15803D; margin-top: 2px;">
+              Route: <span id="stu-detail-route">--</span>
+            </div>
+          </div>
+          <span id="stu-detail-balance-badge" class="status-badge badge-green" style="font-size: 13px; padding: 6px 12px;">Fully Paid</span>
+        </div>
+
+        <!-- Details Grid -->
+        <div class="form-grid" style="gap: 16px; margin-bottom: 18px;">
+          <div style="background: #F9FAFB; padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Academic Profile</div>
+            <div style="margin-top: 8px; font-size: 13.5px; line-height: 1.6;">
+              <div><strong>Institution:</strong> <span id="stu-detail-institution">--</span></div>
+              <div><strong>Department:</strong> <span id="stu-detail-department">--</span></div>
+              <div><strong>Year:</strong> <span id="stu-detail-year">--</span></div>
+              <div><strong>Academic Year:</strong> <span id="stu-detail-academic-year">--</span></div>
+            </div>
+          </div>
+
+          <div style="background: #F9FAFB; padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+            <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Contact &amp; Status</div>
+            <div style="margin-top: 8px; font-size: 13.5px; line-height: 1.6;">
+              <div><strong>Mobile:</strong> <span id="stu-detail-mobile">--</span></div>
+              <div><strong>Paid Date:</strong> <span id="stu-detail-paid-date">--</span></div>
+              <div><strong>Concession Type:</strong> <span id="stu-detail-concession-type">None</span></div>
+              <div><strong>Concession Status:</strong> <span id="stu-detail-concession-approved">N/A</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Financial Breakdown Card -->
+        <div style="background: #FFFFFF; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; margin-bottom: 18px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 12px;">Fee &amp; Payment Ledger</div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; text-align: center;">
+            <div style="background: #F9FAFB; padding: 10px 8px; border-radius: 6px;">
+              <div style="font-size: 11px; color: var(--text-muted);">Amount Fixed</div>
+              <div id="stu-detail-amount-fixed" style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-top: 2px;">₹0</div>
+            </div>
+            <div style="background: #F9FAFB; padding: 10px 8px; border-radius: 6px;">
+              <div style="font-size: 11px; color: var(--text-muted);">Concession</div>
+              <div id="stu-detail-concession-amount" style="font-size: 15px; font-weight: 700; color: #2563EB; margin-top: 2px;">₹0</div>
+            </div>
+            <div style="background: #F9FAFB; padding: 10px 8px; border-radius: 6px;">
+              <div style="font-size: 11px; color: var(--text-muted);">Fine Amount</div>
+              <div id="stu-detail-fine-amount" style="font-size: 15px; font-weight: 700; color: #DC2626; margin-top: 2px;">₹0</div>
+            </div>
+            <div style="background: #F9FAFB; padding: 10px 8px; border-radius: 6px;">
+              <div style="font-size: 11px; color: var(--text-muted);">Total Fees</div>
+              <div id="stu-detail-fees-amount" style="font-size: 15px; font-weight: 700; color: var(--text-primary); margin-top: 2px;">₹0</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center; margin-top: 10px;">
+            <div style="background: #ECFDF5; padding: 10px 8px; border-radius: 6px; border: 1px solid #A7F3D0;">
+              <div style="font-size: 11px; color: #065F46;">Paid Amount</div>
+              <div id="stu-detail-paid-amount" style="font-size: 15px; font-weight: 700; color: #047857; margin-top: 2px;">₹0</div>
+            </div>
+            <div style="background: #FEF2F2; padding: 10px 8px; border-radius: 6px; border: 1px solid #FECACA;">
+              <div style="font-size: 11px; color: #991B1B;">Discontinued</div>
+              <div id="stu-detail-discontinued-amount" style="font-size: 15px; font-weight: 700; color: #B91C1C; margin-top: 2px;">₹0</div>
+            </div>
+            <div style="background: #FFFBEB; padding: 10px 8px; border-radius: 6px; border: 1px solid #FDE68A;">
+              <div style="font-size: 11px; color: #92400E;">Cancelled</div>
+              <div id="stu-detail-cancelled-amount" style="font-size: 15px; font-weight: 700; color: #B45309; margin-top: 2px;">₹0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Remarks -->
+        <div style="background: #F9FAFB; padding: 12px 16px; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+          <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Remarks</div>
+          <div id="stu-detail-remark" style="font-size: 13.5px; color: var(--text-secondary); margin-top: 4px;">No remarks recorded.</div>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+        <button type="button" id="delete-student-btn" class="danger-btn" style="padding: 8px 16px; font-size: 13px;">Remove from Bus</button>
+        <div style="display: flex; gap: 10px;">
+          <button type="button" id="close-student-details-footer-btn" class="secondary-btn">Close</button>
+          <button type="button" id="edit-student-from-details-btn" class="primary-btn">Edit Details</button>
+        </div>
       </div>
     </div>
   </div>
