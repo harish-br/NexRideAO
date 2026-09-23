@@ -96,30 +96,56 @@ function showDashboard() {
   if (loginPage) loginPage.classList.add('hidden');
   if (dashboardPage) dashboardPage.classList.remove('hidden');
 
-  // Instant hydration from cache so dashboard renders immediately
+  // Instant hydration from cache so dashboard, buses, and routes render immediately
   try {
-    const cachedBuses = localStorage.getItem('nexride_admin_buses_cache');
-    const cachedRoutes = localStorage.getItem('nexride_admin_routes_cache');
-    if (cachedUsers) {
-      const rawCached = JSON.parse(cachedUsers);
-      const dedupSet = new Set();
-      usersCache = (Array.isArray(rawCached) ? rawCached : []).filter(u => {
-        const sId = String(u.id || u.regno || '').trim().toUpperCase();
-        const sPhone = String(u.phone || u.mobile || u.cleanPhone || '').replace(/\D/g, '').slice(-10);
-        const key = sId && sId !== u.docId ? `ID_${sId}` : (sPhone ? `PH_${sPhone}` : `DOC_${u.docId}`);
-        if (dedupSet.has(key)) return false;
-        dedupSet.add(key);
-        if (sId && sId !== u.docId) dedupSet.add(`ID_${sId}`);
-        if (sPhone) dedupSet.add(`PH_${sPhone}`);
-        return true;
-      });
+    const cachedBusesStr = localStorage.getItem('nexride_admin_buses_cache');
+    const cachedRoutesStr = localStorage.getItem('nexride_admin_routes_cache');
+    const cachedUsersStr = localStorage.getItem('nexride_admin_users_cache');
+
+    if (cachedBusesStr) {
+      try {
+        const parsedBuses = JSON.parse(cachedBusesStr);
+        if (Array.isArray(parsedBuses) && parsedBuses.length > 0) {
+          busesCache = parsedBuses;
+          busesLoaded = true;
+        }
+      } catch (err) {}
     }
+
+    if (cachedRoutesStr) {
+      try {
+        const parsedRoutes = JSON.parse(cachedRoutesStr);
+        if (Array.isArray(parsedRoutes) && parsedRoutes.length > 0) {
+          routesCache = parsedRoutes;
+          routesLoaded = true;
+        }
+      } catch (err) {}
+    }
+
+    if (cachedUsersStr) {
+      try {
+        const rawCached = JSON.parse(cachedUsersStr);
+        const dedupSet = new Set();
+        usersCache = (Array.isArray(rawCached) ? rawCached : []).filter(u => {
+          const sId = String(u.id || u.regno || '').trim().toUpperCase();
+          const sPhone = String(u.phone || u.mobile || u.cleanPhone || '').replace(/\D/g, '').slice(-10);
+          const key = sId && sId !== u.docId ? `ID_${sId}` : (sPhone ? `PH_${sPhone}` : `DOC_${u.docId}`);
+          if (dedupSet.has(key)) return false;
+          dedupSet.add(key);
+          if (sId && sId !== u.docId) dedupSet.add(`ID_${sId}`);
+          if (sPhone) dedupSet.add(`PH_${sPhone}`);
+          return true;
+        });
+        usersLoaded = true;
+      } catch (err) {}
+    }
+
     if (busesCache.length > 0 || routesCache.length > 0) {
-      busesLoaded = true;
-      routesLoaded = true;
       deriveDerivedState();
       renderDashboardLoaded();
       renderDashboardStats();
+      renderBusesTable();
+      renderRoutesTable();
       renderRecentActivity();
     }
   } catch (e) {
@@ -2023,16 +2049,20 @@ function initRealtimeEngine() {
   // Legal page tabs
   setupLegalTabs();
 
-  // Safety timeout: ensure dashboard exits skeleton loading quickly (1000ms max)
+  // Safety timeout: ensure tables and dashboard exit skeleton loading quickly
   setTimeout(() => {
+    busesLoaded = true;
+    routesLoaded = true;
+    usersLoaded = true;
     if (isDashboardLoading) {
-      busesLoaded = true;
-      routesLoaded = true;
       renderDashboardLoaded();
       renderDashboardStats();
       renderRecentActivity();
     }
-  }, 1000);
+    renderBusesTable();
+    renderRoutesTable();
+    renderStudentsTable();
+  }, 750);
 }
 
 // =============================================================================

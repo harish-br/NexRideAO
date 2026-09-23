@@ -1241,23 +1241,19 @@ code, kbd, samp, pre,
    FULL-FIT RESPONSIVE DATA TABLES (ELIMINATES HORIZONTAL SCROLL
    AND BLIND SPOTS FOR ADMINS)
    ------------------------------------------------------------- */
-#students-view .data-table-container,
-#routes-view .data-table-container {
+#students-view .data-table-container {
   overflow-x: hidden;
   width: 100%;
 }
 
-#students-view .data-table,
-#routes-view .data-table {
+#students-view .data-table {
   width: 100%;
   min-width: 0;
   table-layout: fixed;
 }
 
 #students-view .data-table th,
-#students-view .data-table td,
-#routes-view .data-table th,
-#routes-view .data-table td {
+#students-view .data-table td {
   padding: 11px 8px;
   font-size: 12.5px;
   white-space: normal;
@@ -1291,8 +1287,7 @@ code, kbd, samp, pre,
 #students-view .data-table td:nth-child(8) { width: 6%; text-align: right; white-space: nowrap; } /* Actions */
 
 @media (max-width: 960px) {
-  #students-view .data-table-container,
-  #routes-view .data-table-container {
+  #students-view .data-table-container {
     overflow-x: auto;
   }
   #students-view .data-table {
@@ -1312,6 +1307,34 @@ code, kbd, samp, pre,
   }
 }
 
+/* -------------------------------------------------------------
+   ROUTES & STOPS MANAGEMENT TABLE: CRISP ALIGNMENT & SIZING
+   ------------------------------------------------------------- */
+#routes-view .data-table-container {
+  overflow-x: auto;
+  width: 100%;
+}
+
+#routes-view .data-table {
+  width: 100%;
+  min-width: 1050px;
+}
+
+#routes-view .data-table th,
+#routes-view .data-table td {
+  padding: 12px 14px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+#routes-view .data-table th:last-child,
+#routes-view .data-table td:last-child {
+  width: 290px;
+  min-width: 290px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .data-table tbody tr {
   border-bottom: 1px solid var(--border-subtle);
   transition: background-color 0.1s;
@@ -1328,7 +1351,9 @@ code, kbd, samp, pre,
 .action-btn-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: nowrap !important;
+  white-space: nowrap !important;
 }
 
 .btn-action-icon {
@@ -1336,7 +1361,7 @@ code, kbd, samp, pre,
   border: 1px solid #E5E7EB;
   color: #374151;
   border-radius: var(--radius-md);
-  padding: 5px 10px;
+  padding: 5px 11px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1345,6 +1370,9 @@ code, kbd, samp, pre,
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap !important;
+  word-break: normal !important;
+  flex-shrink: 0 !important;
 }
 
 .btn-action-icon:hover {
