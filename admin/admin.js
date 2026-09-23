@@ -4711,30 +4711,30 @@ function renderEditorStops() {
         </div>
       </div>
 
-      <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1.2fr 1fr; gap: 10px; align-items: end;">
-        <div class="form-group" style="margin-bottom: 0;">
+      <div class="stop-fields-grid" style="display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr 1.2fr 1fr; gap: 10px; align-items: end; width: 100%;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Stop Name *</label>
-          <input type="text" class="stop-field-name" data-index="${idx}" value="${escapeHtml(stop.name || '')}" placeholder="e.g. Perundurai" required style="padding: 7px 10px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+          <input type="text" class="stop-field-name" data-index="${idx}" value="${escapeHtml(stop.name || '')}" placeholder="e.g. Perundurai" required style="padding: 7px 10px; font-size: 13px; width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Morning Arr.</label>
-          <input type="time" class="stop-field-morning" data-index="${idx}" value="${escapeHtml(stop.morningArrival || '')}" style="padding: 6px 8px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+          <input type="time" class="stop-field-morning" data-index="${idx}" value="${escapeHtml(stop.morningArrival || '')}" style="padding: 6px 8px; font-size: 13px; width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Evening Arr.</label>
-          <input type="time" class="stop-field-evening" data-index="${idx}" value="${escapeHtml(stop.eveningArrival || '')}" style="padding: 6px 8px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+          <input type="time" class="stop-field-evening" data-index="${idx}" value="${escapeHtml(stop.eveningArrival || '')}" style="padding: 6px 8px; font-size: 13px; width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Latitude</label>
-          <input type="number" step="any" class="stop-field-lat" data-index="${idx}" value="${stop.latitude !== undefined && stop.latitude !== null ? stop.latitude : ''}" placeholder="e.g. 11.3410" style="padding: 7px 10px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+          <input type="number" step="any" class="stop-field-lat" data-index="${idx}" value="${stop.latitude !== undefined && stop.latitude !== null ? stop.latitude : ''}" placeholder="e.g. 11.3410" style="padding: 7px 10px; font-size: 13px; width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Longitude</label>
-          <input type="number" step="any" class="stop-field-lng" data-index="${idx}" value="${stop.longitude !== undefined && stop.longitude !== null ? stop.longitude : ''}" placeholder="e.g. 77.7172" style="padding: 7px 10px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
+          <input type="number" step="any" class="stop-field-lng" data-index="${idx}" value="${stop.longitude !== undefined && stop.longitude !== null ? stop.longitude : ''}" placeholder="e.g. 77.7172" style="padding: 7px 10px; font-size: 13px; width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: var(--radius-md);" />
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label style="font-size: 11px; margin-bottom: 4px; font-weight: 600;">Status</label>
-          <select class="filter-select stop-field-status" data-index="${idx}" style="padding: 6px 8px; font-size: 13px; width: 100%; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+          <select class="filter-select stop-field-status" data-index="${idx}" style="padding: 6px 8px; font-size: 13px; width: 100%; box-sizing: border-box; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
             <option value="Active" ${stop.status !== 'Inactive' ? 'selected' : ''}>Active</option>
             <option value="Inactive" ${stop.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
           </select>
@@ -4792,12 +4792,29 @@ function renderEditorStops() {
     });
   });
 
+  // Pressing Enter in any stop input field automatically creates the next stop option and focuses it
+  container.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        addStopToEditor();
+      }
+    });
+  });
+
   // Attach drag & drop listeners to each stop card
   const cards = container.querySelectorAll('.stop-row-card');
   cards.forEach(card => {
     const cardIndex = parseInt(card.dataset.stopIndex, 10);
 
     card.addEventListener('dragstart', (e) => {
+      // Only initiate HTML5 dragging when user explicitly grabs the drag handle
+      if (!e.target.closest('.stop-drag-handle')) {
+        e.preventDefault();
+        return;
+      }
+
       // Don't drag card if user is interacting with text inputs, buttons, or selects
       if (e.target.closest('input, select, button, textarea')) {
         e.preventDefault();
@@ -4894,7 +4911,9 @@ function addStopToEditor() {
   setTimeout(() => {
     const inputs = document.querySelectorAll('.stop-field-name');
     if (inputs.length > 0) {
-      inputs[inputs.length - 1].focus();
+      const lastInput = inputs[inputs.length - 1];
+      lastInput.focus();
+      lastInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, 40);
 }
@@ -9040,13 +9059,28 @@ function setupModalListeners() {
     });
   }
 
+  const addStopRowTopBtn = document.getElementById('add-stop-row-top-btn');
+
   if (addStopRowBtn) {
     addStopRowBtn.addEventListener('click', () => {
       addStopToEditor();
     });
   }
 
+  if (addStopRowTopBtn) {
+    addStopRowTopBtn.addEventListener('click', () => {
+      addStopToEditor();
+    });
+  }
+
   if (routeEditorForm) {
+    routeEditorForm.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target && e.target.closest('#route-stops-container')) {
+        e.preventDefault();
+        addStopToEditor();
+      }
+    });
+
     routeEditorForm.addEventListener('submit', (e) => {
       saveRoute(e);
     });

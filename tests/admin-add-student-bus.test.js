@@ -121,5 +121,25 @@ test('ADMIN STUDENT BUS ALLOCATION: Comprehensive Verification', async (t) => {
     // Hash route handling in admin.js
     assert.ok(adminJs.includes("baseRoute === '#students'"), 'admin.js must handle #students route in handleHashRoute');
   });
+
+  await t.test('6. Table Full-Fit Layout & Route Stops Bottom Trigger / Enter-Key Workflow', () => {
+    const adminCss = fs.readFileSync(path.join(rootDir, 'admin', 'admin.css'), 'utf8');
+
+    // 1. Students table full-fit layout eliminating horizontal scroll and blind spots
+    assert.match(adminCss, /#students-view[\s\S]*?\.data-table-container[\s\S]*?\{[\s\S]*?overflow-x:\s*hidden;/, '#students-view must eliminate horizontal scroll to avoid blind spots');
+    assert.match(adminCss, /#students-view[\s\S]*?\.data-table[\s\S]*?\{[\s\S]*?table-layout:\s*fixed;/, '#students-view .data-table must use table-layout: fixed');
+
+    // 2. Add Stop button located at the bottom below stops container
+    const stopsContainerIndex = adminHtml.indexOf('id="route-stops-container"');
+    const bottomAddStopBtnIndex = adminHtml.indexOf('id="add-stop-row-btn"');
+    assert.ok(stopsContainerIndex !== -1 && bottomAddStopBtnIndex !== -1, 'Both stops container and bottom add stop button must exist');
+    assert.ok(bottomAddStopBtnIndex > stopsContainerIndex, '#add-stop-row-btn must appear below #route-stops-container');
+
+    // 3. Enter key in stop fields creates the next stop option
+    assert.match(adminJs, /inp\.addEventListener\('keydown',\s*\(e\)\s*=>\s*\{[\s\S]*?e\.key\s*===\s*'Enter'[\s\S]*?addStopToEditor\(\);/, 'Enter key on stop inputs must call addStopToEditor');
+
+    // 4. Dragstart restricted to drag handle to prevent unwanted text selection sliding
+    assert.match(adminJs, /!e\.target\.closest\('\.stop-drag-handle'\)/, 'dragstart must verify target is within .stop-drag-handle');
+  });
 });
 

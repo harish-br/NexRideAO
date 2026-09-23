@@ -1237,6 +1237,81 @@ code, kbd, samp, pre,
   min-width: 960px;
 }
 
+/* -------------------------------------------------------------
+   FULL-FIT RESPONSIVE DATA TABLES (ELIMINATES HORIZONTAL SCROLL
+   AND BLIND SPOTS FOR ADMINS)
+   ------------------------------------------------------------- */
+#students-view .data-table-container,
+#routes-view .data-table-container {
+  overflow-x: hidden;
+  width: 100%;
+}
+
+#students-view .data-table,
+#routes-view .data-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+#students-view .data-table th,
+#students-view .data-table td,
+#routes-view .data-table th,
+#routes-view .data-table td {
+  padding: 11px 8px;
+  font-size: 12.5px;
+  white-space: normal;
+  word-break: break-word;
+  vertical-align: middle;
+}
+
+/* Students table column distribution (100% total, zero blind spot) */
+#students-view .data-table th:nth-child(1),
+#students-view .data-table td:nth-child(1) { width: 17%; } /* Student Name */
+
+#students-view .data-table th:nth-child(2),
+#students-view .data-table td:nth-child(2) { width: 11%; white-space: nowrap; } /* Student ID */
+
+#students-view .data-table th:nth-child(3),
+#students-view .data-table td:nth-child(3) { width: 18%; line-height: 1.35; } /* Department & Year */
+
+#students-view .data-table th:nth-child(4),
+#students-view .data-table td:nth-child(4) { width: 10%; white-space: nowrap; } /* Assigned Bus */
+
+#students-view .data-table th:nth-child(5),
+#students-view .data-table td:nth-child(5) { width: 20%; line-height: 1.35; } /* Pickup / Drop Stop */
+
+#students-view .data-table th:nth-child(6),
+#students-view .data-table td:nth-child(6) { width: 11%; white-space: nowrap; } /* Contact */
+
+#students-view .data-table th:nth-child(7),
+#students-view .data-table td:nth-child(7) { width: 7%; text-align: center; } /* Transport Status */
+
+#students-view .data-table th:nth-child(8),
+#students-view .data-table td:nth-child(8) { width: 6%; text-align: right; white-space: nowrap; } /* Actions */
+
+@media (max-width: 960px) {
+  #students-view .data-table-container,
+  #routes-view .data-table-container {
+    overflow-x: auto;
+  }
+  #students-view .data-table {
+    min-width: 780px;
+  }
+  #students-view .data-table th:nth-child(1),
+  #students-view .data-table td:nth-child(1) {
+    position: sticky;
+    left: 0;
+    background: #FFFFFF;
+    z-index: 2;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+  }
+  #students-view .data-table thead th:nth-child(1) {
+    background: #F9FAFB;
+    z-index: 3;
+  }
+}
+
 .data-table tbody tr {
   border-bottom: 1px solid var(--border-subtle);
   transition: background-color 0.1s;
@@ -3284,6 +3359,16 @@ form.modal-content {
 .stop-row-card {
   position: relative;
   transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+  touch-action: pan-y;
+  overflow-x: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.stop-row-card input,
+.stop-row-card select {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .stop-row-card:hover {
@@ -3358,6 +3443,65 @@ form.modal-content {
 
 .stop-card-just-moved {
   animation: stopCardHighlight 1.2s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+/* Universal Modal Field Visibility & No Horizontal Sliding/Drift */
+.modal-overlay {
+  overflow-x: hidden !important;
+}
+
+.modal-content {
+  overflow-x: hidden !important;
+  max-width: 96%;
+  box-sizing: border-box;
+}
+
+.modal-body {
+  overflow-x: hidden !important;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.modal-body input,
+.modal-body select,
+.modal-body textarea,
+.modal-body .form-group {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.stop-fields-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.1fr 1.1fr 1.2fr 1.2fr 1fr;
+  gap: 10px;
+  align-items: end;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.stop-fields-grid .form-group {
+  margin-bottom: 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.stop-fields-grid input,
+.stop-fields-grid select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media (max-width: 860px) {
+  .stop-fields-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .stop-fields-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 
