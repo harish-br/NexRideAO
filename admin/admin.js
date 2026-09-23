@@ -4113,63 +4113,68 @@ function renderBusesTable() {
   }
 
   filtered.forEach(bus => {
-    const tr = document.createElement('tr');
-    const statusClass = getStatusBadgeClass(bus.status);
-    const seatCap = parseInt(bus.seatCapacity || bus.capacity || 52, 10);
-    const totalCap = parseInt(bus.totalCapacity || (seatCap + standCap), 10);
-    const assignedCount = usersCache.filter(u => String(u.assignedBus || u.bus || u.busNumber || '').trim() === String(bus.busNumber).trim()).length;
-    const occupancyPct = totalCap > 0 ? Math.round((assignedCount / totalCap) * 100) : 0;
-    const regText = bus.registrationNumber || bus.regNumber || 'Not Registered';
+    try {
+      const tr = document.createElement('tr');
+      const statusClass = getStatusBadgeClass(bus.status);
+      const seatCap = parseInt(bus.seatCapacity || bus.capacity || 52, 10);
+      const standCap = parseInt(bus.standingCapacity || 0, 10);
+      const totalCap = parseInt(bus.totalCapacity || (seatCap + standCap), 10);
+      const assignedCount = usersCache.filter(u => String(u.assignedBus || u.bus || u.busNumber || '').trim() === String(bus.busNumber).trim()).length;
+      const occupancyPct = totalCap > 0 ? Math.round((assignedCount / totalCap) * 100) : 0;
+      const regText = bus.registrationNumber || bus.regNumber || 'Not Registered';
 
-    // Find assigned route details from routesCache
-    const assignedRoute = routesCache.find(r => 
-      (bus.routeName && r.name && r.name.toLowerCase() === bus.routeName.toLowerCase()) ||
-      (bus.route && r.name && r.name.toLowerCase() === bus.route.toLowerCase()) ||
-      (bus.assignedRouteId && r.id === bus.assignedRouteId) ||
-      (r.assignedBus && String(r.assignedBus) === String(bus.busNumber)) ||
-      (Array.isArray(r.assignedBuses) && r.assignedBuses.map(String).includes(String(bus.busNumber)))
-    );
+      // Find assigned route details from routesCache
+      const assignedRoute = routesCache.find(r => 
+        (bus.routeName && r.name && r.name.toLowerCase() === bus.routeName.toLowerCase()) ||
+        (bus.route && r.name && r.name.toLowerCase() === bus.route.toLowerCase()) ||
+        (bus.assignedRouteId && r.id === bus.assignedRouteId) ||
+        (r.assignedBus && String(r.assignedBus) === String(bus.busNumber)) ||
+        (Array.isArray(r.assignedBuses) && r.assignedBuses.map(String).includes(String(bus.busNumber)))
+      );
 
-    let routeHtml = '';
-    if (assignedRoute) {
-      const stopCount = assignedRoute.totalStops !== undefined 
-        ? assignedRoute.totalStops 
-        : (Array.isArray(assignedRoute.stops) ? assignedRoute.stops.length : 0);
-      const isSpecific = bus.coverageType === 'specific_stops';
-      const specificCount = Array.isArray(bus.stopAssignments) && bus.stopAssignments.length > 0
-        ? bus.stopAssignments.length
-        : (Array.isArray(bus.stops) ? bus.stops.length : stopCount);
+      let routeHtml = '';
+      if (assignedRoute) {
+        const stopCount = assignedRoute.totalStops !== undefined 
+          ? assignedRoute.totalStops 
+          : (Array.isArray(assignedRoute.stops) ? assignedRoute.stops.length : 0);
+        const isSpecific = bus.coverageType === 'specific_stops';
+        const specificCount = Array.isArray(bus.stopAssignments) && bus.stopAssignments.length > 0
+          ? bus.stopAssignments.length
+          : (Array.isArray(bus.stops) ? bus.stops.length : stopCount);
 
-      routeHtml = `
-        <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-          <strong style="color: var(--text-primary); font-size: 13.5px;">${escapeHtml(assignedRoute.name)}</strong>
-          ${isSpecific 
-            ? `<span class="status-badge badge-purple" style="font-size: 11px; padding: 2px 6px; font-weight: 600;">Specific Stops (${specificCount}/${stopCount})</span>`
-            : `<span class="status-badge badge-blue" style="font-size: 11px; padding: 2px 6px; font-weight: 600;">Full Route (${stopCount} Stops)</span>`
-          }
-        </div>
+        routeHtml = `
+          <div style="display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <strong style="color: var(--text-primary); font-size: 13.5px;">${escapeHtml(assignedRoute.name)}</strong>
+            ${isSpecific 
+              ? `<span class="status-badge badge-purple" style="font-size: 11px; padding: 2px 6px; font-weight: 600;">Specific Stops (${specificCount}/${stopCount})</span>`
+              : `<span class="status-badge badge-blue" style="font-size: 11px; padding: 2px 6px; font-weight: 600;">Full Route (${stopCount} Stops)</span>`
+            }
+          </div>
+        `;
+      } else if (bus.routeName || bus.route) {
+        routeHtml = `<strong style="color: var(--text-primary); font-size: 13.5px;">${escapeHtml(bus.routeName || bus.route)}</strong>`;
+      } else {
+        routeHtml = `<span style="color: var(--text-muted); font-size: 13px;">Unassigned</span>`;
+      }
+
+      tr.innerHTML = `
+        <td><strong style="font-size: 14.5px; color: var(--text-primary);">Bus ${escapeHtml(bus.busNumber || 'N/A')}</strong></td>
+        <td><span style="font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(regText)}</span></td>
+        <td>${routeHtml}</td>
+        <td>${escapeHtml(bus.driverName || 'Not Assigned')}</td>
+        <td>${seatCap} Seats ${standCap > 0 ? `+ ${standCap} Std ` : ''}<span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">(${assignedCount} Passenger${assignedCount === 1 ? '' : 's'} • ${occupancyPct}%)</span></td>
+        <td><span class="status-badge ${statusClass}">${escapeHtml(bus.status || 'Active')}</span></td>
+        <td style="text-align: right;">
+          <div class="action-btn-group" style="justify-content: flex-end;">
+            <button class="btn-action-icon btn-action-primary" onclick="window.adminInspectBus('${bus.id}')">Inspect</button>
+            <button class="btn-action-icon" onclick="window.adminEditBus('${bus.id}')">Edit</button>
+          </div>
+        </td>
       `;
-    } else if (bus.routeName || bus.route) {
-      routeHtml = `<strong style="color: var(--text-primary); font-size: 13.5px;">${escapeHtml(bus.routeName || bus.route)}</strong>`;
-    } else {
-      routeHtml = `<span style="color: var(--text-muted); font-size: 13px;">Unassigned</span>`;
+      tbody.appendChild(tr);
+    } catch (err) {
+      console.error("Error rendering bus row:", bus, err);
     }
-
-    tr.innerHTML = `
-      <td><strong style="font-size: 14.5px; color: var(--text-primary);">Bus ${escapeHtml(bus.busNumber || 'N/A')}</strong></td>
-      <td><span style="font-size: 13px; font-weight: 600; color: #374151;">${escapeHtml(regText)}</span></td>
-      <td>${routeHtml}</td>
-      <td>${escapeHtml(bus.driverName || 'Not Assigned')}</td>
-      <td>${seatCap} Seats ${standCap > 0 ? `+ ${standCap} Std ` : ''}<span style="font-size: 12px; color: var(--text-muted); font-weight: 600;">(${assignedCount} Passenger${assignedCount === 1 ? '' : 's'} • ${occupancyPct}%)</span></td>
-      <td><span class="status-badge ${statusClass}">${escapeHtml(bus.status || 'Active')}</span></td>
-      <td style="text-align: right;">
-        <div class="action-btn-group" style="justify-content: flex-end;">
-          <button class="btn-action-icon btn-action-primary" onclick="window.adminInspectBus('${bus.id}')">Inspect</button>
-          <button class="btn-action-icon" onclick="window.adminEditBus('${bus.id}')">Edit</button>
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
   });
 }
 
