@@ -68,8 +68,9 @@ function showEPassSkeleton(force = false) {
         passIdEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:100px; height:12px; border-radius:4px;"></span>';
     }
     if (barcodeSvg) {
+        barcodeSvg.innerHTML = '';
         barcodeSvg.classList.add('skeleton-shimmer');
-        barcodeSvg.style.width = '230px';
+        barcodeSvg.style.width = '100%';
         barcodeSvg.style.height = '56px';
         barcodeSvg.style.borderRadius = '8px';
         barcodeSvg.style.display = 'block';
