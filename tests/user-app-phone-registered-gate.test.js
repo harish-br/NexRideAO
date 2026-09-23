@@ -67,12 +67,19 @@ test('USER APP: Registered Phone Database Gate & No Basic Details for Unregister
   await t.test('8. public/sw.js uses Network-First strategy for scripts and bumped cache version', () => {
     const swPath = path.join(rootDir, 'public', 'sw.js');
     const swJs = fs.readFileSync(swPath, 'utf8');
-    assert.match(swJs, /CACHE_NAME\s*=\s*'nexride-shell-v2'/, 'sw.js must be bumped to v2');
+    assert.match(swJs, /CACHE_NAME\s*=\s*'nexride-shell-v[2-9]'/, 'sw.js must be bumped');
     assert.match(swJs, /url\.pathname\.endsWith\('\.js'\)/, 'sw.js must intercept .js requests');
     assert.match(swJs, /fetch\(event\.request\)\s*\.then\(\(networkResponse\)\s*=>[\s\S]*?\.catch\(\(\)\s*=>\s*caches\.match\(event\.request\)\)/, 'sw.js must use Network-First for scripts');
   });
 
   await t.test('9. student-bus-service.js rejects registration checks when Firestore is unavailable', () => {
     assert.match(serviceJs, /reason:\s*'database_unavailable'/, 'must not return registered: true when firestore is uninitialized');
+  });
+
+  await t.test('10. error is displayed as clean aligned text without card background or icon', () => {
+    assert.match(styleCss, /\.auth-error-banner\s*\{[\s\S]*?background:\s*transparent/, 'auth-error-banner must have transparent background');
+    assert.match(styleCss, /\.auth-error-banner\s*\{[\s\S]*?border:\s*none/, 'auth-error-banner must have no border');
+    assert.match(styleCss, /\.auth-error-banner\s*\{[\s\S]*?text-align:\s*left/, 'auth-error-banner must have aligned text');
+    assert.ok(!indexHtml.includes('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#DC2626"'), 'icon must be removed from error container');
   });
 });

@@ -1894,25 +1894,23 @@ header h1 {
 
 .phone-input-group.error {
   border-color: #EF4444 !important;
-  background: #FEF2F2 !important;
+  background: #FFFFFF !important;
   animation: inputShake 0.35s ease-in-out;
 }
 
 .auth-error-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin-top: 12px;
-  background: #FEF2F2;
-  border: 1.5px solid #FCA5A5;
-  border-radius: 12px;
-  padding: 12px 14px;
-  color: #DC2626;
+  display: block;
+  margin-top: 8px;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 4px !important;
+  color: #DC2626 !important;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.45;
   text-align: left;
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.08);
+  box-shadow: none !important;
 }
 
 .country-code {

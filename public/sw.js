@@ -5,7 +5,7 @@
  * without internet, while delegating dynamic data to IndexedDB.
  */
 
-const CACHE_NAME = 'nexride-shell-v2';
+const CACHE_NAME = 'nexride-shell-v3';
 
 const STATIC_ASSETS = [
   '/',

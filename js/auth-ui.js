@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         mobileError.textContent = msg;
       }
       mobileError.classList.remove('hidden');
-      mobileError.style.display = 'flex';
+      mobileError.style.display = 'block';
     }
     if (phoneInputGroup) {
       phoneInputGroup.classList.remove('error');
