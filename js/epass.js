@@ -64,16 +64,13 @@ function showEPassSkeleton(force = false) {
     if (contactEl && (force || !contactEl.textContent.trim() || contactEl.querySelector('.skeleton-shimmer'))) {
         contactEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:110px; height:14px; border-radius:4px;"></span>';
     }
-    if (passIdEl && (force || !passIdEl.textContent.trim() || passIdEl.textContent === '...' || passIdEl.querySelector('.skeleton-shimmer'))) {
-        passIdEl.innerHTML = '<span class="skeleton-line skeleton-shimmer" style="display:inline-block; vertical-align:middle; width:100px; height:12px; border-radius:4px;"></span>';
+    if (passIdEl) {
+        passIdEl.textContent = '';
     }
     if (barcodeSvg) {
         barcodeSvg.innerHTML = '';
-        barcodeSvg.classList.add('skeleton-shimmer');
-        barcodeSvg.style.width = '100%';
-        barcodeSvg.style.height = '56px';
-        barcodeSvg.style.borderRadius = '8px';
-        barcodeSvg.style.display = 'block';
+        barcodeSvg.classList.remove('skeleton-shimmer');
+        barcodeSvg.removeAttribute('style');
     }
 }
 

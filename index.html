@@ -1820,11 +1820,8 @@
 
             <!-- Barcode at the bottom -->
             <div style="width: 100%; display: flex; flex-direction: column; align-items: center; margin-top: 24px;">
-              <svg id="epass-barcode" class="skeleton-shimmer"
-                style="width: 100%; height: 56px; border-radius: 8px; display: block;"></svg>
-              <p class="pass-id-text">ID: <span id="pass-id-display"><span class="skeleton-line skeleton-shimmer"
-                    style="display:inline-block; vertical-align:middle; width:100px; height:12px; border-radius:4px;"></span></span>
-              </p>
+              <svg id="epass-barcode"></svg>
+              <p class="pass-id-text">ID: <span id="pass-id-display"></span></p>
             </div>
           </div>
         </div>
@@ -2998,7 +2995,7 @@
   </div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-  <script type="module" src="./js/epass.js?v=20260923-v2"></script>
+  <script type="module" src="./js/epass.js?v=20260923-v3"></script>
   <script type="module" src="./js/bus-search.js"></script>
 </body>
 

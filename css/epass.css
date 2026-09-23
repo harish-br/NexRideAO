@@ -237,14 +237,6 @@
   height: auto;
   max-height: 60px;
 }
-
-#epass-barcode.skeleton-shimmer {
-  width: 100% !important;
-  height: 56px !important;
-  border-radius: 8px !important;
-  display: block !important;
-}
-
 .pass-id-text {
   font-size: 10px;
   color: #6B7280;

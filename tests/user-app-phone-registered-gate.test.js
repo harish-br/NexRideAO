@@ -83,13 +83,14 @@ test('USER APP: Registered Phone Database Gate & No Basic Details for Unregister
     assert.ok(!indexHtml.includes('<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#DC2626"'), 'icon must be removed from error container');
   });
 
-  await t.test('11. epass barcode skeleton shimmer width matches actual barcode size (100%)', () => {
+  await t.test('11. epass barcode and pass id display do not show shine/skeleton shimmer loading animation', () => {
     const epassJs = fs.readFileSync(path.join(rootDir, 'js', 'epass.js'), 'utf8');
     const epassCss = fs.readFileSync(path.join(rootDir, 'css', 'epass.css'), 'utf8');
-    assert.doesNotMatch(indexHtml, /id="epass-barcode"[^>]*width:\s*230px/, 'index.html must not hardcode 230px on epass-barcode');
-    assert.doesNotMatch(epassJs, /barcodeSvg\.style\.width\s*=\s*['"]230px['"]/, 'epass.js must not set 230px width');
-    assert.match(epassJs, /barcodeSvg\.innerHTML\s*=\s*['"]['"]/, 'epass.js must clear previous barcode innerHTML when showing skeleton');
-    assert.match(epassJs, /barcodeSvg\.style\.width\s*=\s*['"]100%['"]/, 'epass.js must set 100% width on barcode skeleton');
-    assert.match(epassCss, /#epass-barcode\.skeleton-shimmer\s*\{[\s\S]*?width:\s*100%/, 'epass.css must enforce 100% width on barcode shimmer');
+    assert.doesNotMatch(indexHtml, /id="epass-barcode"[^>]*skeleton-shimmer/, 'index.html must not have skeleton-shimmer on epass-barcode');
+    assert.doesNotMatch(indexHtml, /id="pass-id-display"[^>]*skeleton-shimmer/, 'index.html must not have skeleton-shimmer on pass-id-display');
+    assert.doesNotMatch(epassJs, /barcodeSvg\.classList\.add\(['"]skeleton-shimmer['"]\)/, 'epass.js must not add skeleton-shimmer to barcodeSvg');
+    assert.doesNotMatch(epassJs, /passIdEl\.innerHTML\s*=.*skeleton-shimmer/, 'epass.js must not add skeleton-shimmer to passIdEl');
+    assert.doesNotMatch(epassCss, /#epass-barcode\.skeleton-shimmer/, 'epass.css must not have skeleton-shimmer rule for barcode');
+    assert.match(epassJs, /barcodeSvg\.innerHTML\s*=\s*['"]['"]/, 'epass.js must clear barcode innerHTML when showing skeleton');
   });
 });
