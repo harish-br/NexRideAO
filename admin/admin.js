@@ -100,10 +100,20 @@ function showDashboard() {
   try {
     const cachedBuses = localStorage.getItem('nexride_admin_buses_cache');
     const cachedRoutes = localStorage.getItem('nexride_admin_routes_cache');
-    const cachedUsers = localStorage.getItem('nexride_admin_users_cache');
-    if (cachedBuses) busesCache = JSON.parse(cachedBuses);
-    if (cachedRoutes) routesCache = JSON.parse(cachedRoutes);
-    if (cachedUsers) usersCache = JSON.parse(cachedUsers);
+    if (cachedUsers) {
+      const rawCached = JSON.parse(cachedUsers);
+      const dedupSet = new Set();
+      usersCache = (Array.isArray(rawCached) ? rawCached : []).filter(u => {
+        const sId = String(u.id || u.regno || '').trim().toUpperCase();
+        const sPhone = String(u.phone || u.mobile || u.cleanPhone || '').replace(/\D/g, '').slice(-10);
+        const key = sId && sId !== u.docId ? `ID_${sId}` : (sPhone ? `PH_${sPhone}` : `DOC_${u.docId}`);
+        if (dedupSet.has(key)) return false;
+        dedupSet.add(key);
+        if (sId && sId !== u.docId) dedupSet.add(`ID_${sId}`);
+        if (sPhone) dedupSet.add(`PH_${sPhone}`);
+        return true;
+      });
+    }
     if (busesCache.length > 0 || routesCache.length > 0) {
       busesLoaded = true;
       routesLoaded = true;
@@ -2781,19 +2791,21 @@ function listenToUsers() {
   const usersRef = collection(firestore, 'users');
   usersUnsubscribe = onSnapshot(usersRef, (snapshot) => {
     usersCache = [];
+    const studentMap = new Map();
+
     snapshot.forEach(d => {
       const data = d.data();
       const busNum = String(data.assignedBus || data.bus || data.busNumber || data['bus no'] || data.bus_no || '').trim();
-      const studentId = data.regno || data.id || data.studentId || d.id;
+      const studentId = String(data.regno || data.id || data.studentId || d.id).trim();
       const studentName = data.name || 'Student';
       const pickup = data.stage || data.pickupStop || '--';
       const dept = data.department || (data.regno ? (data.regno.includes('AI') ? 'AI&DS' : (data.regno.includes('CS') ? 'CSE' : 'Engineering')) : 'Engineering');
-      const phone = data.phone || data['parent_gaurdian contact'] || data.contact || '--';
-      
+      const mobileNum = data.phone || data.mobile || data['parent_gaurdian contact'] || data.contact || '--';
+      const clean10 = String(mobileNum || '').replace(/\D/g, '').slice(-10);
+
       const academicYear = data.academicYear || data.academic_year || '2025-2026';
       const institution = data.institution || 'Nandha Engineering College (Autonomous)';
       const passType = data.passengerType || data.passenger_type || (data.role === 'staff' ? 'Teaching Staff' : 'Student');
-      const mobileNum = data.phone || data.mobile || data['parent_gaurdian contact'] || data.contact || '--';
       const amountFixed = data.amountFixed !== undefined ? Number(data.amountFixed) : (data.amount_fixed !== undefined ? Number(data.amount_fixed) : 18000);
       const fineAmount = data.fineAmount !== undefined ? Number(data.fineAmount) : (data.fine_amount !== undefined ? Number(data.fine_amount) : 0);
       const concessionType = data.concessionType || data.concession_type || 'None';
@@ -2808,9 +2820,13 @@ function listenToUsers() {
       const remark = data.remark || data.remarks || '';
       const routeId = data.routeId || data.route_id || data.assignedRouteName || '';
 
-      usersCache.push({
-        id: studentId,
+      const isRealStudentId = studentId && studentId !== d.id && studentId.length >= 3;
+      const normalizedStudentId = isRealStudentId ? studentId.toUpperCase() : (d.id.length <= 15 ? d.id.toUpperCase() : '');
+
+      const userObj = {
+        id: isRealStudentId ? studentId : d.id,
         docId: d.id,
+        associatedDocIds: [d.id],
         name: studentName,
         email: data.email || '',
         academicYear: academicYear,
@@ -2826,6 +2842,7 @@ function listenToUsers() {
         dropStop: data.dropStop || 'Nandha Engineering College',
         phone: mobileNum,
         mobile: mobileNum,
+        cleanPhone: clean10,
         amountFixed: amountFixed,
         fineAmount: fineAmount,
         concessionType: concessionType,
@@ -2841,8 +2858,49 @@ function listenToUsers() {
         routeId: routeId,
         status: balance === 'Fully Paid' || data.fees_status?.toLowerCase() === 'paid' ? 'Active' : (data.fees_status || 'Active'),
         raw: data
-      });
+      };
+
+      // Check if this student matches any previously processed document in this snapshot
+      let existing = null;
+      if (normalizedStudentId && studentMap.has(`ID_${normalizedStudentId}`)) {
+        existing = studentMap.get(`ID_${normalizedStudentId}`);
+      } else if (clean10 && clean10.length === 10 && studentMap.has(`PHONE_${clean10}`)) {
+        existing = studentMap.get(`PHONE_${clean10}`);
+      }
+
+      if (existing) {
+        // Merge records: track all associated Firestore document IDs
+        if (!existing.associatedDocIds.includes(d.id)) {
+          existing.associatedDocIds.push(d.id);
+        }
+        // If current document has assignedBus and existing didn't, or this doc has more complete info, update it
+        const hasBus = busNum && busNum !== '--';
+        const existingHasBus = existing.assignedBus && existing.assignedBus !== '--';
+        if (hasBus && !existingHasBus) {
+          existing.assignedBus = busNum;
+          existing.bus = busNum;
+          existing.busNumber = busNum;
+        }
+        if (pickup && pickup !== '--' && (!existing.pickupStop || existing.pickupStop === '--')) {
+          existing.pickupStop = pickup;
+          existing.stage = pickup;
+        }
+        if (studentName && studentName !== 'Student' && existing.name === 'Student') {
+          existing.name = studentName;
+        }
+        if (isRealStudentId && (!existing.id || existing.id === existing.docId)) {
+          existing.id = studentId;
+        }
+        existing.raw = { ...existing.raw, ...data };
+      } else {
+        const primaryKey = normalizedStudentId ? `ID_${normalizedStudentId}` : (clean10 ? `PHONE_${clean10}` : `DOC_${d.id}`);
+        studentMap.set(primaryKey, userObj);
+        if (normalizedStudentId) studentMap.set(`ID_${normalizedStudentId}`, userObj);
+        if (clean10 && clean10.length === 10) studentMap.set(`PHONE_${clean10}`, userObj);
+      }
     });
+
+    usersCache = Array.from(new Set(studentMap.values()));
 
     // Re-derive state and refresh dependent views
     usersLoaded = true;
@@ -3579,9 +3637,20 @@ function deriveDerivedState() {
   }
   
   // Real assigned students strictly derived from usersCache
+  const seenStudentKeys = new Set();
   studentsCache = usersCache.filter(u => {
     const b = String(u.assignedBus || u.bus || u.busNumber || '').trim();
-    return b !== '' && b !== 'null' && b !== 'undefined' && b !== '--';
+    if (b === '' || b === 'null' || b === 'undefined' || b === '--') return false;
+
+    const sId = String(u.id || u.regno || '').trim().toUpperCase();
+    const cleanPhone = String(u.phone || u.mobile || u.cleanPhone || '').replace(/\D/g, '').slice(-10);
+    const key = (sId && sId !== u.docId) ? `ID_${sId}` : (cleanPhone ? `PH_${cleanPhone}` : `DOC_${u.docId}`);
+
+    if (seenStudentKeys.has(key)) return false;
+    seenStudentKeys.add(key);
+    if (sId && sId !== u.docId) seenStudentKeys.add(`ID_${sId}`);
+    if (cleanPhone) seenStudentKeys.add(`PH_${cleanPhone}`);
+    return true;
   });
 
   // Scheduled & Active Trips Calculation from real bus schedules
@@ -4017,7 +4086,6 @@ function renderBusesTable() {
     const tr = document.createElement('tr');
     const statusClass = getStatusBadgeClass(bus.status);
     const seatCap = parseInt(bus.seatCapacity || bus.capacity || 52, 10);
-    const standCap = parseInt(bus.standingCapacity || 0, 10);
     const totalCap = parseInt(bus.totalCapacity || (seatCap + standCap), 10);
     const assignedCount = usersCache.filter(u => String(u.assignedBus || u.bus || u.busNumber || '').trim() === String(bus.busNumber).trim()).length;
     const occupancyPct = totalCap > 0 ? Math.round((assignedCount / totalCap) * 100) : 0;
@@ -4430,6 +4498,19 @@ function renderStudentsTable() {
       s.pickupStop.toLowerCase().includes(searchVal);
     const matchBus = selectedBus === 'all' || s.assignedBus === selectedBus;
     return matchSearch && matchBus;
+  });
+
+  // Strict deduplication safeguard for the students table
+  const seenTableKeys = new Set();
+  filtered = filtered.filter(s => {
+    const sId = String(s.id || s.regno || '').trim().toUpperCase();
+    const sPhone = String(s.phone || s.mobile || s.cleanPhone || '').replace(/\D/g, '').slice(-10);
+    const key = (sId && sId !== s.docId) ? `ID_${sId}` : (sPhone ? `PH_${sPhone}` : `DOC_${s.docId}`);
+    if (seenTableKeys.has(key)) return false;
+    seenTableKeys.add(key);
+    if (sId && sId !== s.docId) seenTableKeys.add(`ID_${sId}`);
+    if (sPhone) seenTableKeys.add(`PH_${sPhone}`);
+    return true;
   });
 
   if (countLabel) countLabel.textContent = `Showing ${filtered.length} students`;
@@ -9508,11 +9589,18 @@ async function handleStudentAllocationSubmit(e) {
       localStorage.setItem('nexride_assigned_bus', busNumber);
     } catch (e) {}
 
-    // Update in-memory cache immediately
-    const existingIdx = usersCache.findIndex(u => u.docId === targetDocId || u.id === studentId);
+    // Update in-memory cache immediately (strictly preventing duplicates)
+    const existingIdx = usersCache.findIndex(u => 
+      u.docId === targetDocId || 
+      u.id === studentId || 
+      (clean10Phone && (u.cleanPhone === clean10Phone || String(u.phone).replace(/\D/g, '').slice(-10) === clean10Phone)) ||
+      (Array.isArray(u.associatedDocIds) && u.associatedDocIds.includes(targetDocId))
+    );
+
     const mapped = {
       id: studentId,
       docId: targetDocId,
+      associatedDocIds: Array.from(docIdsToUpdate),
       name: studentName,
       email: '',
       academicYear,
@@ -9528,6 +9616,7 @@ async function handleStudentAllocationSubmit(e) {
       dropStop: 'Nandha Engineering College',
       phone: mobile,
       mobile,
+      cleanPhone: clean10Phone,
       amountFixed,
       fineAmount,
       concessionType,
@@ -9546,7 +9635,9 @@ async function handleStudentAllocationSubmit(e) {
     };
 
     if (existingIdx >= 0) {
-      usersCache[existingIdx] = mapped;
+      usersCache[existingIdx] = { ...usersCache[existingIdx], ...mapped };
+      // Filter out any other stray duplicates matching studentId or phone
+      usersCache = usersCache.filter((u, idx) => idx === existingIdx || (u.id !== studentId && (!clean10Phone || u.cleanPhone !== clean10Phone)));
     } else {
       usersCache.push(mapped);
     }
@@ -9577,7 +9668,12 @@ function openStudentDetailsModal(studentIdOrDocId) {
   const modal = document.getElementById('student-details-modal');
   if (!modal) return;
 
-  const stu = usersCache.find(u => u.id === studentIdOrDocId || u.docId === studentIdOrDocId || u.raw?.regno === studentIdOrDocId);
+  const stu = usersCache.find(u => 
+    u.id === studentIdOrDocId || 
+    u.docId === studentIdOrDocId || 
+    u.raw?.regno === studentIdOrDocId || 
+    (Array.isArray(u.associatedDocIds) && u.associatedDocIds.includes(studentIdOrDocId))
+  );
   if (!stu) {
     alert("Student details not found for ID: " + studentIdOrDocId);
     return;
@@ -10058,7 +10154,19 @@ function openBusInspector(bus) {
   const seatCap = parseInt(bus.seatCapacity || bus.capacity || 52, 10);
   const standCap = parseInt(bus.standingCapacity || 0, 10);
   const totalCap = parseInt(bus.totalCapacity || (seatCap + standCap), 10);
-  const busStudents = usersCache.filter(u => String(u.assignedBus || u.bus || u.busNumber || '').trim() === String(bus.busNumber).trim());
+  const seenBusStudentKeys = new Set();
+  const busStudents = usersCache.filter(u => {
+    const isBusMatch = String(u.assignedBus || u.bus || u.busNumber || '').trim() === String(bus.busNumber).trim();
+    if (!isBusMatch) return false;
+    const sId = String(u.id || u.regno || '').trim().toUpperCase();
+    const sPhone = String(u.phone || u.mobile || u.cleanPhone || '').replace(/\D/g, '').slice(-10);
+    const key = (sId && sId !== u.docId) ? `ID_${sId}` : (sPhone ? `PH_${sPhone}` : `DOC_${u.docId}`);
+    if (seenBusStudentKeys.has(key)) return false;
+    seenBusStudentKeys.add(key);
+    if (sId && sId !== u.docId) seenBusStudentKeys.add(`ID_${sId}`);
+    if (sPhone) seenBusStudentKeys.add(`PH_${sPhone}`);
+    return true;
+  });
   const assignedCount = busStudents.length;
   const occupancyPct = totalCap > 0 ? Math.round((assignedCount / totalCap) * 100) : 0;
 

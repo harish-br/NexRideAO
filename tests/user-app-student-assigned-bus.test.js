@@ -81,6 +81,11 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
     assert.match(adminJsContent, /usersCache\.forEach/, 'admin.js must scan usersCache for matching auth records');
     assert.match(adminJsContent, /doc\(firestore,\s*'users',\s*dId\)/, 'admin.js must target users/dId');
     assert.match(adminJsContent, /setDoc\(docRef,\s*payload,\s*\{\s*merge:\s*true\s*\}\)/, 'admin.js must setDoc with merge: true');
+
+    // Strict student deduplication across multi-doc records
+    assert.match(adminJsContent, /studentMap\.set\(primaryKey,\s*userObj\)/, 'admin.js must deduplicate multi-document student records into studentMap');
+    assert.match(adminJsContent, /usersCache\s*=\s*Array\.from\(new\s+Set\(studentMap\.values\(\)\)\)/, 'admin.js must populate usersCache with unique students');
+    assert.match(adminJsContent, /seenTableKeys/, 'admin.js must deduplicate filtered rows before rendering students table');
   });
 
   await t.test('3. Student Bus Service normalizes diverse student data and provides subscription', () => {
