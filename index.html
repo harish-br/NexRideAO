@@ -18,7 +18,10 @@
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('[PWA] Service Worker active with scope:', reg.scope))
+          .then(reg => {
+            console.log('[PWA] Service Worker active with scope:', reg.scope);
+            try { reg.update(); } catch (e) {}
+          })
           .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
       });
     }
@@ -596,150 +599,190 @@
         <h1 class="pi-title" style="margin-bottom: 6px;">Preferences</h1>
         <p style="font-size: 14px; color: #6B7280; margin-bottom: 20px;">Customize notifications, transit features, and app experience.</p>
 
-        <!-- SECTION 1: NOTIFICATIONS & ALERTS -->
-        <div class="pref-section-title">Notifications &amp; Alerts</div>
-        <div class="pref-card" style="margin-bottom: 20px;">
-          <!-- Master Notification Toggle -->
-          <div class="pref-item-row" style="padding-bottom: 16px; border-bottom: 1px solid #E5E7EB;">
-            <div style="flex: 1;">
-              <div style="font-weight: 700; font-size: 15.5px; color: #111827; margin-bottom: 3px;">Push Notifications</div>
-              <div style="font-size: 13px; color: #6B7280; line-height: 1.4;">Master switch for all notifications on this device &amp; account.</div>
-            </div>
-            <label class="pref-toggle-switch">
-              <input type="checkbox" id="pref-toggle-notifications" checked />
-              <span class="pref-toggle-slider"></span>
-            </label>
-          </div>
+        <!-- CATEGORY NAVIGATION BAR (Mobile button access) -->
+        <div class="pref-category-bar" role="tablist" aria-label="Preferences Categories">
+          <button type="button" class="pref-cat-btn active" data-pref-cat="display" role="tab" aria-selected="true" id="pref-cat-display">
+            <span class="pref-cat-icon" style="-webkit-mask-image: url('./assets/setting.svg'); mask-image: url('./assets/setting.svg');">
+              <img src="./assets/setting.svg" alt="Display" />
+            </span>
+            <span>Display</span>
+          </button>
+          <button type="button" class="pref-cat-btn" data-pref-cat="sound" role="tab" aria-selected="false" id="pref-cat-sound">
+            <span class="pref-cat-icon" style="-webkit-mask-image: url('./sms-notification.svg'); mask-image: url('./sms-notification.svg');">
+              <img src="./sms-notification.svg" alt="Sound" />
+            </span>
+            <span>Sound</span>
+          </button>
+          <button type="button" class="pref-cat-btn" data-pref-cat="notifications" role="tab" aria-selected="false" id="pref-cat-notifications">
+            <span class="pref-cat-icon" style="-webkit-mask-image: url('./notification.svg'); mask-image: url('./notification.svg');">
+              <img src="./notification.svg" alt="Notifications" />
+            </span>
+            <span>Notifications</span>
+          </button>
+          <button type="button" class="pref-cat-btn" data-pref-cat="transit" role="tab" aria-selected="false" id="pref-cat-transit">
+            <span class="pref-cat-icon" style="-webkit-mask-image: url('./bus-20.svg'); mask-image: url('./bus-20.svg');">
+              <img src="./bus-20.svg" alt="Transit" />
+            </span>
+            <span>Transit</span>
+          </button>
+        </div>
 
-          <!-- Sub-Preferences (Active when master toggle is ON) -->
-          <div id="pref-sub-options" style="display: flex; flex-direction: column;">
-            <!-- Bus Arrival & Proximity Alerts -->
+        <!-- CATEGORY PANEL: DISPLAY -->
+        <div class="pref-panel" data-pref-panel="display">
+          <div class="pref-section-title">Display &amp; Screen Appearance</div>
+          <div class="pref-card">
+            <!-- High Contrast Pass Display -->
             <div class="pref-item-row">
               <div style="flex: 1;">
-                <div class="pref-item-title">Bus Arrival &amp; Proximity Alerts</div>
-                <div class="pref-item-desc">Notify when your bus is 5 minutes or 1 stop away from your pickup point.</div>
+                <div class="pref-item-title">High-Contrast E-Pass Display</div>
+                <div class="pref-item-desc">Maximizes screen contrast and brightness when presenting pass for barcode scans.</div>
               </div>
               <label class="pref-toggle-switch">
-                <input type="checkbox" id="pref-toggle-bus-alerts" checked />
+                <input type="checkbox" id="pref-toggle-high-contrast" />
                 <span class="pref-toggle-slider"></span>
               </label>
             </div>
 
-            <!-- Delays & Route Divergences -->
-            <div class="pref-item-row">
-              <div style="flex: 1;">
-                <div class="pref-item-title">Delays &amp; Route Divergence Alerts</div>
-                <div class="pref-item-desc">Get instant alerts if your route encounters road delays or detour changes.</div>
-              </div>
-              <label class="pref-toggle-switch">
-                <input type="checkbox" id="pref-toggle-delay-alerts" checked />
-                <span class="pref-toggle-slider"></span>
-              </label>
-            </div>
-
-            <!-- Campus Announcements -->
-            <div class="pref-item-row">
-              <div style="flex: 1;">
-                <div class="pref-item-title">Campus &amp; Transit Announcements</div>
-                <div class="pref-item-desc">Schedule adjustments, holiday services, and college transport updates.</div>
-              </div>
-              <label class="pref-toggle-switch">
-                <input type="checkbox" id="pref-toggle-announcements" checked />
-                <span class="pref-toggle-slider"></span>
-              </label>
-            </div>
-
-            <!-- Safety & Emergency Alerts -->
-            <div class="pref-item-row">
-              <div style="flex: 1;">
-                <div class="pref-item-title">Safety &amp; Emergency Advisories</div>
-                <div class="pref-item-desc">High-priority security updates, SOS broadcasts, and incident advisories.</div>
-              </div>
-              <label class="pref-toggle-switch">
-                <input type="checkbox" id="pref-toggle-safety-alerts" checked />
-                <span class="pref-toggle-slider"></span>
-              </label>
-            </div>
-
-            <!-- Sound & Vibration -->
+            <!-- Low Data Mode -->
             <div class="pref-item-row" style="border-bottom: none;">
               <div style="flex: 1;">
+                <div class="pref-item-title">Low Data / Battery Saver Mode</div>
+                <div class="pref-item-desc">Reduce telemetry polling frequency and map animations over mobile data.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-data-saver" />
+                <span class="pref-toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- CATEGORY PANEL: SOUND & AUDIO -->
+        <div class="pref-panel" data-pref-panel="sound">
+          <div class="pref-section-title">Sound &amp; Haptics</div>
+          <div class="pref-card">
+            <!-- Sound & Audio Chimes -->
+            <div class="pref-item-row">
+              <div style="flex: 1;">
                 <div class="pref-item-title">Sound &amp; Audio Chimes</div>
-                <div class="pref-item-desc">Play audible alerts and haptic vibration for incoming notifications.</div>
+                <div class="pref-item-desc">Play audible alerts and notification chimes for incoming messages and alerts.</div>
               </div>
               <label class="pref-toggle-switch">
                 <input type="checkbox" id="pref-toggle-sound" checked />
                 <span class="pref-toggle-slider"></span>
               </label>
             </div>
+
+            <!-- Haptic Button Feedback -->
+            <div class="pref-item-row" style="border-bottom: none;">
+              <div style="flex: 1;">
+                <div class="pref-item-title">Haptic Vibration on Actions</div>
+                <div class="pref-item-desc">Provide physical tactile feedback on navigation taps, SOS toggles, and pass checks.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-haptics" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
 
-        <!-- SECTION 2: TRANSIT & COMMUTE EXPERIENCE -->
-        <div class="pref-section-title">Transit &amp; Travel Experience</div>
-        <div class="pref-card" style="margin-bottom: 20px;">
-          <!-- Live ETA Auto-Refresh -->
-          <div class="pref-item-row">
-            <div style="flex: 1;">
-              <div class="pref-item-title">Live ETA Auto-Refresh</div>
-              <div class="pref-item-desc">Continuously sync real-time GPS telemetry and estimated arrival times.</div>
+        <!-- CATEGORY PANEL: NOTIFICATIONS & ALERTS -->
+        <div class="pref-panel" data-pref-panel="notifications">
+          <div class="pref-section-title">Notifications &amp; Alerts</div>
+          <div class="pref-card">
+            <!-- Master Notification Toggle -->
+            <div class="pref-item-row" style="padding-bottom: 16px; border-bottom: 1px solid #E5E7EB;">
+              <div style="flex: 1;">
+                <div style="font-weight: 700; font-size: 15.5px; color: #111827; margin-bottom: 3px;">Push Notifications</div>
+                <div style="font-size: 13px; color: #6B7280; line-height: 1.4;">Master switch for all notifications on this device &amp; account.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-notifications" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
             </div>
-            <label class="pref-toggle-switch">
-              <input type="checkbox" id="pref-toggle-live-eta" checked />
-              <span class="pref-toggle-slider"></span>
-            </label>
-          </div>
 
-          <!-- Offline Timetable Cache -->
-          <div class="pref-item-row">
-            <div style="flex: 1;">
-              <div class="pref-item-title">Auto-Cache Offline Routes</div>
-              <div class="pref-item-desc">Store stops, schedules, and route maps for zero-connectivity access.</div>
-            </div>
-            <label class="pref-toggle-switch">
-              <input type="checkbox" id="pref-toggle-offline-cache" checked />
-              <span class="pref-toggle-slider"></span>
-            </label>
-          </div>
+            <!-- Sub-Preferences (Active when master toggle is ON) -->
+            <div id="pref-sub-options" style="display: flex; flex-direction: column;">
+              <!-- Bus Arrival & Proximity Alerts -->
+              <div class="pref-item-row">
+                <div style="flex: 1;">
+                  <div class="pref-item-title">Bus Arrival &amp; Proximity Alerts</div>
+                  <div class="pref-item-desc">Notify when your bus is 5 minutes or 1 stop away from your pickup point.</div>
+                </div>
+                <label class="pref-toggle-switch">
+                  <input type="checkbox" id="pref-toggle-bus-alerts" checked />
+                  <span class="pref-toggle-slider"></span>
+                </label>
+              </div>
 
-          <!-- Low Data Mode -->
-          <div class="pref-item-row" style="border-bottom: none;">
-            <div style="flex: 1;">
-              <div class="pref-item-title">Low Data / Battery Saver Mode</div>
-              <div class="pref-item-desc">Reduce telemetry polling frequency and map animations over mobile data.</div>
+              <!-- Delays & Route Divergences -->
+              <div class="pref-item-row">
+                <div style="flex: 1;">
+                  <div class="pref-item-title">Delays &amp; Route Divergence Alerts</div>
+                  <div class="pref-item-desc">Get instant alerts if your route encounters road delays or detour changes.</div>
+                </div>
+                <label class="pref-toggle-switch">
+                  <input type="checkbox" id="pref-toggle-delay-alerts" checked />
+                  <span class="pref-toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- Campus Announcements -->
+              <div class="pref-item-row">
+                <div style="flex: 1;">
+                  <div class="pref-item-title">Campus &amp; Transit Announcements</div>
+                  <div class="pref-item-desc">Schedule adjustments, holiday services, and college transport updates.</div>
+                </div>
+                <label class="pref-toggle-switch">
+                  <input type="checkbox" id="pref-toggle-announcements" checked />
+                  <span class="pref-toggle-slider"></span>
+                </label>
+              </div>
+
+              <!-- Safety & Emergency Alerts -->
+              <div class="pref-item-row" style="border-bottom: none;">
+                <div style="flex: 1;">
+                  <div class="pref-item-title">Safety &amp; Emergency Advisories</div>
+                  <div class="pref-item-desc">High-priority security updates, SOS broadcasts, and incident advisories.</div>
+                </div>
+                <label class="pref-toggle-switch">
+                  <input type="checkbox" id="pref-toggle-safety-alerts" checked />
+                  <span class="pref-toggle-slider"></span>
+                </label>
+              </div>
             </div>
-            <label class="pref-toggle-switch">
-              <input type="checkbox" id="pref-toggle-data-saver" />
-              <span class="pref-toggle-slider"></span>
-            </label>
           </div>
         </div>
 
-        <!-- SECTION 3: APP & ACCESSIBILITY -->
-        <div class="pref-section-title">App &amp; Accessibility</div>
-        <div class="pref-card" style="margin-bottom: 20px;">
-          <!-- High Contrast Pass Display -->
-          <div class="pref-item-row">
-            <div style="flex: 1;">
-              <div class="pref-item-title">High-Contrast E-Pass Display</div>
-              <div class="pref-item-desc">Maximizes screen contrast and brightness when presenting pass for barcode scans.</div>
+        <!-- CATEGORY PANEL: TRANSIT & COMMUTE -->
+        <div class="pref-panel" data-pref-panel="transit">
+          <div class="pref-section-title">Transit &amp; Travel Experience</div>
+          <div class="pref-card">
+            <!-- Live ETA Auto-Refresh -->
+            <div class="pref-item-row">
+              <div style="flex: 1;">
+                <div class="pref-item-title">Live ETA Auto-Refresh</div>
+                <div class="pref-item-desc">Continuously sync real-time GPS telemetry and estimated arrival times.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-live-eta" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
             </div>
-            <label class="pref-toggle-switch">
-              <input type="checkbox" id="pref-toggle-high-contrast" />
-              <span class="pref-toggle-slider"></span>
-            </label>
-          </div>
 
-          <!-- Haptic Button Feedback -->
-          <div class="pref-item-row" style="border-bottom: none;">
-            <div style="flex: 1;">
-              <div class="pref-item-title">Haptic Vibration on Actions</div>
-              <div class="pref-item-desc">Provide physical tactile feedback on navigation taps, SOS toggles, and pass checks.</div>
+            <!-- Offline Timetable Cache -->
+            <div class="pref-item-row" style="border-bottom: none;">
+              <div style="flex: 1;">
+                <div class="pref-item-title">Auto-Cache Offline Routes</div>
+                <div class="pref-item-desc">Store stops, schedules, and route maps for zero-connectivity access.</div>
+              </div>
+              <label class="pref-toggle-switch">
+                <input type="checkbox" id="pref-toggle-offline-cache" checked />
+                <span class="pref-toggle-slider"></span>
+              </label>
             </div>
-            <label class="pref-toggle-switch">
-              <input type="checkbox" id="pref-toggle-haptics" checked />
-              <span class="pref-toggle-slider"></span>
-            </label>
           </div>
         </div>
       </div>
@@ -1439,12 +1482,20 @@
         continue</p>
 
       <!-- Input Area -->
-      <div class="phone-input-group">
+      <div class="phone-input-group" id="phone-input-group">
         <div class="country-code">
           <span>+91</span>
         </div>
         <input type="tel" id="mobile-input" pattern="[0-9]*" inputmode="numeric" maxlength="10"
           placeholder="Mobile Number" />
+      </div>
+      <div id="mobile-error" class="error-text auth-error-banner hidden" style="display: none;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px;">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span id="mobile-error-text">This mobile number is not registered in the system. Please contact your transport administrator.</span>
       </div>
     </div>
 
@@ -1726,12 +1777,12 @@
 
 
   <script type="module" src="./js/offline/banner.js"></script>
-  <script type="module" src="./js/auth-ui.js?v=6"></script>
-  <script type="module" src="./js/student-bus-service.js"></script>
+  <script type="module" src="./js/auth-ui.js?v=20260923-auth3"></script>
+  <script type="module" src="./js/student-bus-service.js?v=20260923-auth3"></script>
   <script type="module" src="./js/main.js?v=5"></script>
   <script type="module" src="./js/live-tracking.js?v=5"></script>
   <script type="module" src="./js/sheet.js?v=6"></script>
-  <script type="module" src="./js/profile.js?v=6"></script>
+  <script type="module" src="./js/profile.js?v=20260923-auth2"></script>
   <script type="module" src="./js/safety.js?v=5"></script>
   <script type="module" src="./js/help-support.js?v=5"></script>
   <script type="module" src="./js/report.js?v=20260907-2015"></script>

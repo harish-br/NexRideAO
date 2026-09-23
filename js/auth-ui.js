@@ -9,7 +9,7 @@ import {
   setPersistence
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
-import { resolveStudentAssignedBus } from './student-bus-service.js';
+import { resolveStudentAssignedBus, isPhoneNumberRegistered } from './student-bus-service.js';
 
 // --- GLOBAL ERROR CAPTURE ---
 window.onerror = (msg, src, line, col, err) => {
@@ -50,10 +50,46 @@ document.addEventListener('DOMContentLoaded', async () => {
   const privacyPage = document.getElementById('privacy-page');
 
   // Auth Page Elements
+  const phoneInputGroup = document.getElementById('phone-input-group');
   const mobileInput = document.getElementById('mobile-input');
+  const mobileError = document.getElementById('mobile-error');
   const continueBtn = document.getElementById('auth-continue-btn');
   const authTermsLink = document.getElementById('auth-terms-link');
   const authPrivacyLink = document.getElementById('auth-privacy-link');
+
+  const showMobileError = (msg) => {
+    if (mobileError) {
+      const textSpan = document.getElementById('mobile-error-text');
+      if (textSpan) {
+        textSpan.textContent = msg;
+      } else {
+        mobileError.textContent = msg;
+      }
+      mobileError.classList.remove('hidden');
+      mobileError.style.display = 'flex';
+    }
+    if (phoneInputGroup) {
+      phoneInputGroup.classList.remove('error');
+      void phoneInputGroup.offsetWidth; // Force reflow to re-trigger shake animation
+      phoneInputGroup.classList.add('error');
+    }
+  };
+
+  const clearMobileError = () => {
+    if (mobileError) {
+      mobileError.classList.add('hidden');
+      mobileError.style.display = 'none';
+      const textSpan = document.getElementById('mobile-error-text');
+      if (textSpan) {
+        textSpan.textContent = '';
+      } else {
+        mobileError.textContent = '';
+      }
+    }
+    if (phoneInputGroup) {
+      phoneInputGroup.classList.remove('error');
+    }
+  };
 
   // OTP Page Elements
   const backToAuthBtn = document.getElementById('back-to-auth');
@@ -194,6 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     isOtpSending = false;
     isOtpVerifying = false;
 
+    clearMobileError();
     if (mobileInput) {
       mobileInput.value = '';
     }
@@ -230,32 +267,66 @@ document.addEventListener('DOMContentLoaded', async () => {
       const splash = document.getElementById('splash-screen');
       if (splash) splash.style.display = 'none';
 
-      // Bypass auth entirely on localhost for development unless user has phone login
+      // Bypass auth on localhost if explicit bypass is enabled in query/storage, or handle phone login
       if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        console.log("[DEBUG] Localhost detected. Bypassing auth for dev beta.");
-        authPage.classList.add('hidden');
-        otpPage.classList.add('hidden');
-        if (appContainer) appContainer.style.display = 'flex';
         if (user && user.phoneNumber) {
           const cleanPhone = user.phoneNumber.replace(/\D/g, '').slice(-10);
-          if (cleanPhone) localStorage.setItem('nexride_user_phone', cleanPhone);
-        }
-        await resolveStudentAssignedBus(user);
-        if (!user) {
-          try {
-            await signInAnonymously(auth);
-          } catch (e) {
-            console.warn("[DEBUG] Localhost anonymous auth sign-in:", e);
+          const regCheck = await isPhoneNumberRegistered(cleanPhone, user.uid);
+          if (!regCheck.registered) {
+            console.warn("[Auth] Localhost user phone not registered in database. Rejecting access.");
+            await signOut(auth);
+            resetAuthState();
+            localStorage.removeItem('nexride_user_phone');
+            localStorage.removeItem('nexride_student_id');
+            localStorage.removeItem('nexride_assigned_bus');
+            if (appContainer) appContainer.style.display = 'none';
+            otpPage.classList.add('hidden');
+            authPage.classList.remove('hidden');
+            showMobileError("This mobile number is not registered in the system. Please contact your administrator.");
+            await initVisibleRecaptcha();
+            return;
           }
+          if (cleanPhone) localStorage.setItem('nexride_user_phone', cleanPhone);
+          await resolveStudentAssignedBus(user);
+          authPage.classList.add('hidden');
+          otpPage.classList.add('hidden');
+          if (appContainer) appContainer.style.display = 'flex';
+          return;
+        } else {
+          // If user exists on localhost without phone (e.g. stale anonymous user), sign them out
+          if (user && user.isAnonymous) {
+            try { await signOut(auth); } catch (e) {}
+          }
+          console.log("[DEBUG] Localhost without registered phone user session. Showing auth page.");
+          if (appContainer) appContainer.style.display = 'none';
+          otpPage.classList.add('hidden');
+          authPage.classList.remove('hidden');
+          resetAuthState();
+          await initVisibleRecaptcha();
+          return;
         }
-        return;
       }
 
       if (user && !user.isAnonymous) {
         console.log("[DEBUG] User is logged in securely with phone:", user.phoneNumber);
-        if (user.phoneNumber) {
-          const cleanPhone = user.phoneNumber.replace(/\D/g, '').slice(-10);
-          if (cleanPhone) localStorage.setItem('nexride_user_phone', cleanPhone);
+        const cleanPhone = user.phoneNumber ? user.phoneNumber.replace(/\D/g, '').slice(-10) : '';
+        if (cleanPhone) {
+          const regCheck = await isPhoneNumberRegistered(cleanPhone, user.uid);
+          if (!regCheck.registered) {
+            console.warn("[Auth] Session user is not registered in database. Logging out.");
+            await signOut(auth);
+            resetAuthState();
+            localStorage.removeItem('nexride_user_phone');
+            localStorage.removeItem('nexride_student_id');
+            localStorage.removeItem('nexride_assigned_bus');
+            if (appContainer) appContainer.style.display = 'none';
+            otpPage.classList.add('hidden');
+            authPage.classList.remove('hidden');
+            showMobileError("This mobile number is not registered in the system. Please contact your administrator.");
+            await initVisibleRecaptcha();
+            return;
+          }
+          localStorage.setItem('nexride_user_phone', cleanPhone);
         }
         await resolveStudentAssignedBus(user);
         authPage.classList.add('hidden');
@@ -288,7 +359,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   if (mobileInput) {
-    mobileInput.addEventListener('input', validateMobileForm);
+    mobileInput.addEventListener('input', () => {
+      clearMobileError();
+      validateMobileForm();
+    });
   }
 
   // Open Terms & Privacy overlays from Auth Page
@@ -362,12 +436,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const mobileVal = mobileInput.value.replace(/\D/g, '');
       if (mobileVal.length !== 10) {
-        alert("Please enter a valid 10-digit mobile number.");
+        showMobileError("Please enter a valid 10-digit mobile number.");
         return;
       }
 
       localStorage.setItem('nexride_user_phone', mobileVal);
       const phoneNumber = '+91' + mobileVal;
+
+      clearMobileError();
+      continueBtn.classList.add('loading');
+      continueBtn.disabled = true;
+
+      // FIRST: Check if the phone number is registered in Firebase Firestore database
+      try {
+        console.log("[DEBUG] Verifying if mobile number is registered in Firebase Firestore:", mobileVal);
+        const regCheck = await isPhoneNumberRegistered(mobileVal);
+        if (!regCheck.registered) {
+          console.warn("[Auth] Mobile number is not registered in Firebase database:", mobileVal);
+          showMobileError("This mobile number is not registered in the system. Please contact your transport administrator.");
+          continueBtn.classList.remove('loading');
+          continueBtn.disabled = false;
+          if (typeof grecaptcha !== 'undefined' && recaptchaWidgetId !== null) {
+            try { grecaptcha.reset(recaptchaWidgetId); } catch (e) {}
+            isRecaptchaSolved = false;
+          }
+          return; // Strictly reject! Do not send OTP, do not proceed, do not ask for basic details!
+        }
+      } catch (checkErr) {
+        console.error("[Auth] Database registration verification error:", checkErr);
+        showMobileError("Unable to verify mobile registration. Please check your internet connection.");
+        continueBtn.classList.remove('loading');
+        continueBtn.disabled = false;
+        return;
+      }
 
       // Check if reCAPTCHA has been completed
       let hasToken = false;
@@ -384,7 +485,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       if (!hasToken && !isRecaptchaSolved) {
-        alert("Please check the 'I'm not a robot' reCAPTCHA box to continue.");
+        continueBtn.classList.remove('loading');
+        continueBtn.disabled = false;
+        showMobileError("Please complete the 'I'm not a robot' security check to continue.");
         return;
       }
 
@@ -448,8 +551,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       } catch (error) {
         console.error("[Firebase Auth Error] OTP Send Error:", error.code, error.message);
+        
+        // Priority check: verify if the number is unregistered
+        try {
+          const regCheck = await isPhoneNumberRegistered(mobileVal);
+          if (!regCheck.registered) {
+            showMobileError("This mobile number is not registered in the system. Please contact your transport administrator.");
+            await initVisibleRecaptcha();
+            return;
+          }
+        } catch (e) {}
+
         const errorMsg = getAuthErrorMessage(error);
-        alert(errorMsg);
+        showMobileError(errorMsg);
 
         // Re-initialize fresh reCAPTCHA so user can retry immediately without refreshing
         await initVisibleRecaptcha();
@@ -457,7 +571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log("[DEBUG] Removing loading state from Send OTP button");
         isOtpSending = false;
         continueBtn.classList.remove('loading');
-        validateMobileForm();
+        continueBtn.disabled = (mobileInput?.value.replace(/\D/g, '').length !== 10);
       }
     });
   }
@@ -529,7 +643,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       } catch (error) {
         console.error("[Firebase Auth Error] Resend SMS failed:", error);
         const errorMsg = getAuthErrorMessage(error);
-        alert("Failed to resend OTP: " + errorMsg);
+        if (otpError) {
+          otpError.textContent = "Failed to resend OTP: " + errorMsg;
+          otpError.classList.remove('hidden');
+        }
       } finally {
         if (resendVerifier) {
           try {
@@ -622,6 +739,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         console.log("[DEBUG] after verify. result SUCCESS:", user.uid);
         const cleanPhone = (user.phoneNumber || mobileInput?.value || '').replace(/\D/g, '').slice(-10);
+
+        // Security Gate: Ensure verified user is registered in Firebase Firestore database
+        const regCheck = await isPhoneNumberRegistered(cleanPhone, user.uid);
+        if (!regCheck.registered) {
+          console.warn("[Auth] Phone number not registered in database after OTP verification:", cleanPhone);
+          await signOut(auth);
+          resetAuthState();
+          localStorage.removeItem('nexride_user_phone');
+          localStorage.removeItem('nexride_student_id');
+          localStorage.removeItem('nexride_assigned_bus');
+          otpPage.classList.add('hidden');
+          authPage.classList.remove('hidden');
+          showMobileError("This mobile number is not registered in the system. Please contact your administrator.");
+          await initVisibleRecaptcha();
+          return;
+        }
+
         if (cleanPhone) {
           localStorage.setItem('nexride_user_phone', cleanPhone);
         }

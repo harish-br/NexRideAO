@@ -154,10 +154,46 @@ export function applyPreferencesToUI(prefs) {
     }
 }
 
-export function openPreferences() {
+export function switchPreferencesCategory(categoryKey = 'display') {
+    const buttons = document.querySelectorAll('.pref-cat-btn');
+    const panels = document.querySelectorAll('.pref-panel');
+
+    buttons.forEach(btn => {
+        const isActive = btn.getAttribute('data-pref-cat') === categoryKey;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    panels.forEach(panel => {
+        const panelCat = panel.getAttribute('data-pref-panel');
+        if (panelCat === categoryKey) {
+            panel.classList.remove('hidden');
+        } else {
+            panel.classList.add('hidden');
+        }
+    });
+}
+
+export function setupPreferencesCategoryNav() {
+    const buttons = document.querySelectorAll('.pref-cat-btn');
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const cat = btn.getAttribute('data-pref-cat') || 'display';
+            switchPreferencesCategory(cat);
+            if (currentPreferences.hapticFeedback && navigator.vibrate) {
+                navigator.vibrate(15);
+            }
+        });
+    });
+
+    switchPreferencesCategory('display');
+}
+
+export function openPreferences(initialCategory = null) {
     const page = preferencesPage || document.getElementById('preferences-page');
     if (page) {
         page.classList.remove('hidden');
+        switchPreferencesCategory(initialCategory || 'display');
         updateBrowserPermStatus();
     }
 }
@@ -173,15 +209,18 @@ if (typeof window !== 'undefined') {
     window.openPreferences = openPreferences;
     window.closePreferences = closePreferences;
     window.updateBrowserPermStatus = updateBrowserPermStatus;
+    window.switchPreferencesCategory = switchPreferencesCategory;
 }
 
 if (btnPreferences) {
-    btnPreferences.addEventListener('click', openPreferences);
+    btnPreferences.addEventListener('click', () => openPreferences());
 }
 
 if (prefBackBtn) {
     prefBackBtn.addEventListener('click', closePreferences);
 }
+
+setupPreferencesCategoryNav();
 
 
 // Initial cached load for instantaneous zero-flicker UI
@@ -364,34 +403,20 @@ async function fetchUserProfile(uid) {
                 localStorage.setItem('nexride_user_profile', JSON.stringify({ ...data, uid }));
             } catch (e) {}
 
-            const isNewUser = (!data.name || data.name === "User" || data.name === "Add your name");
-            if (isNewUser) {
-                openUpdateProfile(true);
-            }
-
             // Update lastLogin in background without blocking
             setDoc(docRef, { lastLogin: serverTimestamp() }, { merge: true }).catch(e => 
                 console.warn("[Profile] Background lastLogin update failed:", e)
             );
         } else {
-            // Create default user profile in database
-            const defaultData = {
-                uid: uid,
-                phone: currentUser && currentUser.phoneNumber ? currentUser.phoneNumber : "",
-                name: "User",
-                photoURL: null,
-                createdAt: serverTimestamp(),
-                lastLogin: serverTimestamp()
-            };
-
-            const createPromise = setDoc(docRef, defaultData);
-            const timeoutPromise2 = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
-            await Promise.race([createPromise, timeoutPromise2]).catch(e => 
-                console.warn("[Profile] Background create profile timeout:", e)
-            );
-
-            console.log("[DEBUG] Default user profile created in Firestore.");
-            openUpdateProfile(true);
+            // Check if student data has been resolved from phone database match
+            const studentInfo = getActiveStudentData();
+            if (studentInfo) {
+                applyProfileData(studentInfo);
+                try {
+                    localStorage.setItem('nexride_user_profile', JSON.stringify({ ...studentInfo, uid }));
+                } catch (e) {}
+            }
+            console.log("[DEBUG] User profile document checked without asking for basic details.");
         }
     } catch (err) {
         console.error("[Profile] Error fetching profile:", err);

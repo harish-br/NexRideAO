@@ -1548,13 +1548,75 @@
           </div>
         </div>
 
-        <!-- Feedback banner -->
-        <div id="settings-feedback" class="settings-feedback hidden" role="alert" aria-live="polite"></div>
-        <!-- No-results message for search -->
-        <div id="stg-no-results" class="stg-no-results hidden">No settings match your search.</div>
+        <!-- ═══ 2-COLUMN SETTINGS LAYOUT (Vertical Navigation) ════════ -->
+        <div class="stg-layout">
+          <!-- Left Column: Vertical Settings Navigation -->
+          <aside class="stg-category-nav" role="tablist" aria-label="Settings Categories">
+            <button type="button" class="stg-cat-btn active" data-stg-cat="general" role="tab" aria-selected="true" id="stg-cat-general">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/assets/info-circle.svg'); mask-image: url('/assets/info-circle.svg');">
+                <img src="/assets/info-circle.svg" alt="General" />
+              </span>
+              <span>General</span>
+            </button>
+            <button type="button" class="stg-cat-btn" data-stg-cat="system" role="tab" aria-selected="false" id="stg-cat-system">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/routing.svg'); mask-image: url('/routing.svg');">
+                <img src="/routing.svg" alt="Operations" />
+              </span>
+              <span>Operations</span>
+            </button>
+            <button type="button" class="stg-cat-btn" data-stg-cat="reports" role="tab" aria-selected="false" id="stg-cat-reports">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/document-text.svg'); mask-image: url('/document-text.svg');">
+                <img src="/document-text.svg" alt="Reports" />
+              </span>
+              <span>Reports</span>
+            </button>
+            <button type="button" class="stg-cat-btn" data-stg-cat="notifications" role="tab" aria-selected="false" id="stg-cat-notifications">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/notification.svg'); mask-image: url('/notification.svg');">
+                <img src="/notification.svg" alt="Notifications" />
+              </span>
+              <span>Notifications</span>
+            </button>
+            <button type="button" class="stg-cat-btn" data-stg-cat="permissions" role="tab" aria-selected="false" id="stg-cat-permissions">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/assets/profile-2user.svg'); mask-image: url('/assets/profile-2user.svg');">
+                <img src="/assets/profile-2user.svg" alt="Permissions" />
+              </span>
+              <span>Permissions</span>
+            </button>
+            <button type="button" class="stg-cat-btn" data-stg-cat="security" role="tab" aria-selected="false" id="stg-cat-security">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/assets/shield-tick.svg'); mask-image: url('/assets/shield-tick.svg');">
+                <img src="/assets/shield-tick.svg" alt="Security" />
+              </span>
+              <span>Security</span>
+            </button>
+            <button type="button" class="stg-cat-btn" data-stg-cat="audit" role="tab" aria-selected="false" id="stg-cat-audit">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/assets/clipboard-tick.svg'); mask-image: url('/assets/clipboard-tick.svg');">
+                <img src="/assets/clipboard-tick.svg" alt="Audit Logs" />
+              </span>
+              <span>Audit Logs</span>
+            </button>
+            <button type="button" class="stg-cat-btn" data-stg-cat="data" role="tab" aria-selected="false" id="stg-cat-data">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/card-receive.svg'); mask-image: url('/card-receive.svg');">
+                <img src="/card-receive.svg" alt="Maintenance" />
+              </span>
+              <span>Maintenance</span>
+            </button>
+            <button type="button" class="stg-cat-btn" data-stg-cat="legal" role="tab" aria-selected="false" id="stg-cat-legal">
+              <span class="stg-cat-icon" style="-webkit-mask-image: url('/document-like.svg'); mask-image: url('/document-like.svg');">
+                <img src="/document-like.svg" alt="Legal" />
+              </span>
+              <span>Legal</span>
+            </button>
+          </aside>
 
-        <!-- ═══ SETTINGS CONTENT ════════════════════════════════════════════ -->
-        <div class="stg-content">
+          <!-- Right Column: Settings Content Pane -->
+          <div class="stg-main-pane">
+            <!-- Feedback banner -->
+            <div id="settings-feedback" class="settings-feedback hidden" role="alert" aria-live="polite"></div>
+            <!-- No-results message for search -->
+            <div id="stg-no-results" class="stg-no-results hidden">No settings match your search.</div>
+
+            <!-- ═══ SETTINGS CONTENT ════════════════════════════════════════════ -->
+            <div class="stg-content">
 
           <!-- ─── ROW 1: General + System & Operations ──────────────────── -->
           <div class="stg-row-2col">
@@ -2308,8 +2370,8 @@
             <div class="stg-card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
               <div style="display: flex; align-items: center; gap: 14px;">
                 <div class="stg-card-icon stg-icon-blue stg-icon-legal">
-                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/assets/info-circle.svg'); mask-image: url('/assets/info-circle.svg');">
-                    <img src="/assets/info-circle.svg" alt="Legal" />
+                  <span class="stg-svg-icon" style="-webkit-mask-image: url('/document-like.svg'); mask-image: url('/document-like.svg');">
+                    <img src="/document-like.svg" alt="Legal" />
                   </span>
                 </div>
                 <div>
@@ -2457,28 +2519,8 @@
             </div>
           </div>
 
-          <!-- ─── DANGER ZONE ─────────────────────────────────────────────── -->
-          <div class="stg-danger-zone" data-stg-section="danger" data-stg-keywords="danger zone reset configuration clear cache factory reset">
-            <div class="stg-danger-header">
-              <span class="stg-danger-icon" style="-webkit-mask-image: url('/assets/danger.svg'); mask-image: url('/assets/danger.svg');">
-                <img src="/assets/danger.svg" alt="Danger" />
-              </span>
-              <h2 class="stg-danger-title">Danger Zone</h2>
-            </div>
-            <p class="stg-danger-desc">These actions are irreversible. Proceed with extreme caution.</p>
-
-            <div class="stg-danger-actions">
-              <div class="stg-danger-item">
-                <div>
-                  <p class="stg-label">Reset System Configuration</p>
-                  <p class="stg-hint">Resets all system settings in <strong>systemConfig/global</strong> to default values. This cannot be undone.</p>
-                </div>
-                <button class="stg-danger-btn" id="stg-reset-config-btn" type="button">Reset Configuration</button>
-              </div>
-            </div>
-          </div>
-
-        </div><!-- /stg-content -->
+          </div><!-- /stg-main-pane -->
+        </div><!-- /stg-layout -->
 
         <!-- ═══ STICKY SAVE BAR ══════════════════════════════════════════ -->
         <div class="stg-save-bar" id="stg-save-bar">
@@ -2497,27 +2539,6 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
               Save Changes
             </button>
-          </div>
-        </div>
-
-        <!-- Danger Zone confirmation modal -->
-        <div class="modal-overlay hidden" id="stg-danger-modal">
-          <div class="modal-container" style="max-width:440px;">
-            <div class="modal-header">
-              <h2 style="font-size:16px;color:#DC2626;">Reset System Configuration?</h2>
-              <button class="modal-close-btn" id="stg-danger-modal-close" type="button">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div class="modal-body">
-              <p style="font-size:13.5px;color:#374151;margin-bottom:16px;line-height:1.6;">This will reset all system settings in <strong>systemConfig/global</strong> to their default values. This action will be recorded in the Audit Log and <strong>cannot be undone</strong>.</p>
-              <p style="font-size:13.5px;font-weight:600;color:#111827;margin-bottom:8px;">Type <strong>RESET</strong> to confirm:</p>
-              <input type="text" id="stg-danger-confirm-input" class="stg-text-input" placeholder="Type RESET here…" autocomplete="off" />
-            </div>
-            <div class="modal-footer">
-              <button class="secondary-btn" id="stg-danger-cancel-btn" type="button">Cancel</button>
-              <button class="danger-btn" id="stg-danger-confirm-btn" type="button" disabled>Reset Configuration</button>
-            </div>
           </div>
         </div>
 

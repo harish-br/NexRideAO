@@ -5,7 +5,7 @@
  * without internet, while delegating dynamic data to IndexedDB.
  */
 
-const CACHE_NAME = 'nexride-shell-v1';
+const CACHE_NAME = 'nexride-shell-v2';
 
 const STATIC_ASSETS = [
   '/',
@@ -95,7 +95,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Static Assets (JS, CSS, images, fonts): Stale-While-Revalidate
+  // 4. Scripts and Stylesheets (.js, .css): Network-First to guarantee immediate updates
+  if (url.pathname.endsWith('.js') || url.pathname.includes('/js/') || url.pathname.endsWith('.css') || url.pathname.includes('/css/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // 5. Static Media Assets (images, fonts, svg): Stale-While-Revalidate
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request)

@@ -2119,9 +2119,9 @@ const DEFAULT_SYSTEM_SETTINGS = {
 function initSettingsPage() {
   setupSettingsSaveHandler();
   setupUnsavedChangesDetection();
+  setupSettingsCategoryNav();
   setupSettingsSearch();
   setupMaintenanceActions();
-  setupDangerZoneModal();
   setupMasterNotificationToggle();
 }
 
@@ -2571,6 +2571,71 @@ function setupSettingsSaveHandler() {
   });
 }
 
+let currentSettingsCategory = 'general';
+
+/** Setup category navigation for Admin Settings */
+function setupSettingsCategoryNav() {
+  const nav = document.querySelector('.stg-category-nav');
+  if (!nav) return;
+
+  const buttons = nav.querySelectorAll('.stg-cat-btn');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cat = btn.getAttribute('data-stg-cat') || 'general';
+      switchSettingsCategory(cat);
+    });
+  });
+
+  // Apply initial filter for default category
+  applySettingsCategoryFilter();
+}
+
+function switchSettingsCategory(category) {
+  currentSettingsCategory = category || 'general';
+  const buttons = document.querySelectorAll('.stg-cat-btn');
+  buttons.forEach(btn => {
+    const isActive = btn.getAttribute('data-stg-cat') === currentSettingsCategory;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+
+  // If search had text, reset it so the chosen category displays cleanly
+  const searchInput = document.getElementById('stg-search');
+  if (searchInput && searchInput.value) {
+    searchInput.value = '';
+    document.getElementById('stg-search-clear')?.classList.add('hidden');
+    document.getElementById('stg-no-results')?.classList.add('hidden');
+  }
+
+  applySettingsCategoryFilter();
+}
+
+function applySettingsCategoryFilter() {
+  const cards = document.querySelectorAll('.stg-card');
+  let visibleCount = 0;
+
+  cards.forEach(card => {
+    const sec = card.getAttribute('data-stg-section');
+    const match = (sec === currentSettingsCategory);
+    card.style.display = match ? '' : 'none';
+    if (match) visibleCount++;
+  });
+
+  // Also handle 2-column parent rows: hide if all children hidden
+  document.querySelectorAll('.stg-row-2col').forEach(row => {
+    const rowChildren = Array.from(row.children).filter(c => c.classList.contains('stg-card'));
+    if (rowChildren.length > 0) {
+      const hasVisibleChild = rowChildren.some(c => c.style.display !== 'none');
+      row.style.display = hasVisibleChild ? '' : 'none';
+    }
+  });
+
+  const noResults = document.getElementById('stg-no-results');
+  if (noResults) {
+    noResults.classList.toggle('hidden', visibleCount > 0);
+  }
+}
+
 /** Settings search bar functionality */
 function setupSettingsSearch() {
   const searchInput = document.getElementById('stg-search');
@@ -2582,15 +2647,15 @@ function setupSettingsSearch() {
     const q = searchInput.value.trim().toLowerCase();
     clearBtn?.classList.toggle('hidden', q === '');
 
-    const cards = document.querySelectorAll('.stg-card, .stg-danger-zone');
+    if (!q) {
+      applySettingsCategoryFilter();
+      return;
+    }
+
+    const cards = document.querySelectorAll('.stg-card');
     let visibleCount = 0;
 
     cards.forEach(card => {
-      if (!q) {
-        card.style.display = '';
-        visibleCount++;
-        return;
-      }
       const keywords = (card.getAttribute('data-stg-keywords') || '').toLowerCase();
       const text = (card.textContent || '').toLowerCase();
       const match = keywords.includes(q) || text.includes(q);
@@ -2705,88 +2770,6 @@ function updateMaintenanceSyncTime() {
   }
 }
 
-/** Danger Zone: Modal confirmation requiring typing 'RESET' */
-function setupDangerZoneModal() {
-  const openBtn = document.getElementById('stg-reset-config-btn');
-  const modal = document.getElementById('stg-danger-modal');
-  const closeBtn = document.getElementById('stg-danger-modal-close');
-  const cancelBtn = document.getElementById('stg-danger-cancel-btn');
-  const confirmBtn = document.getElementById('stg-danger-confirm-btn');
-  const confirmInput = document.getElementById('stg-danger-confirm-input');
-
-  if (!openBtn || !modal) return;
-
-  const closeModal = () => {
-    modal.classList.add('hidden');
-    if (confirmInput) confirmInput.value = '';
-    if (confirmBtn) confirmBtn.disabled = true;
-  };
-
-  openBtn.addEventListener('click', () => {
-    if (confirmInput) confirmInput.value = '';
-    if (confirmBtn) confirmBtn.disabled = true;
-    modal.classList.remove('hidden');
-    confirmInput?.focus();
-  });
-
-  closeBtn?.addEventListener('click', closeModal);
-  cancelBtn?.addEventListener('click', closeModal);
-
-  confirmInput?.addEventListener('input', (e) => {
-    const match = e.target.value.trim().toUpperCase() === 'RESET';
-    if (confirmBtn) confirmBtn.disabled = !match;
-  });
-
-  confirmBtn?.addEventListener('click', async () => {
-    confirmBtn.disabled = true;
-    confirmBtn.textContent = 'Resetting…';
-
-    try {
-      const nowIso = new Date().toISOString();
-      const adminEmail = currentAdminUser?.email || 'Admin';
-
-      // 1. Reset localStorage cache
-      try {
-        localStorage.setItem('nexride_system_settings', JSON.stringify({
-          ...DEFAULT_SYSTEM_SETTINGS,
-          updatedAt: nowIso,
-          updatedBy: adminEmail
-        }));
-      } catch (e) {}
-
-      // 2. Attempt Firestore reset
-      try {
-        const cfgRef = doc(firestore, 'systemConfig', 'global');
-        const resetData = {
-          ...DEFAULT_SYSTEM_SETTINGS,
-          updatedAt: serverTimestamp(),
-          updatedBy: adminEmail
-        };
-        await setDoc(cfgRef, resetData, { merge: false });
-      } catch (cloudErr) {
-        console.warn('Firestore cloud reset notice:', cloudErr.message);
-      }
-
-      await logAuditEvent('SYSTEM_SETTINGS_RESET', 'system_config', 'global', {
-        resetBy: adminEmail,
-        defaultsApplied: true
-      });
-
-      closeModal();
-      populateSettingsForm(DEFAULT_SYSTEM_SETTINGS);
-      showSettingsFeedback('success', '✓ System configuration has been reset to default values.');
-
-    } catch (err) {
-      console.error('Reset config failed:', err);
-      alert('Reset failed: ' + err.message);
-    } finally {
-      if (confirmBtn) {
-        confirmBtn.disabled = false;
-        confirmBtn.textContent = 'Reset Configuration';
-      }
-    }
-  });
-}
 
 /**
  * Show or hide the settings feedback banner.

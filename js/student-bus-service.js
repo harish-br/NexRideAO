@@ -592,6 +592,110 @@ export async function setManualStudentId(queryInput) {
   return resolveStudentAssignedBus();
 }
 
+/**
+ * Verifies whether a student/passenger mobile number exists in the Firebase database.
+ * Queries against users collection fields (phone, mobile, phoneNumber, cleanPhone, rawPhone, contact, etc.)
+ * and document IDs to ensure only registered users can access the application.
+ * @param {string} phoneRaw - Mobile number (10 digits or with +91)
+ * @param {string} [uid] - Optional user auth UID
+ * @returns {Promise<{ registered: boolean, data?: object, docId?: string, reason?: string }>}
+ */
+export async function isPhoneNumberRegistered(phoneRaw, uid = null) {
+  if (!firestore) {
+    console.warn('[StudentBusService] Firestore not initialized, database registration check unavailable');
+    return { registered: false, reason: 'database_unavailable' };
+  }
+
+  const clean10 = String(phoneRaw || '').replace(/\D/g, '').slice(-10);
+  if (!clean10 || clean10.length !== 10) {
+    return { registered: false, reason: 'invalid_format' };
+  }
+
+  try {
+    // 1. Check if UID doc exists (if authenticated)
+    if (uid) {
+      try {
+        const snapUid = await getDoc(doc(firestore, 'users', uid));
+        if (snapUid.exists()) {
+          const uData = snapUid.data();
+          const docClean = String(uData.phone || uData.mobile || uData.phoneNumber || uData.cleanPhone || uData.contact || '').replace(/\D/g, '').slice(-10);
+          if (!docClean || docClean === clean10 || uData.assignedBus || uData.bus || uData.name) {
+            return { registered: true, data: uData, docId: snapUid.id };
+          }
+        }
+      } catch (e) {
+        console.warn('[StudentBusService] UID lookup error in isPhoneNumberRegistered:', e);
+      }
+    }
+
+    // 2. Direct document ID lookup (clean 10-digit or +91 format)
+    try {
+      const snapDirect = await getDoc(doc(firestore, 'users', clean10));
+      if (snapDirect.exists()) {
+        return { registered: true, data: snapDirect.data(), docId: snapDirect.id };
+      }
+      const snapIntl = await getDoc(doc(firestore, 'users', `+91${clean10}`));
+      if (snapIntl.exists()) {
+        return { registered: true, data: snapIntl.data(), docId: snapIntl.id };
+      }
+    } catch (e) {
+      console.warn('[StudentBusService] Direct doc lookup error in isPhoneNumberRegistered:', e);
+    }
+
+    // 3. Fast parallel indexed queries
+    const phoneQueries = [
+      query(collection(firestore, 'users'), where('phone', '==', clean10), limit(1)),
+      query(collection(firestore, 'users'), where('mobile', '==', clean10), limit(1)),
+      query(collection(firestore, 'users'), where('phoneNumber', '==', `+91${clean10}`), limit(1)),
+      query(collection(firestore, 'users'), where('phoneNumber', '==', clean10), limit(1)),
+      query(collection(firestore, 'users'), where('cleanPhone', '==', clean10), limit(1)),
+      query(collection(firestore, 'users'), where('rawPhone', '==', clean10), limit(1)),
+      query(collection(firestore, 'users'), where('contact', '==', clean10), limit(1)),
+      query(collection(firestore, 'users'), where('phone', '==', `+91${clean10}`), limit(1)),
+      query(collection(firestore, 'users'), where('mobile', '==', `+91${clean10}`), limit(1))
+    ];
+
+    const results = await Promise.allSettled(phoneQueries.map(q => getDocs(q)));
+    for (const res of results) {
+      if (res.status === 'fulfilled' && !res.value.empty) {
+        const d = res.value.docs[0];
+        return { registered: true, data: d.data(), docId: d.id };
+      }
+    }
+
+    // 4. Comprehensive collection scan fallback
+    try {
+      const snap = await getDocs(collection(firestore, 'users'));
+      for (const d of snap.docs) {
+        const dt = d.data();
+        const docPhones = [
+          dt.phone,
+          dt.mobile,
+          dt.phoneNumber,
+          dt.cleanPhone,
+          dt.rawPhone,
+          dt.contact,
+          dt['parent_gaurdian contact'],
+          dt['parent_guardian_contact'],
+          dt.parentContact,
+          d.id
+        ].map(p => String(p || '').replace(/\D/g, '').slice(-10));
+
+        if (docPhones.includes(clean10)) {
+          return { registered: true, data: dt, docId: d.id };
+        }
+      }
+    } catch (scanErr) {
+      console.warn('[StudentBusService] Collection scan warning in isPhoneNumberRegistered:', scanErr);
+    }
+
+    return { registered: false, reason: 'not_found' };
+  } catch (err) {
+    console.error('[StudentBusService] Error checking mobile registration in database:', err);
+    throw err;
+  }
+}
+
 // =============================================================================
 // GLOBAL EXPOSURE & LIFECYCLE
 // =============================================================================
@@ -599,6 +703,7 @@ window.resolveStudentAssignedBus = resolveStudentAssignedBus;
 window.setManualStudentId = setManualStudentId;
 window.getActiveStudentData = getActiveStudentData;
 window.subscribeStudentBus = subscribeStudentBus;
+window.isPhoneNumberRegistered = isPhoneNumberRegistered;
 
 // Automatically resolve on auth state change
 onAuthStateChanged(auth, (user) => {
