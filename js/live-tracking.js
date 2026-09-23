@@ -2,7 +2,7 @@ import { firestore } from './firebase-config.js';
 import { doc, getDoc, collection, onSnapshot, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { cacheGet, cacheSet } from './offline/db.js';
-import { subscribeStudentBus, resolveStudentAssignedBus, setManualStudentId, getActiveStudentData } from './student-bus-service.js';
+import { subscribeStudentBus, resolveStudentAssignedBus, getActiveStudentData } from './student-bus-service.js';
 
 // Fetch stops from Firestore (checks route_bus_<busNum>, routes where assignedBus == busNum, or bus_<busNum>)
 async function fetchRouteStops(busNum) {
@@ -542,28 +542,9 @@ export function initLiveTracking() {
                 stopsList.innerHTML = `
                     <div style="padding: 24px 20px; text-align: center; color: #4B5563; font-size: 14px; background: white; border-radius: 16px; margin: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
                         <div style="font-weight: 700; font-size: 15px; color: #111827; margin-bottom: 6px;">No Bus Assigned Yet</div>
-                        <div style="font-size: 13px; color: #6B7280; margin-bottom: 14px; line-height: 1.5;">When an administrator assigns you to a college bus in the admin panel, your bus and live tracking will appear here automatically.</div>
-                        <div style="display: flex; gap: 8px; justify-content: center; max-width: 280px; margin: 0 auto;">
-                            <input type="text" id="manual-student-id-input" placeholder="e.g. 732225CS101" style="flex: 1; padding: 8px 12px; border: 1px solid #D1D5DB; border-radius: 8px; font-size: 13px; text-transform: uppercase;">
-                            <button type="button" id="manual-student-id-btn" style="background: #2563EB; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;">Link</button>
-                        </div>
+                        <div style="font-size: 13px; color: #6B7280; line-height: 1.5;">When an administrator assigns you to a college bus in the admin panel, your bus and live tracking will appear here automatically.</div>
                     </div>
                 `;
-
-                const linkBtn = document.getElementById('manual-student-id-btn');
-                const linkInput = document.getElementById('manual-student-id-input');
-                if (linkBtn && linkInput) {
-                    linkBtn.onclick = async () => {
-                        const val = linkInput.value.trim();
-                        if (val) {
-                            linkBtn.disabled = true;
-                            linkBtn.textContent = 'Linking...';
-                            await setManualStudentId(val);
-                            linkBtn.disabled = false;
-                            linkBtn.textContent = 'Link';
-                        }
-                    };
-                }
             }
             if (busTrackerEl) busTrackerEl.style.display = 'none';
         }

@@ -118,9 +118,9 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
     assert.match(liveTrackingContent, /currentUserStage\s*=\s*studentData\.stage/, 'live-tracking.js must set currentUserStage from studentData.stage');
     assert.match(liveTrackingContent, /startBusTracking\(`bus_\$\{busNum\}`,\s*busNum\)/, 'live-tracking.js must start tracking bus_{busNum}');
 
-    // Unassigned helper prompt
-    assert.ok(liveTrackingContent.includes('manual-student-id-input'), 'live-tracking.js must include manual student ID linking input');
-    assert.ok(liveTrackingContent.includes('manual-student-id-btn'), 'live-tracking.js must include manual student ID linking button');
+    // Admin-only linking enforcement in Live Tracking
+    assert.ok(!liveTrackingContent.includes('manual-student-id-input'), 'live-tracking.js must not show manual student ID linking input (admin-only linking)');
+    assert.ok(!liveTrackingContent.includes('manual-student-id-btn'), 'live-tracking.js must not show manual student ID linking button');
   });
 
   await t.test('5. E-Pass renders assigned bus and details from database in real time', () => {
@@ -144,7 +144,7 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
     assert.ok(!busSearchContent.includes('bs-track-assigned-btn'), 'bus-search.js must not reference bs-track-assigned-btn');
   });
 
-  await t.test('7. Personal Info page displays Student ID & Assigned Bus and supports linking', () => {
+  await t.test('7. Personal Info page displays Student ID & Assigned Bus (Admin-Only Linking)', () => {
     // HTML rows
     assert.ok(indexHtmlContent.includes('id="row-student-id"'), 'index.html must have #row-student-id');
     assert.ok(indexHtmlContent.includes('id="val-student-id"'), 'index.html must have #val-student-id');
@@ -154,7 +154,7 @@ test('USER APP: Student Assigned Bus Display via Firestore Database', async (t) 
     // Profile JS population & subscription
     assert.match(profileContent, /valStudentId\.textContent\s*=/, 'profile.js must populate valStudentId');
     assert.match(profileContent, /valAssignedBus\.textContent\s*=/, 'profile.js must populate valAssignedBus');
-    assert.match(profileContent, /rowStudentId\.addEventListener\('click'/, 'profile.js must attach click handler on rowStudentId');
+    assert.ok(!profileContent.includes("rowStudentId.addEventListener('click'"), 'profile.js must not have manual student id prompt (admin-only linking)');
     assert.match(profileContent, /subscribeStudentBus/, 'profile.js must subscribe to student bus changes');
   });
 

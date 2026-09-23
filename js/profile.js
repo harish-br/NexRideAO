@@ -3,7 +3,7 @@ import { onAuthStateChanged, updateProfile } from 'https://www.gstatic.com/fireb
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-storage.js';
 import { notificationClient } from './notifications/notification-service.js';
-import { getActiveStudentData, subscribeStudentBus, setManualStudentId } from './student-bus-service.js';
+import { getActiveStudentData, subscribeStudentBus } from './student-bus-service.js';
 
 let currentUser = null;
 let processedPhoto = null; // { dataUrl: string, blob: Blob }
@@ -785,18 +785,6 @@ allToggleMappings.forEach(({ el, key }) => {
     }
 });
 
-// Student ID Linking click listener
-const rowStudentId = document.getElementById('row-student-id');
-if (rowStudentId) {
-    rowStudentId.addEventListener('click', async () => {
-        const curId = localStorage.getItem('nexride_student_id') || '';
-        const inputId = prompt('Enter your Student ID / Registration No (e.g. 732225CS101):', curId);
-        if (inputId && inputId.trim()) {
-            const clean = inputId.trim();
-            await setManualStudentId(clean);
-        }
-    });
-}
 
 // Subscribe to real-time student bus updates from Firestore
 subscribeStudentBus((studentData) => {
