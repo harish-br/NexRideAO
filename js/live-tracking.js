@@ -20,17 +20,25 @@ async function fetchRouteStops(busNum) {
             }
         }
 
-        // 2. Query routes collection where assignedBus == busStr
+        // 2. Query routes collection where assignedBus or assignedBusName matches
         try {
-            const q = query(collection(firestore, 'routes'), where('assignedBus', 'in', [busStr, `bus_${busStr}`, `bus-${busStr}`]));
-            const qSnap = await getDocs(q);
-            if (!qSnap.empty) {
-                const rData = qSnap.docs[0].data();
-                if (Array.isArray(rData.stops) && rData.stops.length > 0) {
-                    console.log('[LiveTracking] Stops loaded from routes query for bus:', busStr);
-                    cacheSet('stops_' + busStr, rData.stops).catch(() => {});
-                    return rData.stops;
+            let rData = null;
+            const q1 = query(collection(firestore, 'routes'), where('assignedBus', 'in', [busStr, `bus_${busStr}`, `bus-${busStr}`]));
+            const qSnap1 = await getDocs(q1);
+            if (!qSnap1.empty) {
+                rData = qSnap1.docs[0].data();
+            } else {
+                const q2 = query(collection(firestore, 'routes'), where('assignedBusName', '==', busStr));
+                const qSnap2 = await getDocs(q2);
+                if (!qSnap2.empty) {
+                    rData = qSnap2.docs[0].data();
                 }
+            }
+
+            if (rData && Array.isArray(rData.stops) && rData.stops.length > 0) {
+                console.log('[LiveTracking] Stops loaded from routes query for bus:', busStr);
+                cacheSet('stops_' + busStr, rData.stops).catch(() => {});
+                return rData.stops;
             }
         } catch (e) {
             console.warn('[LiveTracking] routes query error:', e);

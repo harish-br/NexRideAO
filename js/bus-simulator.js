@@ -159,14 +159,22 @@ export class BusSimulator {
 
       // 2. If not found, check routes collection where assignedBus == busNum
       if (loaded.length === 0) {
-        const q = query(collection(firestore, 'routes'), where('assignedBus', 'in', [this.busNumber, `bus_${this.busNumber}`, `bus-${this.busNumber}`]));
-        const qSnap = await getDocs(q);
-        if (!qSnap.empty) {
-          const rData = qSnap.docs[0].data();
-          if (Array.isArray(rData.stops) && rData.stops.length > 0) {
-            loaded = rData.stops;
-            console.log('[Simulator] Loaded stops from routes query:', loaded.length);
+        let rData = null;
+        const q1 = query(collection(firestore, 'routes'), where('assignedBus', 'in', [this.busNumber, `bus_${this.busNumber}`, `bus-${this.busNumber}`]));
+        const qSnap1 = await getDocs(q1);
+        if (!qSnap1.empty) {
+          rData = qSnap1.docs[0].data();
+        } else {
+          const q2 = query(collection(firestore, 'routes'), where('assignedBusName', '==', this.busNumber));
+          const qSnap2 = await getDocs(q2);
+          if (!qSnap2.empty) {
+            rData = qSnap2.docs[0].data();
           }
+        }
+
+        if (rData && Array.isArray(rData.stops) && rData.stops.length > 0) {
+          loaded = rData.stops;
+          console.log('[Simulator] Loaded stops from routes query:', loaded.length);
         }
       }
 
