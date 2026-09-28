@@ -28,15 +28,15 @@ export default function AuditLogs() {
         });
         
         setLogs(logsData);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       }, (err) => {
         console.error("Firestore error on auditLogs:", err);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       });
       return () => unsubscribe();
     } catch (e) {
       console.error(e);
-      setLoading(false);
+      setTimeout(() => setLoading(false), 400);
     }
   }, []);
 
@@ -149,7 +149,7 @@ export default function AuditLogs() {
             <div className="skeleton" style={{ flex: 1, width: '100%', borderRadius: '16px', minHeight: '300px' }}></div>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.05s', display: 'flex', flexDirection: 'column', height: '100%' }}>
             
             {/* Action Bar */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>

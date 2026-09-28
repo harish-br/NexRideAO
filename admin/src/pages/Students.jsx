@@ -35,15 +35,15 @@ export default function Students() {
           return tB - tA;
         });
         setStudents(studentsData);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       }, (err) => {
         console.error("Firestore error on students:", err);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       });
       return () => unsubscribe();
     } catch (e) {
       console.error(e);
-      setLoading(false);
+      setTimeout(() => setLoading(false), 400);
     }
   }, []);
 
@@ -157,7 +157,7 @@ export default function Students() {
             <div className="skeleton" style={{ flex: 1, width: '100%', borderRadius: '16px', minHeight: '300px' }}></div>
           </div>
         ) : (
-          <>
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.05s', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {viewMode === 'list' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 {/* Action Bar */}
@@ -424,7 +424,7 @@ export default function Students() {
                 onSaveComplete={handleBackToList} 
               />
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

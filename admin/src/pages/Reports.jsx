@@ -27,15 +27,15 @@ export default function Reports() {
           return new Date(b.createdAt) - new Date(a.createdAt);
         });
         setReports(reportsData);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       }, (err) => {
         console.error("Firestore error on reports:", err);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       });
       return () => unsubscribe();
     } catch (e) {
       console.error(e);
-      setLoading(false);
+      setTimeout(() => setLoading(false), 400);
     }
   }, []);
 
@@ -153,7 +153,7 @@ export default function Reports() {
             <div className="skeleton" style={{ flex: 1, width: '100%', borderRadius: '16px', minHeight: '300px' }}></div>
           </div>
         ) : (
-          <>
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.05s', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {viewMode === 'list' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 {/* Stats */}
@@ -341,7 +341,7 @@ export default function Reports() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

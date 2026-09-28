@@ -31,11 +31,12 @@ export default function Buses() {
         });
         
         setBuses(busesData);
-        setLoading(false);
+        setBuses(busesData);
+        setTimeout(() => setLoading(false), 400);
       }, (err) => {
         console.error("Firestore Error:", err);
         setError("Failed to load buses from database. Please check your Firebase configuration.");
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       });
       
       return () => unsubscribe();
@@ -106,7 +107,7 @@ export default function Buses() {
             <div className="skeleton" style={{ flex: 1, width: '100%', borderRadius: '16px', minHeight: '300px' }}></div>
           </div>
         ) : (
-          <>
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.05s', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {viewMode === 'list' && (
               <BusList 
                 buses={buses} 
@@ -133,7 +134,7 @@ export default function Buses() {
                 onStatusChange={handleBackToList}
               />
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

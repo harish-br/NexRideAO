@@ -51,15 +51,15 @@ export default function Notifications() {
           return new Date(b.createdAt) - new Date(a.createdAt);
         });
         setNotifications(notifsData);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       }, (err) => {
         console.error("Firestore error on notifications:", err);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       });
       return () => unsubscribe();
     } catch (e) {
       console.error(e);
-      setLoading(false);
+      setTimeout(() => setLoading(false), 400);
     }
   }, []);
 
@@ -150,7 +150,7 @@ export default function Notifications() {
             <div className="skeleton" style={{ flex: 1, width: '100%', borderRadius: '16px', minHeight: '300px' }}></div>
           </div>
         ) : (
-          <>
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.05s', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {viewMode === 'list' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 {/* Stats */}
@@ -338,7 +338,7 @@ export default function Notifications() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

@@ -19,10 +19,10 @@ export default function Drivers() {
           ...doc.data()
         }));
         setDrivers(driversData);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       }, (err) => {
         console.error("Firestore error on drivers:", err);
-        setLoading(false);
+        setTimeout(() => setLoading(false), 400);
       });
       return () => unsubscribe();
     } catch (e) {
@@ -92,7 +92,7 @@ export default function Drivers() {
             <div className="skeleton" style={{ flex: 1, width: '100%', borderRadius: '16px', minHeight: '300px' }}></div>
           </div>
         ) : (
-          <>
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.05s', flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             {viewMode === 'list' && (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 {/* Action Bar */}
@@ -248,7 +248,7 @@ export default function Drivers() {
                 onSaveComplete={handleBackToList} 
               />
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
