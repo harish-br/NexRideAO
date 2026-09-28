@@ -271,7 +271,7 @@ export default function BusForm({ bus, onBack, onSaveComplete }) {
           }}
         >
           <Save size={18} />
-          {loading ? 'Saving...' : 'Save Bus'}
+          {loading ? <div className="btn-spinner"></div> : 'Save Bus'}
         </button>
       </div>
       

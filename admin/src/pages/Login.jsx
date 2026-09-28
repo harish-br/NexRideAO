@@ -158,7 +158,7 @@ export default function Login() {
               }
             }}
           >
-            {loading ? 'Authenticating...' : 'Sign In'}
+            {loading ? <div className="btn-spinner"></div> : 'Sign In'}
           </button>
         </form>
       </div>

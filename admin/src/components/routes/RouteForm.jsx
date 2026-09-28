@@ -123,7 +123,7 @@ export default function RouteForm({ route, onBack, onSaveComplete }) {
           }}
         >
           <Save size={18} />
-          {loading ? 'Saving...' : 'Save Route'}
+          {loading ? <div className="btn-spinner"></div> : 'Save Route'}
         </button>
       </div>
       

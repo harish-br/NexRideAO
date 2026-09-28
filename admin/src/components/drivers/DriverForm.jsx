@@ -110,7 +110,7 @@ export default function DriverForm({ driver, onBack, onSaveComplete }) {
           }}
         >
           <Save size={18} />
-          {loading ? 'Saving...' : 'Save Driver'}
+          {loading ? <div className="btn-spinner"></div> : 'Save Driver'}
         </button>
       </div>
       

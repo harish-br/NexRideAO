@@ -73,7 +73,7 @@ export default function BusDetails({ bus, onBack, onEdit, onStatusChange }) {
             <Edit2 size={16} /> Edit
           </button>
           <button onClick={handleDeactivate} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#FEE2E2', color: '#DC2626', border: 'none', padding: '10px 20px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer' }}>
-            <ShieldAlert size={16} /> {loading ? 'Processing...' : 'Deactivate'}
+            <ShieldAlert size={16} /> {loading ? <div className="btn-spinner" style={{borderColor: 'rgba(220, 38, 38, 0.3)', borderTopColor: '#DC2626'}}></div> : 'Deactivate'}
           </button>
         </div>
       </div>

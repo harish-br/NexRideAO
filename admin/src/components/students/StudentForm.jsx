@@ -162,7 +162,7 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
           }}
         >
           <Save size={18} />
-          {loading ? 'Saving...' : 'Save Data'}
+          {loading ? <div className="btn-spinner"></div> : 'Save Data'}
         </button>
       </div>
       
