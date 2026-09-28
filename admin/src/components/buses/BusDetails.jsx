@@ -5,7 +5,7 @@ import { doc, updateDoc, getDoc } from 'firebase/firestore';
 
 import windIcon from '../../assets/svg/wind.svg';
 import briefcaseTickIcon from '../../assets/svg/brifecase-tick.svg';
-import documentNormalIcon from '../../assets/svg/document-normal.svg';
+import documentTextIcon from '../../assets/svg/document-text.svg';
 import cardIcon from '../../assets/svg/card.svg';
 
 export default function BusDetails({ bus, onBack, onEdit, onDelete, onStatusChange }) {
@@ -194,7 +194,7 @@ export default function BusDetails({ bus, onBack, onEdit, onDelete, onStatusChan
               const getIconForType = (t) => {
                 switch(t) {
                   case 'rc': return cardIcon;
-                  case 'fitness': return documentNormalIcon;
+                  case 'fitness': return documentTextIcon;
                   case 'insurance': return briefcaseTickIcon;
                   case 'pollution': return windIcon;
                   default: return cardIcon;
@@ -205,7 +205,7 @@ export default function BusDetails({ bus, onBack, onEdit, onDelete, onStatusChan
                 <div key={type} style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: '12px', padding: '20px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <img src={getIconForType(type)} alt={type} style={{ width: '20px', height: '20px' }} />
+                      <img src={getIconForType(type)} alt={type} style={{ width: '20px', height: '20px', filter: 'brightness(0)' }} />
                       <span style={{ fontSize: '14px', fontWeight: '700', color: '#111', textTransform: 'uppercase' }}>{type}</span>
                     </div>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '600', color: status.color, background: `${status.color}15`, padding: '4px 8px', borderRadius: '100px' }}>
