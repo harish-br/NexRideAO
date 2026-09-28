@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { Search, Edit2, Trash2, X, Save } from 'lucide-react';
 
 export default function Reports() {
@@ -11,6 +11,7 @@ export default function Reports() {
   
   const [viewMode, setViewMode] = useState('list');
   const [selectedReport, setSelectedReport] = useState(null);
+  const [adminResponse, setAdminResponse] = useState('');
   
   useEffect(() => {
     try {
@@ -40,11 +41,13 @@ export default function Reports() {
 
   const handleEdit = (report) => {
     setSelectedReport(report);
+    setAdminResponse(report.adminResponse || report.resolution || report.adminReply || '');
     setViewMode('edit');
   };
 
   const handleBackToList = () => {
     setSelectedReport(null);
+    setAdminResponse('');
     setViewMode('list');
   };
 
@@ -61,10 +64,33 @@ export default function Reports() {
   const handleUpdateStatus = async (status) => {
     if (!selectedReport) return;
     try {
-      await updateDoc(doc(db, 'reports', selectedReport.id), {
+      const now = new Date().toISOString();
+      const updateData = {
         status: status,
-        updatedAt: new Date().toISOString()
-      });
+        updatedAt: now,
+        adminResponse: adminResponse.trim()
+      };
+      
+      // Update the report document
+      await updateDoc(doc(db, 'reports', selectedReport.id), updateData);
+      
+      // If the report belongs to a user, send them a notification about the update
+      if (selectedReport.userId) {
+        let notifBody = `Your report status has been updated to ${status}.`;
+        if (adminResponse.trim()) {
+          notifBody += `\n\nAdmin Message: ${adminResponse.trim()}`;
+        }
+        
+        await addDoc(collection(db, 'users', selectedReport.userId, 'notifications'), {
+          title: `Report Update: ${selectedReport.reportNumber || selectedReport.id.substring(0,8)}`,
+          body: notifBody,
+          type: 'report_status',
+          reportId: selectedReport.id,
+          read: false,
+          createdAt: now
+        });
+      }
+      
       handleBackToList();
     } catch (err) {
       console.error("Failed to update report status:", err);
@@ -291,6 +317,20 @@ export default function Reports() {
                   </div>
                   
                   <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #eee', padding: '24px' }}>
+                    <div style={{ marginBottom: '20px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 8px 0' }}>Admin Response</h3>
+                      <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 12px 0' }}>This response will be visible to the user in their app.</p>
+                      <textarea 
+                        value={adminResponse}
+                        onChange={(e) => setAdminResponse(e.target.value)}
+                        placeholder="Type your response or resolution details here..."
+                        style={{
+                          width: '100%', minHeight: '100px', padding: '12px', borderRadius: '8px',
+                          border: '1px solid #ccc', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                    
                     <h3 style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 16px 0' }}>Update Status</h3>
                     <div style={{ display: 'flex', gap: '12px' }}>
                       <button onClick={() => handleUpdateStatus('In Progress')} style={{ padding: '10px 16px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}>Mark In Progress</button>
