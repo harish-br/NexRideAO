@@ -418,21 +418,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const bNum = busData.assignedBusName || busData.bus_no || busData.busNumber;
         const bNumStr = bNum ? String(bNum).trim() : null;
 
-        // Check if route matches
-        if (bNumStr && bNumStr.toLowerCase().includes(q)) {
-          if (!routeResults.some(r => r.routeNo === bNumStr)) {
+        const routeName = busData.routeName || busData.route || '';
+        const source = busData.startPoint || busData.source || '';
+        const destination = busData.destination || '';
+        
+        // Check if route matches (by bus number, route name, source, or destination)
+        const matchesBusNo = bNumStr && bNumStr.toLowerCase().includes(q);
+        const matchesRouteName = routeName && routeName.toLowerCase().includes(q);
+        const matchesSource = source && source.toLowerCase().includes(q);
+        const matchesDest = destination && destination.toLowerCase().includes(q);
+
+        if (matchesBusNo || matchesRouteName || matchesSource || matchesDest) {
+          if (!routeResults.some(r => r.routeNo === (bNumStr || routeName))) {
             routeResults.push({
-              routeNo: bNumStr,
-              // routeName: the assigned route name from the database (bus.routeName || bus.route)
-              routeName: busData.routeName || busData.route || '',
-              source: busData.route || busData.source || '',
-              // destination: read explicit field first, then derive from last stop (mirrors admin.js pattern)
-              destination: busData.destination ||
+              routeNo: bNumStr || 'N/A',
+              routeName: routeName,
+              source: source,
+              destination: destination ||
                 (busData.stops && busData.stops.length > 0
                   ? (busData.stops[busData.stops.length - 1].stopName || busData.stops[busData.stops.length - 1].name || '')
                   : ''),
-              // startPoint: read explicit field first, then derive from first stop
-              startPoint: busData.startPoint ||
+              startPoint: source ||
                 (busData.stops && busData.stops.length > 0
                   ? (busData.stops[0].stopName || busData.stops[0].name || '')
                   : ''),
