@@ -47,7 +47,9 @@ export default function Login() {
           width: '64px',
           height: '64px',
           marginBottom: '24px',
-          objectFit: 'contain'
+          objectFit: 'cover',
+          borderRadius: '16px',
+          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.08)'
         }} />
         <h1 style={{ color: '#111827', fontSize: '26px', fontWeight: '800', marginBottom: '8px', margin: 0, letterSpacing: '-0.5px' }}>Admin Login</h1>
         <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '32px', textAlign: 'center' }}>Sign in to access the NexRide AO dashboard</p>
