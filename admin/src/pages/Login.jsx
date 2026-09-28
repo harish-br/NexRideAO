@@ -42,19 +42,12 @@ export default function Login() {
         alignItems: 'center',
         boxSizing: 'border-box'
       }}>
-        <div style={{
+        <img src="/favicon.svg" alt="NexRide AO" style={{
           width: '64px',
           height: '64px',
-          background: '#EFF6FF',
-          borderRadius: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           marginBottom: '24px',
-          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)'
-        }}>
-          <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)', borderRadius: '50%' }}></div>
-        </div>
+          objectFit: 'contain'
+        }} />
         <h1 style={{ color: '#111827', fontSize: '26px', fontWeight: '800', marginBottom: '8px', margin: 0, letterSpacing: '-0.5px' }}>Admin Login</h1>
         <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '32px', textAlign: 'center' }}>Sign in to access the NexRide AO dashboard</p>
         
