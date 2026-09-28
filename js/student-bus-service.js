@@ -57,8 +57,8 @@ export function normalizeStudentData(data, docId = '') {
     phoneNumber: data.phoneNumber || (cleanPhone ? `+91${cleanPhone}` : ''),
     cleanPhone: cleanPhone,
     contact: data['parent_gaurdian contact'] || data.contact || data.phone || '',
-    balance: data.balance || (data.fees_status === 'Paid' ? 'Fully Paid' : (data.pendingAmount === 0 && data.paidAmount > 0 ? 'Fully Paid' : 'Unpaid')),
-    fees_status: data.fees_status || (data.balance === 'Fully Paid' ? 'Paid' : (data.pendingAmount === 0 && data.paidAmount > 0 ? 'Paid' : 'Pending')),
+    balance: data.balance || (data.fees_status === 'Paid' ? 'Fully Paid' : (Number(data.pendingAmount) === 0 && data.pendingAmount !== undefined ? 'Fully Paid' : 'Unpaid')),
+    fees_status: data.fees_status || (data.balance === 'Fully Paid' ? 'Paid' : (Number(data.pendingAmount) === 0 && data.pendingAmount !== undefined ? 'Paid' : 'Pending')),
     feesAmount: data.feesAmount || data.fees_amount || data.feesTotal || 0,
     paidAmount: data.paidAmount || data.paid_amount || 0,
     pendingAmount: data.pendingAmount || 0,
@@ -220,15 +220,34 @@ export async function resolveStudentAssignedBus(currentUser = null) {
             const docPhone = String(data.phone || data.mobile || data.phoneNumber || data.cleanPhone || data.contact || '').replace(/\D/g, '').slice(-10);
             if ((!docPhone || docPhone === loginPhoneClean) && (data.assignedBus || data.bus || data.busNumber || data.bus_no || data['bus no'])) {
               // Try to fetch full student data if studentId is present
+              let studentFound = false;
               if (data.studentId) {
                 try {
                   const studentSnap = await getDoc(doc(firestore, 'students', data.studentId));
                   if (studentSnap.exists()) {
                     data = { ...data, ...studentSnap.data() };
+                    studentFound = true;
                   }
                 } catch (e) {
                   console.warn('[StudentBusService] Could not fetch full student doc:', e);
                 }
+              }
+              
+              if (!studentFound && loginPhoneClean) {
+                try {
+                   // Fallback search by phone to find full student doc
+                   const q = query(collection(firestore, 'students'), where('phone', '==', loginPhoneClean), limit(1));
+                   const snap = await getDocs(q);
+                   if (!snap.empty) {
+                     data = { ...data, ...snap.docs[0].data(), studentId: snap.docs[0].id };
+                   } else {
+                     const q2 = query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${loginPhoneClean}`), limit(1));
+                     const snap2 = await getDocs(q2);
+                     if (!snap2.empty) {
+                       data = { ...data, ...snap2.docs[0].data(), studentId: snap2.docs[0].id };
+                     }
+                   }
+                } catch(e) {}
               }
               foundData = data;
               foundDocId = snap.id;

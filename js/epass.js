@@ -263,7 +263,7 @@ async function renderHologram(userId) {
                 const storedId = localStorage.getItem('nexride_student_id');
                 if (storedId) {
                     try {
-                        const sSnap = await getDoc(doc(firestore, 'users', storedId));
+                        const sSnap = await getDoc(doc(firestore, 'students', storedId));
                         if (sSnap.exists()) data = sSnap.data();
                     } catch (e) {}
                 }
