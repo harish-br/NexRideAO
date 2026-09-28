@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     try {
-      const busesCol = collection(db, 'buses');
+      const busesCol = collection(db, 'routes');
       unsubscribeBusesSnapshot = onSnapshot(busesCol, (snapshot) => {
         processBusesData(snapshot.docs);
       }, (error) => {
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     isBusesLoading = true;
 
     try {
-      const busesSnapshot = await getDocs(collection(db, 'buses'));
+      const busesSnapshot = await getDocs(collection(db, 'routes'));
       processBusesData(busesSnapshot.docs);
     } catch (error) {
       console.error('[BusSearch] Database sync error, falling back to offline cache:', error);
@@ -207,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
               const dist = calculateDistance(userLat, userLng, parseFloat(stop.latitude), parseFloat(stop.longitude));
               if (stopsMap.has(stopName)) {
                 const existing = stopsMap.get(stopName);
-                const bNum = busData.bus_no || busData.busNumber;
+                const bNum = busData.assignedBusName || busData.bus_no || busData.busNumber;
                 if (bNum) {
                   const bNumStr = String(bNum).trim();
                   if (!existing.busNumbers.includes(bNumStr)) {
@@ -215,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
                   }
                 }
               } else {
-                const bNum = busData.bus_no || busData.busNumber;
+                const bNum = busData.assignedBusName || busData.bus_no || busData.busNumber;
                 const bNumStr = bNum ? String(bNum).trim() : null;
                 stopsMap.set(stopName, {
                   stopId: stopName,
@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const stopResults = [];
 
       cachedBusesData.forEach(busData => {
-        const bNum = busData.bus_no || busData.busNumber;
+        const bNum = busData.assignedBusName || busData.bus_no || busData.busNumber;
         const bNumStr = bNum ? String(bNum).trim() : null;
 
         // Check if route matches
