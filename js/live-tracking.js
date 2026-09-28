@@ -22,7 +22,7 @@ async function fetchRouteStops(busNum) {
 
         // 2. Query routes collection where assignedBus == busStr
         try {
-            const q = query(collection(firestore, 'routes'), where('assignedBus', '==', busStr));
+            const q = query(collection(firestore, 'routes'), where('assignedBus', 'in', [busStr, `bus_${busStr}`, `bus-${busStr}`]));
             const qSnap = await getDocs(q);
             if (!qSnap.empty) {
                 const rData = qSnap.docs[0].data();

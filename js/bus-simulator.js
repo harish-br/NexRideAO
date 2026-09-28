@@ -159,7 +159,7 @@ export class BusSimulator {
 
       // 2. If not found, check routes collection where assignedBus == busNum
       if (loaded.length === 0) {
-        const q = query(collection(firestore, 'routes'), where('assignedBus', '==', this.busNumber));
+        const q = query(collection(firestore, 'routes'), where('assignedBus', 'in', [this.busNumber, `bus_${this.busNumber}`, `bus-${this.busNumber}`]));
         const qSnap = await getDocs(q);
         if (!qSnap.empty) {
           const rData = qSnap.docs[0].data();
