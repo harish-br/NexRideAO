@@ -27,47 +27,46 @@ export default function Login() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #134eff 0%, #001254 100%)',
+      background: '#F9FAFB', // Off-white clean background
       fontFamily: 'Inter, system-ui, sans-serif'
     }}>
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.1)',
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255, 255, 255, 0.2)',
+      <div className="animate-fade-in-up" style={{
+        background: '#ffffff',
+        border: '1px solid rgba(0, 0, 0, 0.05)',
         borderRadius: '24px',
-        padding: '40px',
+        padding: '48px 40px',
         width: '400px',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+        boxShadow: '0 20px 40px rgba(0, 0, 0, 0.04)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         boxSizing: 'border-box'
       }}>
         <div style={{
-          width: '60px',
-          height: '60px',
-          background: '#fff',
+          width: '64px',
+          height: '64px',
+          background: '#EFF6FF',
           borderRadius: '16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          marginBottom: '20px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+          marginBottom: '24px',
+          boxShadow: '0 4px 12px rgba(37, 99, 235, 0.1)'
         }}>
-          <div style={{ width: '32px', height: '32px', background: '#134eff', borderRadius: '50%' }}></div>
+          <div style={{ width: '32px', height: '32px', background: 'linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%)', borderRadius: '50%' }}></div>
         </div>
-        <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: '700', marginBottom: '8px', margin: 0 }}>Admin Login</h1>
-        <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginBottom: '32px', textAlign: 'center' }}>Enter your credentials to access the NexRide AO dashboard</p>
+        <h1 style={{ color: '#111827', fontSize: '26px', fontWeight: '800', marginBottom: '8px', margin: 0, letterSpacing: '-0.5px' }}>Admin Login</h1>
+        <p style={{ color: '#6B7280', fontSize: '14px', marginBottom: '32px', textAlign: 'center' }}>Sign in to access the NexRide AO dashboard</p>
         
         {error && (
-          <div style={{ width: '100%', padding: '12px', background: 'rgba(220, 38, 38, 0.2)', border: '1px solid rgba(220, 38, 38, 0.5)', color: '#fca5a5', borderRadius: '8px', fontSize: '13px', marginBottom: '20px', boxSizing: 'border-box' }}>
+          <div style={{ width: '100%', padding: '12px', background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: '8px', fontSize: '13px', marginBottom: '20px', boxSizing: 'border-box' }}>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <form onSubmit={handleLogin} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Email Address</label>
+            <label style={{ display: 'block', color: '#374151', fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Email Address</label>
             <input 
               type="email" 
               required
@@ -76,22 +75,31 @@ export default function Login() {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: '#F9FAFB',
+                border: '1px solid #E5E7EB',
                 borderRadius: '12px',
-                color: '#fff',
+                color: '#111827',
                 fontSize: '14px',
                 outline: 'none',
                 boxSizing: 'border-box',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
               }}
-              onFocus={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.5)'}
-              onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
+              onFocus={(e) => {
+                e.target.style.border = '1px solid #3B82F6';
+                e.target.style.background = '#FFFFFF';
+                e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.border = '1px solid #E5E7EB';
+                e.target.style.background = '#F9FAFB';
+                e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.02)';
+              }}
               placeholder="admin@example.com"
             />
           </div>
           <div>
-            <label style={{ display: 'block', color: 'rgba(255,255,255,0.9)', fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Password</label>
+            <label style={{ display: 'block', color: '#374151', fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>Password</label>
             <input 
               type="password" 
               required
@@ -100,17 +108,26 @@ export default function Login() {
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: '#F9FAFB',
+                border: '1px solid #E5E7EB',
                 borderRadius: '12px',
-                color: '#fff',
+                color: '#111827',
                 fontSize: '14px',
                 outline: 'none',
                 boxSizing: 'border-box',
-                transition: 'all 0.2s'
+                transition: 'all 0.2s',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.02)'
               }}
-              onFocus={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.5)'}
-              onBlur={(e) => e.target.style.border = '1px solid rgba(255,255,255,0.1)'}
+              onFocus={(e) => {
+                e.target.style.border = '1px solid #3B82F6';
+                e.target.style.background = '#FFFFFF';
+                e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.border = '1px solid #E5E7EB';
+                e.target.style.background = '#F9FAFB';
+                e.target.style.boxShadow = 'inset 0 1px 2px rgba(0,0,0,0.02)';
+              }}
               placeholder="••••••••"
             />
           </div>
@@ -120,27 +137,28 @@ export default function Login() {
             style={{
               width: '100%',
               padding: '14px',
-              background: '#fff',
-              color: '#134eff',
+              background: '#2563EB',
+              color: '#ffffff',
               border: 'none',
               borderRadius: '12px',
               fontSize: '15px',
-              fontWeight: '700',
+              fontWeight: '600',
               cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: '16px',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              opacity: loading ? 0.8 : 1
+              marginTop: '8px',
+              transition: 'all 0.2s',
+              opacity: loading ? 0.8 : 1,
+              boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)'
             }}
             onMouseEnter={(e) => {
               if(!loading) {
                 e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 16px rgba(255,255,255,0.2)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.3)';
               }
             }}
             onMouseLeave={(e) => {
               if(!loading) {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = 'none';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(37, 99, 235, 0.2)';
               }
             }}
           >
