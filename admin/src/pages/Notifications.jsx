@@ -31,9 +31,9 @@ export default function Notifications() {
   // Create form state
   const [formData, setFormData] = useState({
     title: '',
-    message: '',
+    body: '',
     type: 'GENERAL_ANNOUNCEMENT',
-    targetAudience: 'all_users'
+    target: 'all_users'
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -64,7 +64,7 @@ export default function Notifications() {
   }, []);
 
   const handleCreate = () => {
-    setFormData({ title: '', message: '', type: 'GENERAL_ANNOUNCEMENT', targetAudience: 'all_users' });
+    setFormData({ title: '', body: '', type: 'GENERAL_ANNOUNCEMENT', target: 'all_users' });
     setViewMode('create');
   };
 
@@ -243,7 +243,7 @@ export default function Notifications() {
                             <div>
                               <div style={{ fontWeight: '600', marginBottom: '4px' }}>{notif.title || '-'}</div>
                               <div style={{ fontSize: '13px', color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }}>
-                                {notif.message || '-'}
+                                {notif.body || notif.message || '-'}
                               </div>
                             </div>
                             <div>
@@ -255,7 +255,7 @@ export default function Notifications() {
                               </span>
                             </div>
                             <div style={{ fontSize: '13px' }}>
-                              {notif.targetAudience === 'all_users' ? 'Broadcast (All)' : 'Targeted'}
+                              {notif.target === 'all_users' || notif.targetAudience === 'all_users' ? 'Broadcast (All)' : 'Targeted'}
                             </div>
                             <div style={{ fontSize: '12px', color: '#6B7280' }}>{formatDate(notif.createdAt)}</div>
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
@@ -300,7 +300,7 @@ export default function Notifications() {
                     <FormGroup label="Message Content *">
                       <textarea 
                         required style={{...inputStyle, minHeight: '120px', resize: 'vertical'}} 
-                        value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} 
+                        value={formData.body} onChange={e => setFormData({...formData, body: e.target.value})} 
                         placeholder="Enter the notification message..." 
                       />
                     </FormGroup>
@@ -316,7 +316,7 @@ export default function Notifications() {
                       </FormGroup>
                       
                       <FormGroup label="Target Audience *">
-                        <select style={inputStyle} value={formData.targetAudience} onChange={e => setFormData({...formData, targetAudience: e.target.value})}>
+                        <select style={inputStyle} value={formData.target} onChange={e => setFormData({...formData, target: e.target.value})}>
                           <option value="all_users">All Users (Broadcast)</option>
                           <option value="specific_route">Specific Route Passengers</option>
                         </select>
