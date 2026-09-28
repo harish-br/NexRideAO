@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { auth } from '../firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import NexRideLogo from '../assets/NexRide-AO.svg';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -42,7 +43,7 @@ export default function Login() {
         alignItems: 'center',
         boxSizing: 'border-box'
       }}>
-        <img src="/NexRide-AO.svg" alt="NexRide AO" style={{
+        <img src={NexRideLogo} alt="NexRide AO" style={{
           width: '64px',
           height: '64px',
           marginBottom: '24px',
