@@ -231,12 +231,12 @@ export async function resolveStudentAssignedBus(currentUser = null) {
       // A2. Indexed Firestore queries for this exact 10-digit mobile number
       if (!foundData) {
         const phoneQueries = [
-          query(collection(firestore, 'users'), where('phoneNumber', '==', `+91${loginPhoneClean}`), limit(1)),
-          query(collection(firestore, 'users'), where('phone', '==', loginPhoneClean), limit(1)),
-          query(collection(firestore, 'users'), where('mobile', '==', loginPhoneClean), limit(1)),
-          query(collection(firestore, 'users'), where('cleanPhone', '==', loginPhoneClean), limit(1)),
-          query(collection(firestore, 'users'), where('rawPhone', '==', loginPhoneClean), limit(1)),
-          query(collection(firestore, 'users'), where('contact', '==', loginPhoneClean), limit(1))
+          query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${loginPhoneClean}`), limit(1)),
+          query(collection(firestore, 'students'), where('phone', '==', loginPhoneClean), limit(1)),
+          query(collection(firestore, 'students'), where('mobile', '==', loginPhoneClean), limit(1)),
+          query(collection(firestore, 'students'), where('cleanPhone', '==', loginPhoneClean), limit(1)),
+          query(collection(firestore, 'students'), where('rawPhone', '==', loginPhoneClean), limit(1)),
+          query(collection(firestore, 'students'), where('contact', '==', loginPhoneClean), limit(1))
         ];
 
         for (const q of phoneQueries) {
@@ -262,7 +262,7 @@ export async function resolveStudentAssignedBus(currentUser = null) {
       // (handles spaces, leading zeros, number vs string types, or custom phone fields)
       if (!foundData) {
         try {
-          const snap = await getDocs(collection(firestore, 'users'));
+          const snap = await getDocs(collection(firestore, 'students'));
           for (const d of snap.docs) {
             const dt = d.data();
             const docPhones = [
@@ -303,15 +303,15 @@ export async function resolveStudentAssignedBus(currentUser = null) {
       const storedId = localStorage.getItem('nexride_student_id') || localStorage.getItem('nexride_manual_student_id');
       if (storedId) {
         try {
-          const snap = await getDoc(doc(firestore, 'users', storedId));
+          const snap = await getDoc(doc(firestore, 'students', storedId));
           if (snap.exists()) {
             foundData = snap.data();
             foundDocId = snap.id;
             console.log(`[StudentBusService] Matched student by stored ID [${storedId}]`);
           } else {
             // Query by studentId, regno, or id
-            const qStu = query(collection(firestore, 'users'), where('studentId', '==', storedId), limit(1));
-            const qReg = query(collection(firestore, 'users'), where('regno', '==', storedId), limit(1));
+            const qStu = query(collection(firestore, 'students'), where('studentId', '==', storedId), limit(1));
+            const qReg = query(collection(firestore, 'students'), where('regno', '==', storedId), limit(1));
             const [snapStu, snapReg] = await Promise.all([getDocs(qStu).catch(() => null), getDocs(qReg).catch(() => null)]);
             const matched = (snapStu && !snapStu.empty && snapStu.docs[0]) || (snapReg && !snapReg.empty && snapReg.docs[0]);
             if (matched) {
@@ -329,7 +329,7 @@ export async function resolveStudentAssignedBus(currentUser = null) {
     // CASE C: Pure unauthenticated developer demo preview (no mobile, no student ID, localhost/demo only)
     if (!foundData && !loginPhoneClean && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !user || user.isAnonymous)) {
       try {
-        const snap = await getDocs(collection(firestore, 'users'));
+        const snap = await getDocs(collection(firestore, 'students'));
         if (!snap.empty) {
           const assignedDocs = snap.docs.filter(d => {
             const dt = d.data();
@@ -420,7 +420,7 @@ function listenForNewStudentAllocations(user) {
   if (autoCollectionListenerUnsub) return;
 
   try {
-    const usersCol = collection(firestore, 'users');
+    const usersCol = collection(firestore, 'students');
     autoCollectionListenerUnsub = onSnapshot(usersCol, (snap) => {
       snap.docChanges().forEach(change => {
         if (change.type === 'added' || change.type === 'modified') {
@@ -502,15 +502,15 @@ export async function setManualStudentId(queryInput) {
     let matchedDoc = null;
 
     // 1. Direct doc ID lookup
-    const snap = await getDoc(doc(firestore, 'users', clean));
+    const snap = await getDoc(doc(firestore, 'students', clean));
     if (snap.exists()) {
       matchedDoc = { id: snap.id, data: snap.data() };
     }
 
     // 2. Query by studentId / regno
     if (!matchedDoc) {
-      const qStu = query(collection(firestore, 'users'), where('studentId', '==', clean), limit(1));
-      const qReg = query(collection(firestore, 'users'), where('regno', '==', clean), limit(1));
+      const qStu = query(collection(firestore, 'students'), where('studentId', '==', clean), limit(1));
+      const qReg = query(collection(firestore, 'students'), where('regno', '==', clean), limit(1));
       const [resStu, resReg] = await Promise.all([getDocs(qStu).catch(() => null), getDocs(qReg).catch(() => null)]);
       if (resStu && !resStu.empty) {
         matchedDoc = { id: resStu.docs[0].id, data: resStu.docs[0].data() };
@@ -522,11 +522,11 @@ export async function setManualStudentId(queryInput) {
     // 3. If 10 digits, query by mobile / phone
     if (!matchedDoc && isMobile) {
       const pQueries = [
-        query(collection(firestore, 'users'), where('phoneNumber', '==', `+91${cleanDigits}`), limit(1)),
-        query(collection(firestore, 'users'), where('phone', '==', cleanDigits), limit(1)),
-        query(collection(firestore, 'users'), where('mobile', '==', cleanDigits), limit(1)),
-        query(collection(firestore, 'users'), where('rawPhone', '==', cleanDigits), limit(1)),
-        query(collection(firestore, 'users'), where('contact', '==', cleanDigits), limit(1))
+        query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${cleanDigits}`), limit(1)),
+        query(collection(firestore, 'students'), where('phone', '==', cleanDigits), limit(1)),
+        query(collection(firestore, 'students'), where('mobile', '==', cleanDigits), limit(1)),
+        query(collection(firestore, 'students'), where('rawPhone', '==', cleanDigits), limit(1)),
+        query(collection(firestore, 'students'), where('contact', '==', cleanDigits), limit(1))
       ];
       for (const q of pQueries) {
         try {
@@ -541,7 +541,7 @@ export async function setManualStudentId(queryInput) {
 
     // 4. Case-insensitive search across users if still not found
     if (!matchedDoc) {
-      const allUsers = await getDocs(collection(firestore, 'users'));
+      const allUsers = await getDocs(collection(firestore, 'students'));
       const lower = clean.toLowerCase();
       allUsers.forEach(d => {
         if (matchedDoc) return;
@@ -630,7 +630,7 @@ export async function isPhoneNumberRegistered(phoneRaw, uid = null) {
 
     // 2. Direct document ID lookup (clean 10-digit or +91 format)
     try {
-      const snapDirect = await getDoc(doc(firestore, 'users', clean10));
+      const snapDirect = await getDoc(doc(firestore, 'students', clean10));
       if (snapDirect.exists()) {
         return { registered: true, data: snapDirect.data(), docId: snapDirect.id };
       }
@@ -644,15 +644,15 @@ export async function isPhoneNumberRegistered(phoneRaw, uid = null) {
 
     // 3. Fast parallel indexed queries
     const phoneQueries = [
-      query(collection(firestore, 'users'), where('phone', '==', clean10), limit(1)),
-      query(collection(firestore, 'users'), where('mobile', '==', clean10), limit(1)),
-      query(collection(firestore, 'users'), where('phoneNumber', '==', `+91${clean10}`), limit(1)),
-      query(collection(firestore, 'users'), where('phoneNumber', '==', clean10), limit(1)),
-      query(collection(firestore, 'users'), where('cleanPhone', '==', clean10), limit(1)),
-      query(collection(firestore, 'users'), where('rawPhone', '==', clean10), limit(1)),
-      query(collection(firestore, 'users'), where('contact', '==', clean10), limit(1)),
-      query(collection(firestore, 'users'), where('phone', '==', `+91${clean10}`), limit(1)),
-      query(collection(firestore, 'users'), where('mobile', '==', `+91${clean10}`), limit(1))
+      query(collection(firestore, 'students'), where('phone', '==', clean10), limit(1)),
+      query(collection(firestore, 'students'), where('mobile', '==', clean10), limit(1)),
+      query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${clean10}`), limit(1)),
+      query(collection(firestore, 'students'), where('phoneNumber', '==', clean10), limit(1)),
+      query(collection(firestore, 'students'), where('cleanPhone', '==', clean10), limit(1)),
+      query(collection(firestore, 'students'), where('rawPhone', '==', clean10), limit(1)),
+      query(collection(firestore, 'students'), where('contact', '==', clean10), limit(1)),
+      query(collection(firestore, 'students'), where('phone', '==', `+91${clean10}`), limit(1)),
+      query(collection(firestore, 'students'), where('mobile', '==', `+91${clean10}`), limit(1))
     ];
 
     const results = await Promise.allSettled(phoneQueries.map(q => getDocs(q)));
@@ -665,7 +665,7 @@ export async function isPhoneNumberRegistered(phoneRaw, uid = null) {
 
     // 4. Comprehensive collection scan fallback
     try {
-      const snap = await getDocs(collection(firestore, 'users'));
+      const snap = await getDocs(collection(firestore, 'students'));
       for (const d of snap.docs) {
         const dt = d.data();
         const docPhones = [

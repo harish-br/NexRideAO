@@ -1,0 +1,37 @@
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #FFFFFF;
+}
+
+body {
+  overflow: hidden;
+}
+
+@keyframes adminSkeletonShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.skeleton {
+  position: relative !important;
+  overflow: hidden !important;
+  background: #F1F3F5;
+  background: linear-gradient(
+    90deg,
+    #F1F3F5 25%,
+    #FAFAFA 40%,
+    #F1F3F5 55%
+  ) !important;
+  background-size: 400% 100% !important;
+  animation: adminSkeletonShimmer 1.5s ease-in-out infinite !important;
+  border-radius: 6px;
+  display: inline-block;
+  vertical-align: middle;
+  pointer-events: none !important;
+  user-select: none !important;
+}

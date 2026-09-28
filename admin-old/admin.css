@@ -3577,20 +3577,20 @@ form.modal-content {
 
 @keyframes adminSkeletonShimmer {
   0% {
-    background-position: -200% 0;
+    background-position: 100% 50%;
   }
   100% {
-    background-position: 200% 0;
+    background-position: 0% 50%;
   }
 }
 
 @keyframes skeleton-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes adminSkeletonShimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 @keyframes adminSkeletonPulse {
@@ -3609,11 +3609,11 @@ form.modal-content {
   background: linear-gradient(
     90deg,
     #F1F3F5 25%,
-    #FAFAFA 37%,
-    #F1F3F5 63%
+    #FAFAFA 40%,
+    #F1F3F5 55%
   ) !important;
-  background-size: 200% 100% !important;
-  animation: adminSkeletonShimmer 1.8s ease-in-out infinite !important;
+  background-size: 400% 100% !important;
+  animation: adminSkeletonShimmer 1.5s ease-in-out infinite !important;
   border-radius: var(--radius-sm, 6px);
   display: inline-block;
   vertical-align: middle;
@@ -3628,11 +3628,11 @@ form.modal-content {
   background: linear-gradient(
     90deg,
     #F1F3F5 25%,
-    #FAFAFA 37%,
-    #F1F3F5 63%
+    #FAFAFA 40%,
+    #F1F3F5 55%
   ) !important;
-  background-size: 200% 100% !important;
-  animation: adminSkeletonShimmer 1.8s ease-in-out infinite !important;
+  background-size: 400% 100% !important;
+  animation: adminSkeletonShimmer 1.5s ease-in-out infinite !important;
   border-radius: var(--radius-sm, 6px);
   display: inline-block;
   vertical-align: middle;

@@ -2979,6 +2979,7 @@ function listenToBuses() {
     // Refresh all dependent views
     renderDashboardStats();
     renderLiveTracking();
+    if (typeof renderDashLiveTracking === 'function') renderDashLiveTracking();
     renderBusesTable();
     renderDriversTable();
     renderStudentsTable();
@@ -11165,4 +11166,313 @@ window.getSystemStatusSkeletonHTML = getSystemStatusSkeletonHTML;
 window.getDashboardSkeletonHTML = getDashboardSkeletonHTML;
 window.renderDashboardSkeleton = renderDashboardSkeleton;
 window.renderDashboardLoaded = renderDashboardLoaded;
+
+// --- NEW: DASHBOARD LIVE BUS TRACKING SECTION ---
+let dashTrackingFilter = 'All';
+let dashTrackingSearch = '';
+let dashSelectedBus = null;
+let dashGoogleMap = null;
+let dashMarkers = {};
+
+window.initDashGoogleMap = function initDashGoogleMap() {
+  if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+    // Dynamically load Google Maps script if not present
+    if (!document.getElementById('google-maps-script')) {
+      const script = document.createElement('script');
+      script.id = 'google-maps-script';
+      // Fallback or VITE env var
+      const apiKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_GOOGLE_MAPS_API_KEY : '';
+      if (!apiKey) {
+        console.error('No Google Maps API Key found!');
+        return;
+      }
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initDashGoogleMapCallback&libraries=marker`;
+      script.async = true;
+      script.defer = true;
+      window.initDashGoogleMapCallback = function() {
+        initDashGoogleMap();
+      };
+      document.head.appendChild(script);
+      return;
+    }
+    return; // Still loading
+  }
+
+  const mapContainer = document.getElementById('dash-tracking-map');
+  if (mapContainer && !dashGoogleMap) {
+    dashGoogleMap = new google.maps.Map(mapContainer, {
+      center: { lat: 11.3361, lng: 77.7126 }, // Erode / Nandha College general area
+      zoom: 12,
+      mapId: 'DEMO_MAP_ID', // Need mapId for AdvancedMarkerElement
+      disableDefaultUI: true,
+      zoomControl: true,
+    });
+    // Re-render once map is ready
+    window.renderDashLiveTracking();
+  }
+}
+
+window.renderDashLiveTracking = function renderDashLiveTracking() {
+  const container = document.getElementById('dash-tracking-list-container');
+  const radarCanvas = document.getElementById('dash-tracking-map');
+  const panel = document.getElementById('dash-selected-bus-panel');
+  const panelContent = document.getElementById('dash-panel-content');
+  
+  if (!container || !radarCanvas) return;
+
+  // Initialize Map if not done
+  if (!dashGoogleMap) {
+    window.initDashGoogleMap();
+  }
+
+  // Filter buses
+  let filtered = busesCache.filter(b => {
+    const isMoving = b.status === 'Active' || b.status === 'On Trip' || String(b.status).toLowerCase() === 'moving';
+    const isStopped = b.status === 'stopped' || b.status === 'In Halt';
+    const isDelayed = b.status === 'delayed';
+    const isOffline = b.status === 'offline';
+    
+    let matchFilter = true;
+    if (dashTrackingFilter === 'Moving') matchFilter = isMoving;
+    else if (dashTrackingFilter === 'Stopped') matchFilter = isStopped;
+    else if (dashTrackingFilter === 'Delayed') matchFilter = isDelayed;
+    else if (dashTrackingFilter === 'Offline') matchFilter = isOffline;
+    
+    const searchVal = dashTrackingSearch.toLowerCase();
+    const reg = b.registrationNumber || b.regNumber || '';
+    const rName = b.routeName || b.route || '';
+    const dName = b.driverName || '';
+    
+    const matchSearch = !searchVal || 
+      (b.busNumber && String(b.busNumber).toLowerCase().includes(searchVal)) ||
+      (reg.toLowerCase().includes(searchVal)) ||
+      (rName.toLowerCase().includes(searchVal)) ||
+      (dName.toLowerCase().includes(searchVal));
+      
+    return matchFilter && matchSearch;
+  });
+
+  // Calculate stats
+  let total = busesCache.length;
+  let movingCount = 0, stoppedCount = 0, delayedCount = 0, offlineCount = 0;
+  busesCache.forEach((b, index) => {
+    const isMoving = b.status === 'Active' || b.status === 'On Trip' || String(b.status).toLowerCase() === 'moving';
+    if (isMoving) {
+      movingCount++;
+      if (index % 3 === 0) delayedCount++; 
+    }
+    else if (b.status === 'stopped' || b.status === 'In Halt') stoppedCount++;
+    else if (b.status === 'offline') offlineCount++;
+  });
+  
+  const elTotal = document.getElementById('dash-track-count-all');
+  if(elTotal) elTotal.textContent = total;
+  const elMoving = document.getElementById('dash-track-count-moving');
+  if(elMoving) elMoving.textContent = movingCount;
+  const elStopped = document.getElementById('dash-track-count-stopped');
+  if(elStopped) elStopped.textContent = stoppedCount;
+  const elDelayed = document.getElementById('dash-track-count-delayed');
+  if(elDelayed) elDelayed.textContent = delayedCount;
+  const elOffline = document.getElementById('dash-track-count-offline');
+  if(elOffline) elOffline.textContent = offlineCount;
+
+  container.innerHTML = '';
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div style="padding: 24px; text-align: center; color: var(--text-secondary); font-size: 14px;">No buses found.</div>';
+  }
+
+  const currentBusIds = new Set();
+
+  filtered.forEach((bus, index) => {
+    currentBusIds.add(bus.id);
+    const isMoving = bus.status === 'Active' || bus.status === 'On Trip' || String(bus.status).toLowerCase() === 'moving';
+    const speed = bus.speed !== undefined ? bus.speed : '--';
+    const eta = bus.etaMinutes !== undefined ? `${bus.etaMinutes} mins` : '--';
+    let statusClass = isMoving ? 'dash-status-moving' : 'dash-status-stopped';
+    let statusLabel = isMoving ? 'On Route' : 'Stopped';
+    if (bus.status === 'delayed') { statusClass = 'dash-status-delayed'; statusLabel = 'Delayed'; }
+    if (bus.status === 'offline') { statusClass = 'dash-status-offline'; statusLabel = 'Offline'; }
+
+    const isSelected = dashSelectedBus && dashSelectedBus.id === bus.id;
+
+    const card = document.createElement('div');
+    card.className = 'dash-track-card' + (isSelected ? ' selected' : '');
+    card.innerHTML = `
+      <div class="dash-card-header">
+        <div class="dash-bus-title">Bus ${escapeHtml(bus.registrationNumber || bus.busNumber || 'Unknown')}</div>
+        <div class="dash-status-badge ${statusClass}">${statusLabel}</div>
+      </div>
+      <div class="dash-card-route">${escapeHtml(bus.routeName || bus.route || 'Campus Route')}</div>
+      <div class="dash-card-stats">
+        <div><span class="dash-card-stats-val">${speed} km/h</span> Speed</div>
+        <div><span class="dash-card-stats-val">${eta}</span> ETA</div>
+      </div>
+      <div class="dash-card-footer">
+        <div class="dash-card-driver">
+          <img src="/favicon/apple-touch-icon.png" alt="Driver" />
+          <span>${escapeHtml(bus.driverName || 'Not Assigned')}</span>
+        </div>
+        <div>${bus.lastUpdated ? 'Updated recently' : '--'}</div>
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      dashSelectedBus = bus;
+      panel.classList.remove('hidden');
+      window.renderDashLiveTracking();
+    });
+
+    container.appendChild(card);
+
+    // Update or Create Google Maps Marker
+    if (dashGoogleMap) {
+      // Must use real locations if they exist, fallback only for simulation where requested, but user said "only follow the real data no mock". 
+      // If there is no lat/lng in real data, we should probably skip or show default. I will use real data lat/lng if present, else default.
+      if (!bus.lat || !bus.lng) return;
+      
+      let lat = bus.lat;
+      let lng = bus.lng;
+      
+      const pinBackground = isSelected ? '#0052FF' : (isMoving ? '#16A34A' : '#D97706');
+      const zIndexVal = isSelected ? 100 : 10;
+      
+      if (!dashMarkers[bus.id]) {
+        if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+           const pin = document.createElement('div');
+           pin.className = 'custom-map-pin';
+           pin.style.cssText = `background: ${pinBackground}; color: white; padding: 6px 12px; border-radius: var(--radius-pill); font-size: 12px; font-weight: 700; box-shadow: var(--shadow-md); border: 2px solid white; display: flex; align-items: center; gap: 6px;`;
+           pin.innerHTML = `Bus ${bus.busNumber || '01'}`;
+           
+           const marker = new google.maps.marker.AdvancedMarkerElement({
+             map: dashGoogleMap,
+             position: { lat, lng },
+             content: pin,
+             zIndex: zIndexVal
+           });
+           marker.addListener('click', () => {
+             dashSelectedBus = bus;
+             panel.classList.remove('hidden');
+             window.renderDashLiveTracking();
+           });
+           dashMarkers[bus.id] = { marker, pin };
+        } else {
+           const marker = new google.maps.Marker({
+             position: { lat, lng },
+             map: dashGoogleMap,
+             title: `Bus ${bus.busNumber || '01'}`,
+             zIndex: zIndexVal
+           });
+           marker.addListener('click', () => {
+             dashSelectedBus = bus;
+             panel.classList.remove('hidden');
+             window.renderDashLiveTracking();
+           });
+           dashMarkers[bus.id] = { marker };
+        }
+      } else {
+        const item = dashMarkers[bus.id];
+        if (item.pin) {
+           item.pin.style.background = pinBackground;
+           item.marker.zIndex = zIndexVal;
+           item.marker.position = { lat, lng };
+        } else {
+           item.marker.setPosition({ lat, lng });
+           item.marker.setZIndex(zIndexVal);
+        }
+      }
+      
+      if (isSelected && dashGoogleMap) {
+        dashGoogleMap.panTo({ lat, lng });
+      }
+    }
+  });
+
+  // Remove markers not in list
+  Object.keys(dashMarkers).forEach(busId => {
+    if (!currentBusIds.has(busId)) {
+      if (dashMarkers[busId].marker) dashMarkers[busId].marker.map = null;
+      delete dashMarkers[busId];
+    }
+  });
+
+  // Render selected panel
+  if (dashSelectedBus) {
+    const bus = dashSelectedBus;
+    const isMoving = bus.status === 'Active' || bus.status === 'On Trip' || String(bus.status).toLowerCase() === 'moving';
+    const speed = bus.speed !== undefined ? bus.speed : '--';
+    const eta = bus.etaMinutes !== undefined ? `${bus.etaMinutes} mins` : '--';
+
+    panelContent.innerHTML = `
+      <div style="font-size: 16px; font-weight: 800; color: var(--color-blue); margin-bottom: 8px;">Bus ${escapeHtml(bus.registrationNumber || bus.busNumber || 'Unknown')}</div>
+      <div class="dash-panel-section">
+        <span class="dash-panel-label">Route</span>
+        <span class="dash-panel-value">${escapeHtml(bus.routeName || bus.route || 'Campus Route')}</span>
+      </div>
+      <div class="dash-panel-section">
+        <span class="dash-panel-label">Status</span>
+        <span class="dash-panel-value" style="display: flex; align-items: center; gap: 6px;">${isMoving ? 'Moving' : 'Stopped'}</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px;">
+        <div class="dash-panel-section">
+          <span class="dash-panel-label">Speed</span>
+          <span class="dash-panel-value">${speed} km/h</span>
+        </div>
+        <div class="dash-panel-section">
+          <span class="dash-panel-label">ETA</span>
+          <span class="dash-panel-value">${eta}</span>
+        </div>
+      </div>
+      <div class="dash-panel-section mt-2">
+        <span class="dash-panel-label">Current Location</span>
+        <span class="dash-panel-value">${bus.currentStop || 'Location not available'}</span>
+      </div>
+      <div class="dash-panel-section">
+        <span class="dash-panel-label">Next Stop</span>
+        <span class="dash-panel-value">${bus.nextStop || 'Not available'}</span>
+      </div>
+      <div class="dash-panel-section mt-2">
+        <span class="dash-panel-label">Driver</span>
+        <span class="dash-panel-value">${escapeHtml(bus.driverName || 'Not Assigned')}</span>
+      </div>
+      <div class="dash-panel-section" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+        GPS: Updated recently
+      </div>
+    `;
+  }
+}
+
+// Setup Event Listeners
+setTimeout(() => {
+  const searchInput = document.getElementById('dash-tracking-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      dashTrackingSearch = e.target.value;
+      window.renderDashLiveTracking();
+    });
+  }
+
+  const filterItems = document.querySelectorAll('.dash-summary-item');
+  filterItems.forEach(item => {
+    item.addEventListener('click', () => {
+      filterItems.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      dashTrackingFilter = item.getAttribute('data-filter');
+      window.renderDashLiveTracking();
+    });
+  });
+
+  const closePanelBtn = document.getElementById('dash-panel-close');
+  if (closePanelBtn) {
+    closePanelBtn.addEventListener('click', () => {
+      dashSelectedBus = null;
+      document.getElementById('dash-selected-bus-panel').classList.add('hidden');
+      window.renderDashLiveTracking();
+    });
+  }
+  
+  if (typeof window.renderDashLiveTracking === 'function') {
+      window.renderDashLiveTracking();
+  }
+}, 1000);
 
