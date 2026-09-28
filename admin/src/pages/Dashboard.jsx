@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [docData, setDocData] = useState([]);
   const [vehicleDocData, setVehicleDocData] = useState([]);
   const [reportData, setReportData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Listen to buses
@@ -73,11 +74,17 @@ export default function Dashboard() {
       const reports = snapshot.docs.map(doc => doc.data());
       setReportData(reports);
     });
+    
+    // Simulate initial loading sequence for smooth animation
+    const loadTimer = setTimeout(() => {
+      setLoading(false);
+    }, 400);
 
     return () => {
       unsubBuses();
       unsubDrivers();
       unsubReports();
+      clearTimeout(loadTimer);
     };
   }, []);
 
@@ -134,114 +141,132 @@ export default function Dashboard() {
       <div className="header">
         <h1>Dashboard</h1>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, padding: '4px' }}>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <div style={{ flex: 1, height: '140px', borderRadius: '16px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', alignContent: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#2563EB' }}>{fleetCounts.active}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>ACTIVE BUSES</span>
+      
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, padding: '4px' }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <div className="skeleton" style={{ flex: 1, height: '140px', borderRadius: '16px' }}></div>
+            <div className="skeleton" style={{ flex: 1, height: '140px', borderRadius: '16px' }}></div>
+          </div>
+          <div className="skeleton" style={{ width: '150px', height: '24px', borderRadius: '4px', marginTop: '16px', marginBottom: '8px' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '80px', borderRadius: '12px' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '80px', borderRadius: '12px' }}></div>
+          <div className="skeleton" style={{ width: '100%', height: '80px', borderRadius: '12px' }}></div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, padding: '4px' }}>
+          <div style={{ display: 'flex', gap: '16px' }}>
+            <div className="animate-fade-in-up" style={{ animationDelay: '0.05s', flex: 1, height: '140px', borderRadius: '16px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', alignContent: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#2563EB' }}>{fleetCounts.active}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>ACTIVE BUSES</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#D97706' }}>{fleetCounts.halted}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>HALTED</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#EA580C' }}>{fleetCounts.maintenance}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>MAINTENANCE</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#DC2626' }}>{fleetCounts.breakdown}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>BREAKDOWN</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#64748B' }}>{fleetCounts.spare}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>SPARE</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#D97706' }}>{fleetCounts.halted}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>HALTED</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#EA580C' }}>{fleetCounts.maintenance}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>MAINTENANCE</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#DC2626' }}>{fleetCounts.breakdown}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>BREAKDOWN</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#64748B' }}>{fleetCounts.spare}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>SPARE</span>
+            <div className="animate-fade-in-up" style={{ animationDelay: '0.1s', flex: 1, height: '140px', borderRadius: '16px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignContent: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#2563EB' }}>{driverCounts.total}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>TOTAL DRIVERS</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#0F766E' }}>{driverCounts.acting}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>ACTING</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#16A34A' }}>{driverCounts.onduty}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>ON DUTY</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
+                <span style={{ fontSize: '24px', fontWeight: '700', color: '#64748B' }}>{driverCounts.leave}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>LEAVE</span>
+              </div>
             </div>
           </div>
-          <div style={{ flex: 1, height: '140px', borderRadius: '16px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignContent: 'center' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#2563EB' }}>{driverCounts.total}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>TOTAL DRIVERS</span>
+          
+          <h2 className="animate-fade-in-up" style={{ animationDelay: '0.15s', fontSize: '18px', fontWeight: '600', color: '#222', marginTop: '16px', marginBottom: '8px' }}>Documents</h2>
+          
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.2s', width: '100%', minHeight: '80px', borderRadius: '12px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'flex', flexDirection: 'column', padding: '12px 16px', boxSizing: 'border-box' }}>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: '#444', marginBottom: '8px' }}>Driver Documents</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignContent: 'center', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#2563EB' }}>{docCounts.total}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>TOTAL DOCS</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#D97706' }}>{docCounts.expire_1_month}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', textAlign: 'center' }}>EXPIRE IN 1 MONTH</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#DC2626' }}>{docCounts.expired}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>EXPIRED</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#0F766E' }}>{docCounts.acting}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>ACTING DOCS</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#0F766E' }}>{driverCounts.acting}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>ACTING</span>
+          </div>
+          
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.25s', width: '100%', minHeight: '80px', borderRadius: '12px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'flex', flexDirection: 'column', padding: '12px 16px', boxSizing: 'border-box' }}>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: '#444', marginBottom: '8px' }}>Vehicle Documents</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignContent: 'center', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#2563EB' }}>{vehicleDocCounts.total}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>TOTAL DOCS</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#D97706' }}>{vehicleDocCounts.expire_1_month}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', textAlign: 'center' }}>EXPIRE IN 1 MONTH</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#DC2626' }}>{vehicleDocCounts.expired}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>EXPIRED</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#64748B' }}>{vehicleDocCounts.inactive}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>INACTIVE DOCS</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#16A34A' }}>{driverCounts.onduty}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>ON DUTY</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '6px' }}>
-              <span style={{ fontSize: '24px', fontWeight: '700', color: '#64748B' }}>{driverCounts.leave}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>LEAVE</span>
+          </div>
+          
+          <div className="animate-fade-in-up" style={{ animationDelay: '0.3s', width: '100%', minHeight: '80px', borderRadius: '12px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'flex', flexDirection: 'column', padding: '12px 16px', boxSizing: 'border-box' }}>
+            <div style={{ fontSize: '13px', fontWeight: '700', color: '#444', marginBottom: '8px' }}>Reports</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignContent: 'center', flex: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#2563EB' }}>{reportCounts.total}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>TOTAL REPORTS</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#D97706' }}>{reportCounts.submitted}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>SUBMITTED</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#EA580C' }}>{reportCounts.inprogress}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>IN PROGRESS</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
+                <span style={{ fontSize: '20px', fontWeight: '700', color: '#16A34A' }}>{reportCounts.resolved}</span>
+                <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>RESOLVED</span>
+              </div>
             </div>
           </div>
         </div>
-        <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#222', marginTop: '16px', marginBottom: '8px' }}>Documents</h2>
-        <div style={{ width: '100%', minHeight: '80px', borderRadius: '12px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'flex', flexDirection: 'column', padding: '12px 16px', boxSizing: 'border-box' }}>
-          <div style={{ fontSize: '13px', fontWeight: '700', color: '#444', marginBottom: '8px' }}>Driver Documents</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignContent: 'center', flex: 1 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#2563EB' }}>{docCounts.total}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>TOTAL DOCS</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#D97706' }}>{docCounts.expire_1_month}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', textAlign: 'center' }}>EXPIRE IN 1 MONTH</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#DC2626' }}>{docCounts.expired}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>EXPIRED</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#0F766E' }}>{docCounts.acting}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>ACTING DOCS</span>
-            </div>
-          </div>
-        </div>
-        <div style={{ width: '100%', minHeight: '80px', borderRadius: '12px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'flex', flexDirection: 'column', padding: '12px 16px', boxSizing: 'border-box' }}>
-          <div style={{ fontSize: '13px', fontWeight: '700', color: '#444', marginBottom: '8px' }}>Vehicle Documents</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignContent: 'center', flex: 1 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#2563EB' }}>{vehicleDocCounts.total}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>TOTAL DOCS</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#D97706' }}>{vehicleDocCounts.expire_1_month}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px', textAlign: 'center' }}>EXPIRE IN 1 MONTH</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#DC2626' }}>{vehicleDocCounts.expired}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>EXPIRED</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#64748B' }}>{vehicleDocCounts.inactive}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>INACTIVE DOCS</span>
-            </div>
-          </div>
-        </div>
-        <div style={{ width: '100%', minHeight: '80px', borderRadius: '12px', backgroundColor: 'rgba(0, 0, 0, 0.04)', display: 'flex', flexDirection: 'column', padding: '12px 16px', boxSizing: 'border-box' }}>
-          <div style={{ fontSize: '13px', fontWeight: '700', color: '#444', marginBottom: '8px' }}>Reports</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', alignContent: 'center', flex: 1 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#2563EB' }}>{reportCounts.total}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>TOTAL REPORTS</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#D97706' }}>{reportCounts.submitted}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>SUBMITTED</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#EA580C' }}>{reportCounts.inprogress}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>IN PROGRESS</span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', gap: '4px' }}>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: '#16A34A' }}>{reportCounts.resolved}</span>
-              <span style={{ fontSize: '9px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.5px' }}>RESOLVED</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -35,3 +35,19 @@ body {
   pointer-events: none !important;
   user-select: none !important;
 }
+
+@keyframes fadeInUpDashboard {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  opacity: 0;
+  animation: fadeInUpDashboard 0.5s ease-out forwards;
+}
