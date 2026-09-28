@@ -3,6 +3,8 @@ import { db } from '../firebase';
 import { collection, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import StudentForm from '../components/students/StudentForm';
 import { Plus, Edit, Trash2, Search, Edit2, Filter, ChevronLeft, ChevronRight, UserCircle } from 'lucide-react';
+import DetailsView from '../components/common/DetailsView';
+import ScrollingText from '../components/common/ScrollingText';
 
 export default function Students() {
   const [students, setStudents] = useState([]);
@@ -57,6 +59,11 @@ export default function Students() {
     setViewMode('edit');
   };
 
+  const handleView = (student) => {
+    setSelectedStudent(student);
+    setViewMode('details');
+  };
+
   const handleBackToList = () => {
     setSelectedStudent(null);
     setViewMode('list');
@@ -64,8 +71,11 @@ export default function Students() {
 
   const handleDelete = async (student) => {
     if (window.confirm(`Are you sure you want to delete passenger ${student.studentName}? This action cannot be undone.`)) {
+      const remarks = window.prompt("Please enter remarks or reason for deletion:");
+      if (remarks === null) return;
       try {
         await deleteDoc(doc(db, 'students', student.id));
+        if (viewMode === 'details') handleBackToList();
       } catch (err) {
         console.error("Failed to delete student:", err);
       }
@@ -329,8 +339,8 @@ export default function Students() {
 
                           {/* Transport */}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
-                            <div style={{ color: '#374151', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={student.stage}>
-                              {student.stage || 'Unassigned Stage'}
+                            <div style={{ color: '#374151', fontSize: '14px', minWidth: 0 }}>
+                              <ScrollingText text={student.stage || 'Unassigned Stage'} />
                             </div>
                             <div style={{ color: '#6B7280', fontSize: '12px', display: 'flex', gap: '8px' }}>
                               <span>{student.phoneNumber || 'No phone'}</span>
@@ -340,17 +350,16 @@ export default function Students() {
 
                           {/* Actions */}
                           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                            <button onClick={() => handleEdit(student)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: '4px' }} title="Edit Passenger"
+                            <button onClick={() => handleView(student)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', padding: '4px' }} title="View Details"
                               onMouseEnter={e => e.currentTarget.style.color = '#2563EB'}
                               onMouseLeave={e => e.currentTarget.style.color = '#6B7280'}
                             >
-                              <Edit2 size={18} />
-                            </button>
-                            <button onClick={() => handleDelete(student)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: '4px' }} title="Delete Passenger"
-                              onMouseEnter={e => e.currentTarget.style.color = '#EF4444'}
-                              onMouseLeave={e => e.currentTarget.style.color = '#6B7280'}
-                            >
-                              <Trash2 size={18} />
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M15 22.75H14C13.59 22.75 13.25 22.41 13.25 22C13.25 21.59 13.59 21.25 14 21.25H15C19.61 21.25 21.25 19.61 21.25 15V9C21.25 4.39 19.61 2.75 15 2.75H9C4.39 2.75 2.75 4.39 2.75 9V9.98C2.75 10.39 2.41 10.73 2 10.73C1.59 10.73 1.25 10.39 1.25 9.98V9C1.25 3.57 3.57 1.25 9 1.25H15C20.43 1.25 22.75 3.57 22.75 9V15C22.75 20.43 20.43 22.75 15 22.75Z"/>
+                                <path d="M12.9999 11.7507C12.8099 11.7507 12.6199 11.6807 12.4699 11.5307C12.1799 11.2407 12.1799 10.7607 12.4699 10.4707L16.2099 6.7207H13.9999C13.5899 6.7207 13.2499 6.3807 13.2499 5.9707C13.2499 5.5607 13.5799 5.2207 13.9999 5.2207H18.0099C18.3099 5.2207 18.5899 5.4007 18.6999 5.6807C18.8199 5.9607 18.7499 6.2807 18.5399 6.5007L13.5299 11.5307C13.3799 11.6807 13.1899 11.7507 12.9999 11.7507Z"/>
+                                <path d="M18.01 10.7407C17.6 10.7407 17.26 10.4007 17.26 9.9907V5.9707C17.26 5.5607 17.6 5.2207 18.01 5.2207C18.42 5.2207 18.76 5.5607 18.76 5.9707V9.9807C18.76 10.4007 18.42 10.7407 18.01 10.7407Z"/>
+                                <path d="M7.85 22.75H5.15C2.49 22.75 1.25 21.51 1.25 18.85V16.15C1.25 13.49 2.49 12.25 5.15 12.25H7.85C10.51 12.25 11.75 13.49 11.75 16.15V18.85C11.75 21.51 10.51 22.75 7.85 22.75ZM5.15 13.75C3.31 13.75 2.75 14.31 2.75 16.15V18.85C2.75 20.69 3.31 21.25 5.15 21.25H7.85C9.69 21.25 10.25 20.69 10.25 18.85V16.15C10.25 14.31 9.69 13.75 7.85 13.75H5.15Z"/>
+                              </svg>
                             </button>
                           </div>
                         </div>
@@ -422,6 +431,36 @@ export default function Students() {
                 student={selectedStudent} 
                 onBack={handleBackToList} 
                 onSaveComplete={handleBackToList} 
+              />
+            )}
+            {viewMode === 'details' && selectedStudent && (
+              <DetailsView
+                title={selectedStudent.studentName || 'Unknown Student'}
+                data={[
+                  { label: 'Department', value: selectedStudent.department },
+                  { label: 'Year', value: selectedStudent.year },
+                  { label: 'Academic Year', value: selectedStudent.academicYear },
+                  { label: 'Phone Number', value: selectedStudent.phoneNumber },
+                  { label: 'Stage', value: selectedStudent.stage },
+                  { label: 'Route Number', value: selectedStudent.routeNumber },
+                  { label: 'Fees Total', value: `₹${selectedStudent.feesTotal || '0'}` },
+                  { label: 'Paid Amount', value: `₹${selectedStudent.paidAmount || '0'}` },
+                  { label: 'Status', value: calculateFeesStatus(selectedStudent), element: (
+                    <span style={{ 
+                      color: getStatusColor(calculateFeesStatus(selectedStudent)),
+                      background: `${getStatusColor(calculateFeesStatus(selectedStudent))}15`,
+                      padding: '4px 10px',
+                      borderRadius: '100px',
+                      fontSize: '12px',
+                      fontWeight: '600'
+                    }}>
+                      {calculateFeesStatus(selectedStudent)}
+                    </span>
+                  )}
+                ]}
+                onBack={handleBackToList}
+                onEdit={() => handleEdit(selectedStudent)}
+                onDelete={() => handleDelete(selectedStudent)}
               />
             )}
           </div>

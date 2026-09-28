@@ -23,8 +23,10 @@ export default function Dashboard() {
           ['rc', 'fitness', 'insurance', 'pollution'].forEach(type => {
             if (bus.documents[type] && bus.documents[type].expiryDate) {
               const expiry = new Date(bus.documents[type].expiryDate);
+              expiry.setHours(0, 0, 0, 0);
               const today = new Date();
-              const warning = new Date();
+              today.setHours(0, 0, 0, 0);
+              const warning = new Date(today);
               warning.setDate(today.getDate() + 30);
               
               if (expiry < today) {
@@ -53,8 +55,10 @@ export default function Dashboard() {
       drivers.forEach(driver => {
         if (driver.licenseExpiry) {
           const expiry = new Date(driver.licenseExpiry);
+          expiry.setHours(0, 0, 0, 0);
           const today = new Date();
-          const warning = new Date();
+          today.setHours(0, 0, 0, 0);
+          const warning = new Date(today);
           warning.setDate(today.getDate() + 30);
           
           if (expiry < today) {

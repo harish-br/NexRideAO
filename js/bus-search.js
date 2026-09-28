@@ -635,7 +635,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
       </div>
-      <div class="bs-route-stops-dropdown hidden" style="display: none; width: calc(100% + 32px); margin: 16px -16px -10px -16px; background: transparent; border-top: 1px solid #E2E8F0; border-radius: 0 0 16px 16px; padding: 20px 16px 16px 16px; box-sizing: border-box;">
+      <div class="bs-route-stops-dropdown hidden" style="max-height: 0; opacity: 0; overflow: hidden; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); width: calc(100% + 32px); margin: 0 -16px 0 -16px; background: transparent; border-top: 1px solid transparent; border-radius: 0 0 16px 16px; padding: 0 16px; box-sizing: border-box;">
         <div style="text-align: center; font-size: 13.5px; font-weight: 600; color: #9CA3AF; margin-bottom: 6px;">Scheduled Stages</div>
         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; min-width: 0;">
           <div class="bs-ampm-direction" style="font-size: 13px; font-weight: 700; color: #4B5563; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;"></div>
@@ -749,10 +749,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.navigator.vibrate(50);
       }
 
-      const isCurrentlyHidden = dropdown.classList.contains('hidden');
+      const isCurrentlyExpanded = dropdown.classList.contains('bs-expanded');
 
       // Close all other dropdowns in the same container
-      if (isCurrentlyHidden) {
+      if (!isCurrentlyExpanded) {
         const parentContainer = card.parentElement;
         if (parentContainer) {
           const allCards = parentContainer.querySelectorAll('.bs-card');
@@ -760,9 +760,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (otherCard === card) return;
             const otherDropdown = otherCard.querySelector('.bs-route-stops-dropdown');
             const otherArrow = otherCard.querySelector('.route-dropdown-arrow');
-            if (otherDropdown && !otherDropdown.classList.contains('hidden')) {
-              otherDropdown.classList.add('hidden');
-              otherDropdown.style.display = 'none';
+            if (otherDropdown && otherDropdown.classList.contains('bs-expanded')) {
+              otherDropdown.classList.remove('bs-expanded');
+              otherDropdown.style.maxHeight = '0';
+              otherDropdown.style.opacity = '0';
+              otherDropdown.style.margin = '0 -16px 0 -16px';
+              otherDropdown.style.padding = '0 16px';
+              otherDropdown.style.borderTopColor = 'transparent';
               otherCard.style.background = '#FFFFFF';
               if (otherArrow) otherArrow.style.transform = 'rotate(0deg)';
             }
@@ -770,17 +774,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      if (isCurrentlyHidden) {
+      if (!isCurrentlyExpanded) {
         dropdown.classList.remove('hidden');
-        dropdown.style.display = 'block';
+        dropdown.classList.add('bs-expanded');
+        
+        setTimeout(() => {
+          dropdown.style.maxHeight = (dropdown.scrollHeight + 200) + 'px';
+          dropdown.style.opacity = '1';
+          dropdown.style.margin = '16px -16px -10px -16px';
+          dropdown.style.padding = '20px 16px 16px 16px';
+          dropdown.style.borderTopColor = '#E2E8F0';
+        }, 10);
+        
         card.style.background = '#F8FAFC';
         arrow.style.transform = 'rotate(180deg)';
         if (typeof saveRecentRoute === 'function') {
           saveRecentRoute(route);
         }
       } else {
-        dropdown.classList.add('hidden');
-        dropdown.style.display = 'none';
+        dropdown.classList.remove('bs-expanded');
+        dropdown.style.maxHeight = '0';
+        dropdown.style.opacity = '0';
+        dropdown.style.margin = '0 -16px 0 -16px';
+        dropdown.style.padding = '0 16px';
+        dropdown.style.borderTopColor = 'transparent';
         card.style.background = '#FFFFFF';
         arrow.style.transform = 'rotate(0deg)';
       }

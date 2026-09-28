@@ -69,6 +69,9 @@ export default function Buses() {
 
   const handleDelete = async (bus) => {
     if (window.confirm(`Are you sure you want to delete bus ${bus.busNumber}?`)) {
+      const remarks = window.prompt("Please enter remarks or reason for deletion:");
+      if (remarks === null) return; // User cancelled
+      
       try {
         await import('firebase/firestore').then(({ deleteDoc, doc }) => {
           return deleteDoc(doc(db, 'buses', bus.id));
@@ -82,11 +85,17 @@ export default function Buses() {
 
   return (
     <div className="blank-page" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div className="header">
-        <h1>Buses</h1>
+      <div className="header" style={{ marginBottom: '0' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <h1>Buses</h1>
+          <div style={{ fontSize: '14px', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            {buses.length} registered
+          </div>
+        </div>
       </div>
       
-      <div style={{ flex: 1, padding: '4px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{ flex: 1, padding: '4px', display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: '16px' }}>
         {error ? (
           <div style={{ padding: '24px', background: '#FEE2E2', color: '#DC2626', borderRadius: '16px' }}>
              <h3>Database Error</h3>
@@ -131,6 +140,7 @@ export default function Buses() {
                 bus={selectedBus} 
                 onBack={handleBackToList} 
                 onEdit={handleEdit}
+                onDelete={handleDelete}
                 onStatusChange={handleBackToList}
               />
             )}

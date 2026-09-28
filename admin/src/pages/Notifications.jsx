@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, deleteDoc, doc, addDoc } from 'firebase/firestore';
 import { Search, Plus, Trash2, Send, AlertCircle, X } from 'lucide-react';
+import DetailsView from '../components/common/DetailsView';
 
 const inputStyle = {
   padding: '10px 12px',
@@ -26,7 +27,8 @@ export default function Notifications() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [viewMode, setViewMode] = useState('list'); // 'list', 'create'
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'details'
+  const [selectedNotification, setSelectedNotification] = useState(null);
   
   // Create form state
   const [formData, setFormData] = useState({
@@ -70,12 +72,21 @@ export default function Notifications() {
 
   const handleBackToList = () => {
     setViewMode('list');
+    setSelectedNotification(null);
+  };
+
+  const handleView = (notif) => {
+    setSelectedNotification(notif);
+    setViewMode('details');
   };
 
   const handleDelete = async (notif) => {
     if (window.confirm(`Are you sure you want to delete notification "${notif.title}"?`)) {
+      const remarks = window.prompt("Please enter remarks or reason for deletion:");
+      if (remarks === null) return;
       try {
         await deleteDoc(doc(db, 'notifications', notif.id));
+        if (viewMode === 'details') handleBackToList();
       } catch (err) {
         console.error("Failed to delete notification:", err);
       }
@@ -259,8 +270,13 @@ export default function Notifications() {
                             </div>
                             <div style={{ fontSize: '12px', color: '#6B7280' }}>{formatDate(notif.createdAt)}</div>
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                              <button onClick={() => handleDelete(notif)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444' }} title="Delete">
-                                <Trash2 size={18} />
+                              <button onClick={() => handleView(notif)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280' }} title="View">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M15 22.75H14C13.59 22.75 13.25 22.41 13.25 22C13.25 21.59 13.59 21.25 14 21.25H15C19.61 21.25 21.25 19.61 21.25 15V9C21.25 4.39 19.61 2.75 15 2.75H9C4.39 2.75 2.75 4.39 2.75 9V9.98C2.75 10.39 2.41 10.73 2 10.73C1.59 10.73 1.25 10.39 1.25 9.98V9C1.25 3.57 3.57 1.25 9 1.25H15C20.43 1.25 22.75 3.57 22.75 9V15C22.75 20.43 20.43 22.75 15 22.75Z"/>
+                                  <path d="M12.9999 11.7507C12.8099 11.7507 12.6199 11.6807 12.4699 11.5307C12.1799 11.2407 12.1799 10.7607 12.4699 10.4707L16.2099 6.7207H13.9999C13.5899 6.7207 13.2499 6.3807 13.2499 5.9707C13.2499 5.5607 13.5799 5.2207 13.9999 5.2207H18.0099C18.3099 5.2207 18.5899 5.4007 18.6999 5.6807C18.8199 5.9607 18.7499 6.2807 18.5399 6.5007L13.5299 11.5307C13.3799 11.6807 13.1899 11.7507 12.9999 11.7507Z"/>
+                                  <path d="M18.01 10.7407C17.6 10.7407 17.26 10.4007 17.26 9.9907V5.9707C17.26 5.5607 17.6 5.2207 18.01 5.2207C18.42 5.2207 18.76 5.5607 18.76 5.9707V9.9807C18.76 10.4007 18.42 10.7407 18.01 10.7407Z"/>
+                                  <path d="M7.85 22.75H5.15C2.49 22.75 1.25 21.51 1.25 18.85V16.15C1.25 13.49 2.49 12.25 5.15 12.25H7.85C10.51 12.25 11.75 13.49 11.75 16.15V18.85C11.75 21.51 10.51 22.75 7.85 22.75ZM5.15 13.75C3.31 13.75 2.75 14.31 2.75 16.15V18.85C2.75 20.69 3.31 21.25 5.15 21.25H7.85C9.69 21.25 10.25 20.69 10.25 18.85V16.15C10.25 14.31 9.69 13.75 7.85 13.75H5.15Z"/>
+                                </svg>
                               </button>
                             </div>
                           </div>
@@ -337,6 +353,20 @@ export default function Notifications() {
                   </form>
                 </div>
               </div>
+            )}
+
+            {viewMode === 'details' && selectedNotification && (
+              <DetailsView
+                title={selectedNotification.title || 'Untitled Notification'}
+                subtitle={getTypeStyle(selectedNotification.type).label}
+                data={[
+                  { label: 'Message', value: selectedNotification.body || selectedNotification.message },
+                  { label: 'Audience', value: selectedNotification.target === 'all_users' || selectedNotification.targetAudience === 'all_users' ? 'Broadcast (All)' : 'Targeted' },
+                  { label: 'Date Sent', value: formatDate(selectedNotification.createdAt) }
+                ]}
+                onBack={handleBackToList}
+                onDelete={() => handleDelete(selectedNotification)}
+              />
             )}
           </div>
         )}
