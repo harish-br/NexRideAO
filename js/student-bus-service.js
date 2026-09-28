@@ -57,10 +57,11 @@ export function normalizeStudentData(data, docId = '') {
     phoneNumber: data.phoneNumber || (cleanPhone ? `+91${cleanPhone}` : ''),
     cleanPhone: cleanPhone,
     contact: data['parent_gaurdian contact'] || data.contact || data.phone || '',
-    balance: data.balance || (data.fees_status === 'Paid' ? 'Fully Paid' : 'Unpaid'),
-    fees_status: data.fees_status || (data.balance === 'Fully Paid' ? 'Paid' : 'Pending'),
-    feesAmount: data.feesAmount || data.fees_amount || 0,
+    balance: data.balance || (data.fees_status === 'Paid' ? 'Fully Paid' : (data.pendingAmount === 0 && data.paidAmount > 0 ? 'Fully Paid' : 'Unpaid')),
+    fees_status: data.fees_status || (data.balance === 'Fully Paid' ? 'Paid' : (data.pendingAmount === 0 && data.paidAmount > 0 ? 'Paid' : 'Pending')),
+    feesAmount: data.feesAmount || data.fees_amount || data.feesTotal || 0,
     paidAmount: data.paidAmount || data.paid_amount || 0,
+    pendingAmount: data.pendingAmount || 0,
     academicYear: data.academicYear || data.academic_year || '2025-2026',
     institution: data.institution || 'Nandha Engineering College (Autonomous)',
     department: data.department || 'Engineering',
@@ -215,9 +216,20 @@ export async function resolveStudentAssignedBus(currentUser = null) {
         try {
           const snap = await getDoc(doc(firestore, 'users', user.uid));
           if (snap.exists()) {
-            const data = snap.data();
+            let data = snap.data();
             const docPhone = String(data.phone || data.mobile || data.phoneNumber || data.cleanPhone || data.contact || '').replace(/\D/g, '').slice(-10);
             if ((!docPhone || docPhone === loginPhoneClean) && (data.assignedBus || data.bus || data.busNumber || data.bus_no || data['bus no'])) {
+              // Try to fetch full student data if studentId is present
+              if (data.studentId) {
+                try {
+                  const studentSnap = await getDoc(doc(firestore, 'students', data.studentId));
+                  if (studentSnap.exists()) {
+                    data = { ...data, ...studentSnap.data() };
+                  }
+                } catch (e) {
+                  console.warn('[StudentBusService] Could not fetch full student doc:', e);
+                }
+              }
               foundData = data;
               foundDocId = snap.id;
               console.log(`[StudentBusService] Matched authenticated user document [${user.uid}] for mobile ${loginPhoneClean}: Bus ${foundData.assignedBus || foundData.bus}`);

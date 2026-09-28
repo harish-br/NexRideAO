@@ -75,6 +75,9 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
     setError('');
     
     try {
+      const feesStatus = Number(formData.pendingAmount) === 0 && Number(formData.paidAmount) > 0 ? 'Paid' : 'Pending';
+      const balanceStatus = Number(formData.pendingAmount) === 0 && Number(formData.paidAmount) > 0 ? 'Fully Paid' : 'Unpaid';
+
       const studentData = {
         ...formData,
         feesTotal: Number(formData.feesTotal) || 0,
@@ -89,6 +92,8 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
         assignedBus: formData.routeNumber,
         phone: formData.phoneNumber, // Explicit mapping for user app
         mobile: formData.phoneNumber, // Explicit mapping for user app
+        fees_status: feesStatus,
+        balance: balanceStatus,
         updatedAt: new Date().toISOString()
       };
       
@@ -106,7 +111,7 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
       // This ensures that even if the mobile app has an old Service Worker cache, it can still authenticate instantly!
       if (formData.phoneNumber) {
         try {
-          await setDoc(doc(db, 'users', formData.phoneNumber), {
+          const fallbackData = {
             phone: formData.phoneNumber,
             mobile: formData.phoneNumber,
             phoneNumber: formData.phoneNumber,
@@ -114,19 +119,17 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
             busNumber: formData.routeNumber,
             studentId: studentDocId,
             name: formData.studentName || 'Student',
-            passengerType: 'Student'
-          }, { merge: true });
-          
-          await setDoc(doc(db, 'users', `+91${formData.phoneNumber}`), {
-            phone: formData.phoneNumber,
-            mobile: formData.phoneNumber,
-            phoneNumber: formData.phoneNumber,
-            assignedBus: formData.routeNumber,
-            busNumber: formData.routeNumber,
-            studentId: studentDocId,
-            name: formData.studentName || 'Student',
-            passengerType: 'Student'
-          }, { merge: true });
+            passengerType: 'Student',
+            stage: formData.stage || '',
+            fees_status: feesStatus,
+            balance: balanceStatus,
+            feesTotal: Number(formData.feesTotal) || 0,
+            paidAmount: Number(formData.paidAmount) || 0,
+            pendingAmount: Number(formData.pendingAmount) || 0
+          };
+
+          await setDoc(doc(db, 'users', formData.phoneNumber), fallbackData, { merge: true });
+          await setDoc(doc(db, 'users', `+91${formData.phoneNumber}`), fallbackData, { merge: true });
         } catch (e) {
           console.warn("Could not save fallback user reference:", e);
         }
