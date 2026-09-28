@@ -183,7 +183,7 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
             <FormGroup label="Institution *">
               <select required style={inputStyle} value={formData.institution} onChange={e => setFormData({...formData, institution: e.target.value})}>
                 <option value="NEC">NEC</option>
-                <option value="NECT">NECT</option>
+                <option value="NCT">NCT</option>
                 <option value="NASC">NASC</option>
                 <option value="NPC">NPC</option>
               </select>

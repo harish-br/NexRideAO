@@ -36,7 +36,7 @@ export default function ScrollingText({ text, style }) {
         overflow: 'hidden', 
         whiteSpace: 'nowrap',
         position: 'relative',
-        display: 'flex',
+        display: 'block',
         ...style
       }}
     >
