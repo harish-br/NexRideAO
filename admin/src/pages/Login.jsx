@@ -42,7 +42,7 @@ export default function Login() {
         alignItems: 'center',
         boxSizing: 'border-box'
       }}>
-        <img src="/favicon.svg" alt="NexRide AO" style={{
+        <img src="/NexRide-AO.svg" alt="NexRide AO" style={{
           width: '64px',
           height: '64px',
           marginBottom: '24px',
