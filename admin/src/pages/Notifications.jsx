@@ -41,44 +41,81 @@ export default function Notifications() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const [appUsers, setAppUsers] = useState([]);   // from /users — doc ID = Auth UID
-  const [students, setStudents] = useState([]);    // from /students — for name/appNumber display
+  const [combinedUsers, setCombinedUsers] = useState([]);
 
   useEffect(() => {
-    // Fetch registered app users (doc ID = Firebase Auth UID)
-    const fetchUsers = async () => {
+    const fetchAllUsers = async () => {
       try {
-        const snap = await getDocs(collection(db, 'users'));
-        const usersData = snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter(u => {
-            // Firebase Auth UIDs are 28-char alphanumeric strings.
-            // Exclude phone-number-keyed docs (start with + or are all digits).
-            // Phone-number docs exist but the Auth UID doc is what the app listens to.
-            const isPhoneId = /^\+?\d{7,}$/.test(u.id);
-            const hasContent = u.name || u.phone || u.phoneNumber || u.mobile || u.studentId;
-            return !isPhoneId && hasContent;
-          });
-        setAppUsers(usersData);
-        console.log('[Admin] Loaded', usersData.length, 'Auth-UID users (phone-keyed docs excluded)');
+        const [usersSnap, studentsSnap] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(collection(db, 'students'))
+        ]);
+
+        const uniqueUsers = new Map();
+
+        // 1. Process students first (they often have cleaner names & app numbers)
+        studentsSnap.docs.forEach(doc => {
+          const data = doc.data();
+          const rawPhone = data.phone || data.mobile || data.phoneNumber || '';
+          const cleanPhone = String(rawPhone).replace(/\D/g, '').slice(-10);
+          
+          if (cleanPhone && cleanPhone.length === 10) {
+            const targetId = `+91${cleanPhone}`;
+            uniqueUsers.set(targetId, {
+              id: targetId,
+              name: data.studentName || 'Unknown Name',
+              appNum: data.applicationNumber || data.studentId || '',
+              displayPhone: `****${cleanPhone.slice(-4)}`
+            });
+          }
+        });
+
+        // 2. Process app users to catch anyone not in students DB, or enrich names
+        usersSnap.docs.forEach(doc => {
+          const data = doc.data();
+          // Skip if doc ID doesn't look like an Auth UID AND it's not a valid phone
+          const rawPhone = data.phone || data.mobile || data.phoneNumber || '';
+          const cleanPhone = String(rawPhone).replace(/\D/g, '').slice(-10);
+          
+          if (cleanPhone && cleanPhone.length === 10) {
+            const targetId = `+91${cleanPhone}`;
+            if (!uniqueUsers.has(targetId)) {
+              uniqueUsers.set(targetId, {
+                id: targetId,
+                name: data.name || 'App User',
+                appNum: data.applicationNumber || data.studentId || '',
+                displayPhone: `****${cleanPhone.slice(-4)}`
+              });
+            } else {
+              // Enrich existing if missing name/appNum
+              const existing = uniqueUsers.get(targetId);
+              if (existing.name === 'Unknown Name' && data.name) existing.name = data.name;
+              if (!existing.appNum && (data.applicationNumber || data.studentId)) {
+                existing.appNum = data.applicationNumber || data.studentId;
+              }
+            }
+          } else if (doc.id.length > 20 && !doc.id.startsWith('+')) {
+            // It's an Auth UID with no phone number attached yet, add them by UID
+            if (!uniqueUsers.has(doc.id)) {
+               uniqueUsers.set(doc.id, {
+                 id: doc.id,
+                 name: data.name || 'App User (No Phone)',
+                 appNum: data.applicationNumber || data.studentId || '',
+                 displayPhone: ''
+               });
+            }
+          }
+        });
+
+        const sortedUsers = Array.from(uniqueUsers.values()).sort((a, b) => a.name.localeCompare(b.name));
+        setCombinedUsers(sortedUsers);
+        console.log('[Admin] Loaded', sortedUsers.length, 'unique targetable users');
       } catch (err) {
-        console.error('Failed to fetch users:', err);
+        console.error('Failed to fetch combined users:', err);
       }
     };
 
-    // Also fetch students for name/applicationNumber enrichment
-    const fetchStudents = async () => {
-      try {
-        const snap = await getDocs(collection(db, 'students'));
-        const studentsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setStudents(studentsData);
-      } catch (err) {
-        console.warn('Failed to fetch students (non-critical):', err);
-      }
-    };
-
-    fetchUsers();
-    fetchStudents();
+    fetchAllUsers();
   }, []);
 
   useEffect(() => {
@@ -491,38 +528,26 @@ export default function Notifications() {
 
                     {formData.target === 'specific_user' && (
                       <div style={{ marginTop: '20px' }}>
-                        <FormGroup label={`Select User * (${appUsers.length} registered users)`}>
+                        <FormGroup label={`Select User * (${combinedUsers.length} targetable users)`}>
                           <select 
                             style={inputStyle} 
                             value={formData.targetUserId} 
                             onChange={e => setFormData({...formData, targetUserId: e.target.value})}
                             required
                           >
-                            <option value="">Select a registered user...</option>
-                            {appUsers.length === 0 && (
+                            <option value="">Select a user...</option>
+                            {combinedUsers.length === 0 && (
                               <option disabled>Loading users...</option>
                             )}
-                            {appUsers.map(user => {
-                              // Try to enrich with student applicationNumber
-                              const phone = user.phone || user.mobile || user.phoneNumber || '';
-                              const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-                              const matchedStudent = students.find(s => {
-                                const sp = String(s.phone || s.mobile || s.phoneNumber || '').replace(/\D/g, '').slice(-10);
-                                return sp === cleanPhone;
-                              });
-                              const appNum = matchedStudent?.applicationNumber || user.applicationNumber || user.studentId || '';
-                              const displayName = user.name || matchedStudent?.studentName || 'Unknown';
-                              const displayPhone = cleanPhone ? `****${cleanPhone.slice(-4)}` : '';
-                              return (
-                                <option key={user.id} value={user.id}>
-                                  {displayName}{appNum ? ` (${appNum})` : ''}{displayPhone ? ` — ${displayPhone}` : ''}
-                                </option>
-                              );
-                            })}
+                            {combinedUsers.map(user => (
+                              <option key={user.id} value={user.id}>
+                                {user.name}{user.appNum ? ` (${user.appNum})` : ''}{user.displayPhone ? ` — ${user.displayPhone}` : ''}
+                              </option>
+                            ))}
                           </select>
                           {formData.targetUserId && (
                             <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
-                              Auth UID: <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: '3px' }}>{formData.targetUserId}</code>
+                              Target ID: <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: '3px' }}>{formData.targetUserId}</code>
                             </div>
                           )}
                         </FormGroup>
