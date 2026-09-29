@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { Search, Edit2, Trash2, X, Save } from 'lucide-react';
+import RefreshButton from '../components/common/RefreshButton';
 
 export default function Reports() {
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   
@@ -133,11 +135,18 @@ export default function Reports() {
 
   return (
     <div className="blank-page" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div className="header">
+      <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1>Issues &amp; Support Console</h1>
+          <h1 style={{ margin: 0 }}>Issues &amp; Support Console</h1>
           <p style={{ color: '#6B7280', fontSize: '14px', margin: '4px 0 0 0' }}>Review, assign, and resolve student incident reports.</p>
         </div>
+        <RefreshButton 
+          loading={refreshing} 
+          onClick={() => {
+            setRefreshing(true);
+            setTimeout(() => setRefreshing(false), 400);
+          }} 
+        />
       </div>
       
       <div style={{ flex: 1, padding: '4px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>

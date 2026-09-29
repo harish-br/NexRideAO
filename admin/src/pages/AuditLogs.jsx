@@ -6,9 +6,9 @@ import AuditLogFilters from '../components/audit/AuditLogFilters';
 import AuditLogDetails from '../components/audit/AuditLogDetails';
 import { createAuditLog } from '../services/auditLogger';
 
-import documentIcon from '../assets/svg/document-normal.svg';
 import documentTextIcon from '../assets/svg/document-text.svg';
-import refreshIcon from '../assets/svg/record-circle.svg';
+import DocumentDownloadIcon from '../assets/svg/document-download.svg?react';
+import RefreshArrowIcon from '../assets/svg/refresh-arrow2.svg?react';
 
 const PAGE_SIZE = 50;
 
@@ -194,7 +194,7 @@ export default function AuditLogs() {
               fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s'
             }}
           >
-            <img src={refreshIcon} alt="" className={loading ? "spin" : ""} style={{width: 16, height: 16, opacity: 0.7}} /> Refresh
+            <RefreshArrowIcon width={16} height={16} className={loading ? "spin" : ""} style={{ display: 'block', color: 'currentColor' }} /> Refresh
           </button>
           <button 
             onClick={handleExport}
@@ -204,7 +204,7 @@ export default function AuditLogs() {
               fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)', transition: 'background 0.2s'
             }}
           >
-            <img src={documentIcon} alt="" style={{width: 16, height: 16, filter: 'invert(1)'}} /> Export Logs
+            <DocumentDownloadIcon width={16} height={16} style={{ display: 'block', color: '#fff' }} /> Export Logs
           </button>
         </div>
       </div>

@@ -5,12 +5,14 @@ import StudentForm from '../components/students/StudentForm';
 import { Plus, Edit, Trash2, Search, Edit2, Filter, ChevronLeft, ChevronRight, UserCircle } from 'lucide-react';
 import DetailsView from '../components/common/DetailsView';
 import ScrollingText from '../components/common/ScrollingText';
+import RefreshButton from '../components/common/RefreshButton';
 
 export default function Students() {
   const [students, setStudents] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list', 'add', 'edit'
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,7 +143,7 @@ export default function Students() {
 
   return (
     <div className="blank-page" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div className="header" style={{ marginBottom: '0' }}>
+      <div className="header" style={{ marginBottom: '0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <h1>Passengers / Students</h1>
           <div style={{ fontSize: '14px', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -149,6 +151,13 @@ export default function Students() {
             {students.length} registered
           </div>
         </div>
+        <RefreshButton 
+          loading={refreshing} 
+          onClick={() => {
+            setRefreshing(true);
+            setTimeout(() => setRefreshing(false), 400);
+          }} 
+        />
       </div>
       
       <div style={{ flex: 1, padding: '4px', display: 'flex', flexDirection: 'column', minHeight: 0, marginTop: '16px' }}>

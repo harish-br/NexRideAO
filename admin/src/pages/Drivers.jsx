@@ -6,11 +6,13 @@ import { Plus, Edit, Trash2, Search, Edit2, UserCircle, ChevronLeft, ChevronRigh
 
 import DetailsView from '../components/common/DetailsView';
 import ScrollingText from '../components/common/ScrollingText';
+import RefreshButton from '../components/common/RefreshButton';
 export default function Drivers() {
   const [drivers, setDrivers] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list', 'add', 'edit'
   const [selectedDriver, setSelectedDriver] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -146,6 +148,15 @@ export default function Drivers() {
                         }}
                       />
                     </div>
+                    <RefreshButton 
+                      loading={refreshing} 
+                      onClick={() => {
+                        setRefreshing(true);
+                        setTimeout(() => setRefreshing(false), 400);
+                      }} 
+                      label="" 
+                      title="Refresh drivers" 
+                    />
                   </div>
 
                   <button 

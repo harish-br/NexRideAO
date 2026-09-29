@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
+import RefreshButton from '../components/common/RefreshButton';
 
 export default function Dashboard() {
   const [fleetData, setFleetData] = useState([]);
@@ -142,8 +143,15 @@ export default function Dashboard() {
 
   return (
     <div className="blank-page" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div className="header">
-        <h1>Dashboard</h1>
+      <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1 style={{ margin: 0 }}>Dashboard</h1>
+        <RefreshButton 
+          loading={loading}
+          onClick={() => {
+            setLoading(true);
+            setTimeout(() => setLoading(false), 400);
+          }} 
+        />
       </div>
       
       {loading ? (

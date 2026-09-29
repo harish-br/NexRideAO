@@ -3,6 +3,7 @@ import { db } from '../firebase';
 import { collection, onSnapshot, deleteDoc, doc, addDoc, getDocs } from 'firebase/firestore';
 import { Search, Plus, Trash2, Send, AlertCircle, X } from 'lucide-react';
 import DetailsView from '../components/common/DetailsView';
+import RefreshButton from '../components/common/RefreshButton';
 
 const inputStyle = {
   padding: '10px 12px',
@@ -25,6 +26,7 @@ const FormGroup = ({ label, children }) => (
 export default function Notifications() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
   const [viewMode, setViewMode] = useState('list'); // 'list', 'create', 'details'
@@ -309,11 +311,18 @@ export default function Notifications() {
 
   return (
     <div className="blank-page" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-      <div className="header">
+      <div className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1>Notification Center</h1>
+          <h1 style={{ margin: 0 }}>Notification Center</h1>
           <p style={{ color: '#6B7280', fontSize: '14px', margin: '4px 0 0 0' }}>Create and dispatch push notifications and broadcast alerts.</p>
         </div>
+        <RefreshButton 
+          loading={refreshing} 
+          onClick={() => {
+            setRefreshing(true);
+            setTimeout(() => setRefreshing(false), 400);
+          }} 
+        />
       </div>
       
       <div style={{ flex: 1, padding: '4px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>

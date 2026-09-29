@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Plus, Search, MoreVertical, Edit2, Trash2, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react';
 import ScrollingText from '../common/ScrollingText';
+import RefreshButton from '../common/RefreshButton';
 
 export default function BusList({ buses, onAdd, onView, onEdit, onDelete }) {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('All');
   const [currentPage, setCurrentPage] = React.useState(1);
+  const [refreshing, setRefreshing] = useState(false);
   const itemsPerPage = 10;
 
   const filteredBuses = buses.filter(bus => {
@@ -105,6 +107,15 @@ export default function BusList({ buses, onAdd, onView, onEdit, onDelete }) {
             <option value="Breakdown">Breakdown</option>
             <option value="Spare">Spare</option>
           </select>
+          <RefreshButton 
+            loading={refreshing} 
+            onClick={() => {
+              setRefreshing(true);
+              setTimeout(() => setRefreshing(false), 400);
+            }} 
+            label="" 
+            title="Refresh buses" 
+          />
         </div>
 
         <button 

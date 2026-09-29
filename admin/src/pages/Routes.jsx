@@ -5,12 +5,14 @@ import RouteForm from '../components/routes/RouteForm';
 import { Plus, Trash2, Search, Edit2, UserCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import DetailsView from '../components/common/DetailsView';
 import ScrollingText from '../components/common/ScrollingText';
+import RefreshButton from '../components/common/RefreshButton';
 
 export default function Routes() {
   const [routes, setRoutes] = useState([]);
   const [viewMode, setViewMode] = useState('list');
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -146,6 +148,15 @@ export default function Routes() {
                         }}
                       />
                     </div>
+                    <RefreshButton 
+                      loading={refreshing} 
+                      onClick={() => {
+                        setRefreshing(true);
+                        setTimeout(() => setRefreshing(false), 400);
+                      }} 
+                      label="" 
+                      title="Refresh routes" 
+                    />
                   </div>
 
                   <button 
