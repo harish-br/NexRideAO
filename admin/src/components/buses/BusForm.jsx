@@ -3,6 +3,7 @@ import { ArrowLeft, Save, Upload, X, CheckCircle, AlertCircle } from 'lucide-rea
 import { db, storage } from '../../firebase';
 import { collection, addDoc, doc, updateDoc, getDocs, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { createAuditLog } from '../../services/auditLogger';
 
 const MANUFACTURERS = ['Ashok Leyland', 'Tata', 'Eicher', 'Volvo', 'BharatBenz', 'Mahindra'];
 const BHARAT_STAGES = ['BS-III', 'BS-IV', 'BS-VI'];
@@ -240,10 +241,31 @@ export default function BusForm({ bus, onBack, onSaveComplete }) {
         await updateDoc(doc(db, 'buses', busId), JSON.parse(JSON.stringify({ documents: updatedDocs })));
       }
       
+      await createAuditLog({
+        action: isEdit ? 'UPDATE' : 'CREATE',
+        module: 'Bus Management',
+        entityType: 'bus',
+        entityId: busId,
+        entityName: formData.busNumber,
+        description: isEdit ? `Updated bus details for ${formData.busNumber}` : `Created new bus ${formData.busNumber}`,
+        severity: 'info',
+        changes: { before: isEdit ? bus : null, after: busDataToSave }
+      });
+      
       onSaveComplete();
     } catch (err) {
       console.error('Full Error:', err);
       setError(`Failed to save bus details. Error: ${err.message || 'Unknown error'}`);
+      await createAuditLog({
+        action: isEdit ? 'UPDATE' : 'CREATE',
+        module: 'Bus Management',
+        entityType: 'bus',
+        entityId: bus?.id || `bus_${formData.busNumber}`,
+        entityName: formData.busNumber,
+        description: `Failed to save bus details: ${err.message}`,
+        severity: 'warning',
+        status: 'failed'
+      }).catch(() => {});
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, doc, setDoc, updateDoc, getDocs } from 'firebase/firestore';
+import { createAuditLog } from '../../services/auditLogger';
 
 const inputStyle = {
   padding: '10px 12px',
@@ -82,10 +83,31 @@ export default function DriverForm({ driver, onBack, onSaveComplete }) {
         driverId = `driver_${Date.now()}`;
         await setDoc(doc(db, 'drivers', driverId), driverData);
       }
+
+      await createAuditLog({
+        action: isEdit ? 'UPDATE' : 'CREATE',
+        module: 'Driver Management',
+        entityType: 'driver',
+        entityId: driverId,
+        entityName: formData.driverName,
+        description: isEdit ? `Updated details for driver ${formData.driverName}` : `Added new driver ${formData.driverName}`,
+        severity: 'info',
+        changes: { before: isEdit ? driver : null, after: driverData }
+      });
+
       onSaveComplete();
     } catch (err) {
       console.error('Save Error:', err);
       setError(`Failed to save driver. Error: ${err.message}`);
+      await createAuditLog({
+        action: isEdit ? 'UPDATE' : 'CREATE',
+        module: 'Driver Management',
+        entityType: 'driver',
+        entityName: formData.driverName,
+        description: `Failed to save driver: ${err.message}`,
+        severity: 'warning',
+        status: 'failed'
+      }).catch(() => {});
     } finally {
       setLoading(false);
     }
