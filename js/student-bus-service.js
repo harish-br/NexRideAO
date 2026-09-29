@@ -411,6 +411,20 @@ export async function resolveStudentAssignedBus(currentUser = null) {
           }, { merge: true });
 
           await setDoc(doc(firestore, 'users', user.uid, 'DigitalID', 'userpass'), normalized.raw, { merge: true });
+          
+          // CRITICAL: Delete any legacy phone-keyed duplicate documents in the users collection
+          // to ensure strictly ONE document per user in the database.
+          if (loginPhoneClean) {
+            import('https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js').then(async (mod) => {
+              const { deleteDoc } = mod;
+              const p1 = `+91${loginPhoneClean}`;
+              const p2 = loginPhoneClean;
+              if (p1 !== user.uid) await deleteDoc(doc(firestore, 'users', p1)).catch(() => {});
+              if (p2 !== user.uid) await deleteDoc(doc(firestore, 'users', p2)).catch(() => {});
+              console.log('[StudentBusService] Cleaned up legacy duplicate phone documents');
+            }).catch(() => {});
+          }
+
         } catch (linkErr) {
           console.warn('[StudentBusService] Failed linking student to user.uid doc:', linkErr);
         }
