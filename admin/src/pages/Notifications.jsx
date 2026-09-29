@@ -217,38 +217,28 @@ export default function Notifications() {
       if (formData.target === 'specific_user' && formData.targetUserId) {
         targetPayload = 'specific_users';
 
-        // formData.targetUserId is already the Firebase Auth UID (doc ID from /users)
-        const studentAuthUid = formData.targetUserId;
-        console.log('[Admin] Sending to Auth UID:', studentAuthUid);
+        const targetId = formData.targetUserId;
+        console.log('[Admin] Sending to Target ID:', targetId);
 
-        userIds = [studentAuthUid];
+        userIds = [targetId];
 
-        // Write to the user's personal notifications subcollection
-        // This is what the Firestore real-time onSnapshot listener in report.js picks up
-        await addDoc(collection(db, 'users', studentAuthUid, 'notifications'), {
-          title: formData.title.trim(),
-          body: formData.body.trim(),
-          type: formData.type,
-          target: 'specific_user',
-          targetUserId: studentAuthUid,
-          createdAt: new Date().toISOString(),
-          status: 'sent',
-          read: false
-        });
-
-        // Also log in the global notifications history so admin can see it
+        // Write directly to the global notifications collection.
+        // The user app is listening to this collection (where targetUserId == their phone/UID)
+        // This ensures a single source of truth, so when the admin deletes it here,
+        // it is instantly removed from the user app via the snapshot listener.
         await addDoc(collection(db, 'notifications'), {
           title: formData.title.trim(),
           body: formData.body.trim(),
           type: formData.type,
           target: 'specific_user',
-          targetUserId: studentAuthUid,
+          targetUserId: targetId,
           createdAt: new Date().toISOString(),
-          status: 'sent'
+          status: 'sent',
+          read: false
         });
 
         firestoreSuccess = true;
-        console.log('[Admin] ✅ Personal notification written to /users/' + studentAuthUid + '/notifications');
+        console.log('[Admin] ✅ Personal notification written to global /notifications');
       }
 
     } catch (firestoreErr) {
