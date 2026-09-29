@@ -623,48 +623,80 @@ function subscribeToNotifications(uid) {
   isInitialDirectNotifs = true;
   isInitialBroadcastNotifs = true;
 
-  // 1. Listen to personal notifications: users/{uid}/notifications
-  try {
-    const q = collection(db, 'users', uid, 'notifications');
-    notificationsUnsubscribe = onSnapshot(q, async (snapshot) => {
-      const rawNotifs = [];
-      snapshot.forEach(docSnap => {
-        rawNotifs.push({
-          id: docSnap.id,
-          ...docSnap.data()
+  // Helper: create a personal notifications listener for a given doc path key
+  function makePersonalListener(docKey, label) {
+    try {
+      const q = collection(db, 'users', docKey, 'notifications');
+      return onSnapshot(q, async (snapshot) => {
+        const rawNotifs = [];
+        snapshot.forEach(docSnap => {
+          rawNotifs.push({ id: docSnap.id, ...docSnap.data() });
         });
-      });
-      directNotifsList = rawNotifs;
 
-      // Real-time alert dispatch for incoming notifications while app is open
-      if (!isInitialDirectNotifs) {
-        snapshot.docChanges().forEach(change => {
-          if (change.type === 'added') {
-            const data = change.doc.data();
-            if (!data.read) {
-              dispatchLiveNotificationAlert({ id: change.doc.id, ...data });
+        // Merge with existing list keyed by unique id
+        const existingIds = new Set(directNotifsList.map(n => n.id));
+        rawNotifs.forEach(n => {
+          if (!existingIds.has(n.id)) directNotifsList.push(n);
+        });
+        // Replace docs that came from this path
+        directNotifsList = [
+          ...directNotifsList.filter(n => n._srcKey && n._srcKey !== docKey),
+          ...rawNotifs.map(n => ({ ...n, _srcKey: docKey }))
+        ];
+
+        // Real-time alert dispatch for incoming notifications while app is open
+        if (!isInitialDirectNotifs) {
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'added') {
+              const data = change.doc.data();
+              if (!data.read) {
+                dispatchLiveNotificationAlert({ id: change.doc.id, ...data });
+              }
             }
-          }
-        });
-      }
-      isInitialDirectNotifs = false;
+          });
+        }
+        isInitialDirectNotifs = false;
 
-      mergeAndRenderNotifications();
-
-      // Clean any notifications whose reports were deleted in backend
-      await cleanOrphanedReportNotifications(uid);
-    }, (error) => {
-      console.warn('[Report] Notifications subscription error:', error);
+        mergeAndRenderNotifications();
+        await cleanOrphanedReportNotifications(uid);
+      }, (error) => {
+        console.warn(`[Report] Notifications subscription error (${label}):`, error);
+        notificationsLoaded = true;
+        mergeAndRenderNotifications();
+      });
+    } catch (e) {
+      console.warn(`[Report] Notifications setup error (${label}):`, e);
       notificationsLoaded = true;
-      mergeAndRenderNotifications();
-    });
-  } catch (e) {
-    console.warn('[Report] Notifications setup error:', e);
-    notificationsLoaded = true;
-    updateNotificationsUI();
+      updateNotificationsUI();
+      return null;
+    }
   }
 
-  // 2. Listen to broadcast announcements: notifications where target == 'all_users'
+  // 1. Listen on Auth UID path: users/{uid}/notifications  (primary)
+  notificationsUnsubscribe = makePersonalListener(uid, 'auth-uid');
+
+  // 2. Also listen on phone-number-keyed path as fallback
+  //    Some notifications may have been written to users/+91PHONE/notifications
+  //    We get the phone from Firebase Auth and the stored profile
+  try {
+    const authUser = auth.currentUser;
+    // Firebase phone auth stores the phone as user.phoneNumber e.g. "+918610605063"
+    const authPhone = authUser?.phoneNumber;
+    if (authPhone && authPhone !== uid) {
+      const phoneUnsub = makePersonalListener(authPhone, 'phone-uid');
+      // Chain unsubscribes so both are cleaned up together
+      const origUnsub = notificationsUnsubscribe;
+      notificationsUnsubscribe = () => {
+        try { if (origUnsub) origUnsub(); } catch (e) { }
+        try { if (phoneUnsub) phoneUnsub(); } catch (e) { }
+      };
+      console.log('[Report] Also listening on phone-keyed path:', authPhone);
+    }
+  } catch (phoneErr) {
+    console.warn('[Report] Could not set up phone-keyed notification listener:', phoneErr);
+  }
+
+  // 3. Listen to broadcast announcements: notifications where target == 'all_users'
   try {
     const bq = query(collection(db, 'notifications'), where('target', '==', 'all_users'));
     broadcastUnsubscribe = onSnapshot(bq, (snapshot) => {
@@ -698,6 +730,7 @@ function subscribeToNotifications(uid) {
     console.warn('[Report] Broadcast announcements setup note:', bErr.message);
   }
 }
+
 
 // =============================================================================
 // NAVIGATION WIRING

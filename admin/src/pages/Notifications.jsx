@@ -51,9 +51,16 @@ export default function Notifications() {
         const snap = await getDocs(collection(db, 'users'));
         const usersData = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
-          .filter(u => u.name || u.phone || u.phoneNumber || u.mobile); // skip empty docs
+          .filter(u => {
+            // Firebase Auth UIDs are 28-char alphanumeric strings.
+            // Exclude phone-number-keyed docs (start with + or are all digits).
+            // Phone-number docs exist but the Auth UID doc is what the app listens to.
+            const isPhoneId = /^\+?\d{7,}$/.test(u.id);
+            const hasContent = u.name || u.phone || u.phoneNumber || u.mobile || u.studentId;
+            return !isPhoneId && hasContent;
+          });
         setAppUsers(usersData);
-        console.log('[Admin] Loaded', usersData.length, 'app users from /users collection');
+        console.log('[Admin] Loaded', usersData.length, 'Auth-UID users (phone-keyed docs excluded)');
       } catch (err) {
         console.error('Failed to fetch users:', err);
       }
