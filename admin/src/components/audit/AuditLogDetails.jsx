@@ -1,5 +1,7 @@
 import React from 'react';
-import { X, Clock, ShieldAlert, CheckCircle, XCircle, Info, User, Monitor, Key } from 'lucide-react';
+import clockIcon from '../../assets/svg/record-circle.svg';
+import userIcon from '../../assets/svg/profile-2user.svg';
+import monitorIcon from '../../assets/svg/maximize.svg';
 
 export default function AuditLogDetails({ log, onClose }) {
   if (!log) return null;
@@ -54,14 +56,14 @@ export default function AuditLogDetails({ log, onClose }) {
             {log.action} Event
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6B7280', fontSize: '12px', marginTop: '6px' }}>
-            <Clock size={12} /> {formatTime(log.timestamp || log.createdAt)}
+            <img src={clockIcon} alt="" style={{width: 12, height: 12, opacity: 0.5}} /> {formatTime(log.timestamp || log.createdAt)}
           </div>
         </div>
         <button onClick={onClose} style={{ 
           background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', 
-          padding: '4px', borderRadius: '4px' 
+          padding: '4px', borderRadius: '4px', fontSize: '20px', lineHeight: 1 
         }}>
-          <X size={20} />
+          ✕
         </button>
       </div>
 
@@ -82,7 +84,7 @@ export default function AuditLogDetails({ log, onClose }) {
         <section>
           <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>Actor Information</h3>
           <div style={{ background: '#F9FAFB', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <DetailRow label="Name" value={log.actor?.name} icon={<User size={14} />} />
+            <DetailRow label="Name" value={log.actor?.name} icon={<img src={userIcon} alt="" style={{width: 14, height: 14, opacity: 0.6}} />} />
             <DetailRow label="Email" value={log.actor?.email} />
             <DetailRow label="Role" value={log.actor?.role} />
             <DetailRow label="UID" value={log.actor?.uid} mono />
@@ -119,7 +121,7 @@ export default function AuditLogDetails({ log, onClose }) {
           <section>
             <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>Request Metadata</h3>
             <div style={{ background: '#F9FAFB', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <DetailRow label="Device/Browser" value={log.metadata.userAgent} icon={<Monitor size={14} />} />
+              <DetailRow label="Device/Browser" value={log.metadata.userAgent} icon={<img src={monitorIcon} alt="" style={{width: 14, height: 14, opacity: 0.6}} />} />
               <DetailRow label="Platform" value={log.metadata.platform} />
               <DetailRow label="Language" value={log.metadata.language} />
             </div>

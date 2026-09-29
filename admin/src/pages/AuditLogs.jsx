@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, query, orderBy, limit, startAfter, getDocs, where } from 'firebase/firestore';
-import { Download, FileText, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import AuditLogSummary from '../components/audit/AuditLogSummary';
 import AuditLogFilters from '../components/audit/AuditLogFilters';
 import AuditLogDetails from '../components/audit/AuditLogDetails';
 import { createAuditLog } from '../services/auditLogger';
+
+import documentIcon from '../assets/svg/document-normal.svg';
+import documentTextIcon from '../assets/svg/document-text.svg';
+import refreshIcon from '../assets/svg/record-circle.svg';
 
 const PAGE_SIZE = 50;
 
@@ -191,7 +194,7 @@ export default function AuditLogs() {
               fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s'
             }}
           >
-            <RefreshCw size={16} className={loading ? "spin" : ""} /> Refresh
+            <img src={refreshIcon} alt="" className={loading ? "spin" : ""} style={{width: 16, height: 16, opacity: 0.7}} /> Refresh
           </button>
           <button 
             onClick={handleExport}
@@ -201,7 +204,7 @@ export default function AuditLogs() {
               fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)', transition: 'background 0.2s'
             }}
           >
-            <Download size={16} /> Export Logs
+            <img src={documentIcon} alt="" style={{width: 16, height: 16, filter: 'invert(1)'}} /> Export Logs
           </button>
         </div>
       </div>
@@ -256,7 +259,7 @@ export default function AuditLogs() {
                 {currentLogs.length === 0 ? (
                   <div style={{ padding: '60px', textAlign: 'center', color: '#6B7280', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
                     <div style={{ background: '#F3F4F6', padding: '16px', borderRadius: '50%' }}>
-                      <FileText size={32} color="#9CA3AF" />
+                      <img src={documentTextIcon} alt="" style={{width: 32, height: 32, opacity: 0.4}} />
                     </div>
                     <div style={{ fontWeight: '500', color: '#374151', fontSize: '15px' }}>No audit activity found</div>
                     <div style={{ fontSize: '13px' }}>Try changing your filters or date range.</div>
@@ -350,18 +353,20 @@ export default function AuditLogs() {
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px',
                       borderRadius: '8px', border: '1px solid #D1D5DB', background: currentPage === 1 ? '#F9FAFB' : '#fff',
-                      color: currentPage === 1 ? '#D1D5DB' : '#374151', cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                      color: currentPage === 1 ? '#D1D5DB' : '#374151', cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                      fontSize: '18px', fontWeight: 'bold'
                     }}
-                  ><ChevronLeft size={16} /></button>
+                  >‹</button>
                   <button 
                     disabled={currentPage === totalPages || totalPages === 0}
                     onClick={() => setCurrentPage(p => p + 1)}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px',
                       borderRadius: '8px', border: '1px solid #D1D5DB', background: currentPage === totalPages || totalPages === 0 ? '#F9FAFB' : '#fff',
-                      color: currentPage === totalPages || totalPages === 0 ? '#D1D5DB' : '#374151', cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer'
+                      color: currentPage === totalPages || totalPages === 0 ? '#D1D5DB' : '#374151', cursor: currentPage === totalPages || totalPages === 0 ? 'not-allowed' : 'pointer',
+                      fontSize: '18px', fontWeight: 'bold'
                     }}
-                  ><ChevronRight size={16} /></button>
+                  >›</button>
                 </div>
               </div>
             </div>
