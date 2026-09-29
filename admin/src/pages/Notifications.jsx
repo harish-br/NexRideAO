@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { collection, onSnapshot, deleteDoc, doc, addDoc } from 'firebase/firestore';
+import { collection, onSnapshot, deleteDoc, doc, addDoc, getDocs } from 'firebase/firestore';
 import { Search, Plus, Trash2, Send, AlertCircle, X } from 'lucide-react';
 import DetailsView from '../components/common/DetailsView';
 
@@ -35,10 +35,44 @@ export default function Notifications() {
     title: '',
     body: '',
     type: 'GENERAL_ANNOUNCEMENT',
-    target: 'all_users'
+    target: 'all_users',
+    targetUserId: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [appUsers, setAppUsers] = useState([]);   // from /users — doc ID = Auth UID
+  const [students, setStudents] = useState([]);    // from /students — for name/appNumber display
+
+  useEffect(() => {
+    // Fetch registered app users (doc ID = Firebase Auth UID)
+    const fetchUsers = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'users'));
+        const usersData = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(u => u.name || u.phone || u.phoneNumber || u.mobile); // skip empty docs
+        setAppUsers(usersData);
+        console.log('[Admin] Loaded', usersData.length, 'app users from /users collection');
+      } catch (err) {
+        console.error('Failed to fetch users:', err);
+      }
+    };
+
+    // Also fetch students for name/applicationNumber enrichment
+    const fetchStudents = async () => {
+      try {
+        const snap = await getDocs(collection(db, 'students'));
+        const studentsData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setStudents(studentsData);
+      } catch (err) {
+        console.warn('Failed to fetch students (non-critical):', err);
+      }
+    };
+
+    fetchUsers();
+    fetchStudents();
+  }, []);
 
   useEffect(() => {
     try {
@@ -66,7 +100,7 @@ export default function Notifications() {
   }, []);
 
   const handleCreate = () => {
-    setFormData({ title: '', body: '', type: 'GENERAL_ANNOUNCEMENT', target: 'all_users' });
+    setFormData({ title: '', body: '', type: 'GENERAL_ANNOUNCEMENT', target: 'all_users', targetUserId: '' });
     setViewMode('create');
   };
 
@@ -97,19 +131,122 @@ export default function Notifications() {
     e.preventDefault();
     setSubmitting(true);
     setError('');
-    
-    try {
-      await addDoc(collection(db, 'notifications'), {
-        ...formData,
-        createdAt: new Date().toISOString(),
-        status: 'sent'
-      });
-      handleBackToList();
-    } catch (err) {
-      setError('Failed to send notification: ' + err.message);
-    } finally {
+    setSuccessMsg('');
+
+    // ── Validate required fields ──────────────────────────────────────────────
+    if (!formData.title.trim()) {
+      setError('Please enter a notification title.');
       setSubmitting(false);
+      return;
     }
+    if (!formData.body.trim()) {
+      setError('Please enter a message body.');
+      setSubmitting(false);
+      return;
+    }
+    if (formData.target === 'specific_user' && !formData.targetUserId) {
+      setError('Please select a user to send this notification to.');
+      setSubmitting(false);
+      return;
+    }
+
+    let firestoreSuccess = false;
+    let targetPayload = 'all_users';
+    let userIds = [];
+
+    try {
+      // ── 1. ALL USERS BROADCAST ─────────────────────────────────────────────
+      if (formData.target === 'all_users') {
+        await addDoc(collection(db, 'notifications'), {
+          title: formData.title.trim(),
+          body: formData.body.trim(),
+          type: formData.type,
+          target: 'all_users',
+          createdAt: new Date().toISOString(),
+          status: 'sent'
+        });
+        firestoreSuccess = true;
+        console.log('[Admin] ✅ Broadcast written to Firestore /notifications');
+      }
+
+      // ── 2. SPECIFIC USER ───────────────────────────────────────────────────
+      if (formData.target === 'specific_user' && formData.targetUserId) {
+        targetPayload = 'specific_users';
+
+        // formData.targetUserId is already the Firebase Auth UID (doc ID from /users)
+        const studentAuthUid = formData.targetUserId;
+        console.log('[Admin] Sending to Auth UID:', studentAuthUid);
+
+        userIds = [studentAuthUid];
+
+        // Write to the user's personal notifications subcollection
+        // This is what the Firestore real-time onSnapshot listener in report.js picks up
+        await addDoc(collection(db, 'users', studentAuthUid, 'notifications'), {
+          title: formData.title.trim(),
+          body: formData.body.trim(),
+          type: formData.type,
+          target: 'specific_user',
+          targetUserId: studentAuthUid,
+          createdAt: new Date().toISOString(),
+          status: 'sent',
+          read: false
+        });
+
+        // Also log in the global notifications history so admin can see it
+        await addDoc(collection(db, 'notifications'), {
+          title: formData.title.trim(),
+          body: formData.body.trim(),
+          type: formData.type,
+          target: 'specific_user',
+          targetUserId: studentAuthUid,
+          createdAt: new Date().toISOString(),
+          status: 'sent'
+        });
+
+        firestoreSuccess = true;
+        console.log('[Admin] ✅ Personal notification written to /users/' + studentAuthUid + '/notifications');
+      }
+
+    } catch (firestoreErr) {
+      console.error('[Admin] ❌ Firestore write failed:', firestoreErr);
+      setError('Failed to send notification: ' + firestoreErr.message);
+      setSubmitting(false);
+      return;
+    }
+
+    // ── 3. BEST-EFFORT FCM PUSH via Backend API ────────────────────────────
+    // This triggers push to device even when the app is closed.
+    // Failure here does NOT prevent the notification from appearing in-app.
+    if (firestoreSuccess) {
+      fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer admin',
+          'x-user-role': 'admin'
+        },
+        body: JSON.stringify({
+          target: targetPayload,
+          userIds,
+          title: formData.title.trim(),
+          body: formData.body.trim(),
+          type: formData.type
+        })
+      }).then(r => {
+        if (r.ok) console.log('[Admin] ✅ Backend FCM push dispatched');
+        else console.warn('[Admin] Backend FCM returned status:', r.status);
+      }).catch(apiErr => {
+        console.warn('[Admin] Backend FCM unreachable (in-app notification still delivered via Firestore):', apiErr.message);
+      });
+    }
+
+    // ── 4. SUCCESS FEEDBACK ────────────────────────────────────────────────
+    setSuccessMsg(`✅ Notification "${formData.title.trim()}" dispatched successfully!`);
+    setFormData({ title: '', body: '', type: 'GENERAL_ANNOUNCEMENT', target: 'all_users', targetUserId: '' });
+    setSubmitting(false);
+
+    // Auto-return to list after brief success display
+    setTimeout(() => handleBackToList(), 1800);
   };
 
   const filteredNotifs = notifications.filter(n => 
@@ -299,8 +436,13 @@ export default function Notifications() {
                 
                 <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
                   {error && (
-                    <div style={{ padding: '12px', background: '#FEE2E2', color: '#DC2626', borderRadius: '8px', marginBottom: '20px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ padding: '12px', background: '#FEE2E2', color: '#DC2626', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <AlertCircle size={16} /> {error}
+                    </div>
+                  )}
+                  {successMsg && (
+                    <div style={{ padding: '12px', background: '#DCFCE7', color: '#15803D', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '600' }}>
+                      {successMsg}
                     </div>
                   )}
                   
@@ -332,12 +474,54 @@ export default function Notifications() {
                       </FormGroup>
                       
                       <FormGroup label="Target Audience *">
-                        <select style={inputStyle} value={formData.target} onChange={e => setFormData({...formData, target: e.target.value})}>
+                        <select style={inputStyle} value={formData.target} onChange={e => setFormData({...formData, target: e.target.value, targetUserId: ''})}>
                           <option value="all_users">All Users (Broadcast)</option>
                           <option value="specific_route">Specific Route Passengers</option>
+                          <option value="specific_user">Specific User</option>
                         </select>
                       </FormGroup>
                     </div>
+
+                    {formData.target === 'specific_user' && (
+                      <div style={{ marginTop: '20px' }}>
+                        <FormGroup label={`Select User * (${appUsers.length} registered users)`}>
+                          <select 
+                            style={inputStyle} 
+                            value={formData.targetUserId} 
+                            onChange={e => setFormData({...formData, targetUserId: e.target.value})}
+                            required
+                          >
+                            <option value="">Select a registered user...</option>
+                            {appUsers.length === 0 && (
+                              <option disabled>Loading users...</option>
+                            )}
+                            {appUsers.map(user => {
+                              // Try to enrich with student applicationNumber
+                              const phone = user.phone || user.mobile || user.phoneNumber || '';
+                              const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+                              const matchedStudent = students.find(s => {
+                                const sp = String(s.phone || s.mobile || s.phoneNumber || '').replace(/\D/g, '').slice(-10);
+                                return sp === cleanPhone;
+                              });
+                              const appNum = matchedStudent?.applicationNumber || user.applicationNumber || user.studentId || '';
+                              const displayName = user.name || matchedStudent?.studentName || 'Unknown';
+                              const displayPhone = cleanPhone ? `****${cleanPhone.slice(-4)}` : '';
+                              return (
+                                <option key={user.id} value={user.id}>
+                                  {displayName}{appNum ? ` (${appNum})` : ''}{displayPhone ? ` — ${displayPhone}` : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {formData.targetUserId && (
+                            <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                              Auth UID: <code style={{ background: '#f3f4f6', padding: '1px 4px', borderRadius: '3px' }}>{formData.targetUserId}</code>
+                            </div>
+                          )}
+                        </FormGroup>
+                      </div>
+                    )}
+
                     
                     <button 
                       type="submit" 

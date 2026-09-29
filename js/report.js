@@ -954,7 +954,7 @@ export function resetReportForm() {
 
   // Clear attachments
   attachedFiles = [];
-  renderAttachmentThumbnails();
+  renderAttachmentsThumbnails();
 
   // Reset anonymous checkbox
   const anonCheck = document.getElementById('rep-field-anonymous');

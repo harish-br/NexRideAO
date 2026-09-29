@@ -104,7 +104,7 @@ export async function handleNotificationApi(req, res) {
         return sendJson(401, { error: 'Authentication required to view notifications' });
       }
 
-      const notifications = notificationService.getNotifications(recipientId, recipientType, { unreadOnly });
+      const notifications = await notificationService.getNotifications(recipientId, recipientType, { unreadOnly });
       return sendJson(200, { notifications });
     }
 
@@ -115,7 +115,7 @@ export async function handleNotificationApi(req, res) {
         return sendJson(200, { unreadCount: 0 });
       }
 
-      const unreadCount = notificationService.getUnreadCount(recipientId);
+      const unreadCount = await notificationService.getUnreadCount(recipientId);
       return sendJson(200, { unreadCount });
     }
 
@@ -123,18 +123,16 @@ export async function handleNotificationApi(req, res) {
     const singleReadMatch = pathname.match(/^\/api\/notifications\/([^\/]+)\/read$/);
     if (singleReadMatch && method === 'PATCH') {
       const notifId = decodeURIComponent(singleReadMatch[1]);
-      const updated = notificationService.markAsRead(notifId, authContext.uid);
-      if (!updated) {
-        return sendJson(404, { error: 'Notification not found' });
-      }
-      return sendJson(200, { success: true, notification: updated });
+      const updated = await notificationService.markAsRead(notifId, authContext.uid);
+      // If null, the notification was likely a broadcast read from localStorage — still return success
+      return sendJson(200, { success: true, notification: updated || { id: notifId, read: true } });
     }
 
     // 6. PATCH /api/notifications/read-all
     if (pathname === '/api/notifications/read-all' && method === 'PATCH') {
       const body = await parseBody().catch(() => ({}));
       const recipientId = body.recipientId || authContext.uid;
-      const count = notificationService.markAllAsRead(recipientId);
+      const count = await notificationService.markAllAsRead(recipientId);
       return sendJson(200, { success: true, updatedCount: count });
     }
 

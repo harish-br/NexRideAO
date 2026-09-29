@@ -4,6 +4,7 @@
   "description": "NexRide App Prototype",
   "type": "module",
   "scripts": {
+    "start": "node server.cjs",
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview",
@@ -24,6 +25,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "date-fns": "^4.4.0",
     "firebase": "^12.15.0",
+    "firebase-admin": "^14.5.0",
     "framer-motion": "^12.42.0",
     "lucide-react": "^1.21.0",
     "react": "^19.2.7",
