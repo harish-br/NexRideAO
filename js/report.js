@@ -524,12 +524,14 @@ function dispatchLiveNotificationAlert(notif) {
     }
   } catch (e) { }
 
-  // 1. Display non-intrusive floating in-app toast
+  // 1. Display non-intrusive floating in-app toast (DISABLED AS REQUESTED)
+  /*
   try {
     notificationClient.showInAppToast(notif);
   } catch (e) {
     console.warn('[Report] Toast dispatch error:', e);
   }
+  */
 
   // 2. Native System / Browser Notification if permission granted
   try {
