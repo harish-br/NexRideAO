@@ -11,19 +11,34 @@ import {
   limit
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
-import { cacheGet, cacheSet } from './offline/db.js';
+import { cacheGet, cacheSet, cacheDelete } from './offline/db.js';
 
 // =============================================================================
 // STATE & REGISTRY
 // =============================================================================
-let activeStudentData = null;
+let activeStudentData = null;       // Currently resolved student record (null = no one logged in)
+let activeUserId = null;            // UID of the user whose data is loaded
 const changeListeners = new Set();
-let activeSnapshotUnsubs = [];
-let isResolving = false;
+let activeSnapshotUnsubs = [];      // Real-time Firestore unsubscribe functions
 let autoCollectionListenerUnsub = null;
+let isResolving = false;
+
+// =============================================================================
+// NORMALIZATION
+// =============================================================================
 
 /**
- * Normalizes raw Firestore document data into standard Student Bus Allocation format
+ * Normalize a raw phone string to exactly 10 digits, or null.
+ */
+function normalizePhone(raw) {
+  if (!raw) return null;
+  const digits = String(raw).replace(/\D/g, '').slice(-10);
+  return digits.length === 10 ? digits : null;
+}
+
+/**
+ * Normalizes raw Firestore document data into a standard Student Bus Allocation format.
+ * Returns null-safe fallback strings — never undefined, null, or NaN in UI-facing fields.
  */
 export function normalizeStudentData(data, docId = '') {
   if (!data) return null;
@@ -31,63 +46,114 @@ export function normalizeStudentData(data, docId = '') {
   const rawBus = data.assignedBus || data.bus || data.busNumber || data.bus_no || data['bus no'] || '';
   const busStr = rawBus ? String(rawBus).trim() : '';
 
-  const rawStage = data.stage || data.pickupStop || data.boardingStop || '';
+  const rawStage = data.stage || data.pickupStop || data.boardingStop || data.boardingStopName || '';
   const rawRoute = data.routeId || data.route_id || data.assignedRouteName || data.route || data.routeName || '';
 
-  const rawId = data.studentId || data.id || data.regno || docId || '';
-  const rawName = data.name || data.studentName || data.displayName || 'Student';
+  const rawId = data.studentId || data.id || data.regno || data.applicationId || docId || '';
+  const rawName = data.name || data.studentName || data.displayName || '';
 
-  const cleanPhone = String(data.phone || data.mobile || data.phoneNumber || data.contact || '').replace(/\D/g, '').slice(-10);
+  const cleanPhone = normalizePhone(
+    data.phone || data.mobile || data.phoneNumber || data.mobileNumber || data.contact || ''
+  );
+
+  // Fee info — all from DB, never calculated client-side
+  const feesStatus = data.fees_status || data.feeStatus || data.fee_status || '';
+  const feesAmount = data.feesAmount || data.fees_amount || data.feesTotal || data.feeAmount || 0;
+  const paidAmount = data.paidAmount || data.paid_amount || 0;
+  const pendingAmount = data.pendingAmount || data.pending_amount || 0;
 
   return {
-    docId: docId || rawId,
+    // Identity
+    docId: docId,
     id: rawId,
     studentId: rawId,
     regno: rawId,
-    name: rawName,
+    applicationId: data.applicationId || rawId,
+    name: rawName || 'Not Available',
+
+    // Contact
+    phone: cleanPhone || '',
+    mobile: cleanPhone || '',
+    cleanPhone: cleanPhone,
+    phoneNumber: cleanPhone ? `+91${cleanPhone}` : '',
+    mobileNumber: cleanPhone || '',
+    contact: data['parent_gaurdian contact'] || data.parentContact || data.contact || '',
+    email: data.email || '',
+
+    // Academic
+    department: data.department || '',
+    year: data.year || '',
+    section: data.section || '',
+    course: data.course || '',
+    academicYear: data.academicYear || data.academic_year || '',
+    institution: data.institution || '',
+    rollNumber: data.rollNumber || data.rollNo || data.roll_no || '',
+    registerNumber: data.registerNumber || data.regNo || '',
+    passengerType: data.passengerType || data.passenger_type || 'Student',
+    role: data.role || 'student',
+
+    // Transport assignment — all from DB
     assignedBus: busStr,
     bus: busStr,
     busNumber: busStr,
+    assignedBusId: data.assignedBusId || data.busId || '',
     stage: rawStage,
     pickupStop: rawStage,
+    boardingStop: rawStage,
+    boardingStopName: rawStage,
+    boardingStopId: data.boardingStopId || data.boardingStop || '',
     routeId: rawRoute,
     route: rawRoute,
-    phone: data.phone || data.mobile || data.phoneNumber || '',
-    mobile: data.mobile || data.phone || '',
-    phoneNumber: data.phoneNumber || (cleanPhone ? `+91${cleanPhone}` : ''),
-    cleanPhone: cleanPhone,
-    contact: data['parent_gaurdian contact'] || data.contact || data.phone || '',
-    balance: data.balance || (data.fees_status === 'Paid' ? 'Fully Paid' : (Number(data.pendingAmount) === 0 && data.pendingAmount !== undefined ? 'Fully Paid' : 'Unpaid')),
-    fees_status: data.fees_status || (data.balance === 'Fully Paid' ? 'Paid' : (Number(data.pendingAmount) === 0 && data.pendingAmount !== undefined ? 'Paid' : 'Pending')),
-    feesAmount: data.feesAmount || data.fees_amount || data.feesTotal || 0,
-    paidAmount: data.paidAmount || data.paid_amount || 0,
-    pendingAmount: data.pendingAmount || 0,
-    academicYear: data.academicYear || data.academic_year || '2025-2026',
-    institution: data.institution || 'Nandha Engineering College (Autonomous)',
-    department: data.department || 'Engineering',
-    year: data.year || '2nd Year',
-    passengerType: data.passengerType || data.passenger_type || 'Student',
-    role: data.role || 'student',
+    routeName: data.routeName || rawRoute,
+    transportStatus: data.transportStatus || data.transport_status || '',
+
+    // Fee — all directly from DB, no derivation
+    fees_status: feesStatus,
+    feeStatus: feesStatus,
+    balance: data.balance || feesStatus,
+    feesAmount: feesAmount,
+    paidAmount: paidAmount,
+    pendingAmount: pendingAmount,
+    paymentDate: data.paymentDate || null,
+    paymentReference: data.paymentReference || null,
+
+    // Dynamic student-specific options from DB
+    selectedOptions: data.selectedOptions || data.services || null,
+
+    // Timestamps
     updatedAt: data.updatedAt || null,
+    createdAt: data.createdAt || null,
+
+    // UI / avatar
+    photoURL: data.photoURL || data.profilePic || data.avatar || null,
+    gender: data.gender || '',
+    preferences: data.preferences || data.notificationPreferences || null,
+
+    // Keep raw for downstream merging
     raw: data
   };
 }
 
-/**
- * Returns current in-memory resolved student record
- */
+// =============================================================================
+// PUBLIC GETTERS & SUBSCRIPTION
+// =============================================================================
+
+/** Returns the currently active student record (null if not resolved yet) */
 export function getActiveStudentData() {
   return activeStudentData;
 }
 
 /**
- * Subscribes a listener to student bus allocation updates
+ * Subscribe to student data changes.
+ * @param {Function} callback receives normalized student data or null.
+ * @returns unsubscribe function
  */
 export function subscribeStudentBus(callback) {
   if (typeof callback !== 'function') return () => {};
   changeListeners.add(callback);
 
-  // Immediately notify with current data if already resolved
+  // Only immediately call with current data if it has already been resolved (non-null).
+  // If activeStudentData is null, it means "not resolved yet" — don't call yet, wait for resolution.
   if (activeStudentData) {
     try {
       callback(activeStudentData);
@@ -101,9 +167,7 @@ export function subscribeStudentBus(callback) {
   };
 }
 
-/**
- * Broadcasts student data to all registered listeners
- */
+/** Broadcasts to all listeners and fires a global DOM event */
 function notifyListeners(data) {
   activeStudentData = data;
   changeListeners.forEach(cb => {
@@ -114,340 +178,383 @@ function notifyListeners(data) {
     }
   });
 
-  // Dispatch global DOM event for components listening on window
   window.dispatchEvent(new CustomEvent('nexride:student-bus-updated', {
     detail: data
   }));
 }
 
-/**
- * Clear existing real-time document listeners
- */
+// =============================================================================
+// REALTIME SNAPSHOT LISTENERS
+// =============================================================================
+
+/** Stop all active Firestore document snapshot listeners */
 function cleanupSnapshotListeners() {
   activeSnapshotUnsubs.forEach(unsub => {
     try { unsub(); } catch (e) {}
   });
   activeSnapshotUnsubs = [];
+
+  if (autoCollectionListenerUnsub) {
+    try { autoCollectionListenerUnsub(); } catch (e) {}
+    autoCollectionListenerUnsub = null;
+  }
 }
 
 /**
- * Attach real-time Firestore listeners to the student document(s)
+ * Attach real-time Firestore listeners to the student's document(s).
+ * Listens on both students/{studentDocId} and users/{authUid} so admin changes
+ * appear instantly in the app.
  */
-function attachRealtimeListeners(targetDocId, authUid = null) {
+function attachRealtimeListeners(studentDocId, authUid) {
   cleanupSnapshotListeners();
 
-  const docIds = new Set();
-  if (targetDocId) docIds.add(targetDocId);
-  if (authUid) docIds.add(authUid);
+  const docPaths = new Map(); // path → collection
+  if (studentDocId) docPaths.set(studentDocId, 'students');
+  if (authUid) docPaths.set(authUid, 'users');
 
-  docIds.forEach(dId => {
+  docPaths.forEach((collection, dId) => {
     try {
-      const unsub = onSnapshot(doc(firestore, 'users', dId), (snap) => {
-        if (snap.exists()) {
-          const freshData = snap.data();
-          const normalized = normalizeStudentData(freshData, snap.id);
-          console.log(`[StudentBusService] Real-time Firestore update for student [${dId}]: Bus ${normalized.assignedBus || 'None'}`);
-          
-          // Only update if it contains meaningful student info
-          if (normalized.assignedBus || normalized.name !== 'User') {
-            notifyListeners(normalized);
-            cacheSet('active_student_bus', normalized).catch(() => {});
-          }
+      const unsub = onSnapshot(doc(firestore, collection, dId), (snap) => {
+        if (!snap.exists()) return;
+        const freshData = snap.data();
+        const normalized = normalizeStudentData(freshData, snap.id);
+        if (!normalized) return;
+
+        console.log(`[StudentBusService] Real-time update [${collection}/${dId}]: Bus "${normalized.assignedBus}", Stop "${normalized.boardingStop}"`);
+
+        // Only apply update if it belongs to the currently active user (prevent cross-user leakage)
+        const currentUid = auth?.currentUser?.uid;
+        if (currentUid && dId !== currentUid && dId !== localStorage.getItem('nexride_student_id')) {
+          return;
         }
+
+        notifyListeners(normalized);
+        cacheSet(`student_data_${activeUserId}`, normalized).catch(() => {});
       }, (err) => {
-        console.warn(`[StudentBusService] onSnapshot error on doc ${dId}:`, err);
+        console.warn(`[StudentBusService] onSnapshot error [${collection}/${dId}]:`, err);
       });
 
       activeSnapshotUnsubs.push(unsub);
     } catch (e) {
-      console.warn(`[StudentBusService] Failed attaching onSnapshot for ${dId}:`, e);
+      console.warn(`[StudentBusService] Failed to attach listener [${collection}/${dId}]:`, e);
     }
   });
 }
 
+// =============================================================================
+// LOGOUT / SESSION CLEAR
+// =============================================================================
+
 /**
- * Core Resolver: Resolves student bus assignment from Firestore database.
- * Automatically detects logged-in user's mobile number and matches against database records,
- * guaranteeing each user sees only their own specific bus.
+ * Completely wipes all student state on logout.
+ * Call this before any new user session to guarantee zero cross-user data leakage.
+ */
+export function clearStudentSession() {
+  console.log('[StudentBusService] Clearing student session completely.');
+  cleanupSnapshotListeners();
+  activeStudentData = null;
+  activeUserId = null;
+  isResolving = false;
+
+  // Clear all user-specific localStorage keys
+  localStorage.removeItem('nexride_user_phone');
+  localStorage.removeItem('nexride_student_id');
+  localStorage.removeItem('nexride_assigned_bus');
+  localStorage.removeItem('nexride_user_profile');
+
+  // Clear user-specific IndexedDB cache entry (keyed by UID)
+  try {
+    if (activeUserId) {
+      cacheDelete(`student_data_${activeUserId}`).catch(() => {});
+    }
+  } catch (e) {}
+
+  // Notify all listeners that no student is active
+  notifyListeners(null);
+}
+
+// =============================================================================
+// CORE RESOLVER
+// =============================================================================
+
+/**
+ * Resolves the authenticated student's data from Firestore using a strict
+ * UID-first identity model, with mobile number as a secondary verified matcher.
+ *
+ * Resolution order:
+ *   1. users/{uid} — direct UID lookup (fastest, most secure)
+ *   2. students/{uid} — if students are stored by UID
+ *   3. students where phone/mobile == verifiedPhone — phone-based lookup
+ *   4. Comprehensive phone scan (handles field name variations)
+ *
+ * At every step, the resolved phone is cross-verified against the Firebase Auth
+ * phone number to guarantee we never return another user's record.
+ *
+ * @param {import('firebase/auth').User|null} currentUser
  */
 export async function resolveStudentAssignedBus(currentUser = null) {
-  if (isResolving) return activeStudentData;
+  // Allow re-resolve if explicitly passed a user (post-login), even if already resolving
+  if (isResolving && !currentUser) return activeStudentData;
   isResolving = true;
 
   try {
     const user = currentUser || auth?.currentUser;
 
-    // Detect active user's 10-digit mobile number
-    let loginPhoneClean = null;
-    if (user && user.phoneNumber) {
-      loginPhoneClean = String(user.phoneNumber).replace(/\D/g, '').slice(-10);
-    }
-    if (!loginPhoneClean) {
-      const storedPhone = localStorage.getItem('nexride_user_phone');
-      if (storedPhone) {
-        const c10 = String(storedPhone).replace(/\D/g, '').slice(-10);
-        if (c10.length === 10) loginPhoneClean = c10;
-      }
+    if (!user || user.isAnonymous) {
+      console.log('[StudentBusService] No authenticated user. Clearing session.');
+      notifyListeners(null);
+      return null;
     }
 
-    // 1. Try local offline cache first ONLY if it belongs to the same user
+    const uid = user.uid;
+
+    // If the same user is already loaded with live data and this is a background re-trigger, skip it.
+    // But if currentUser was explicitly passed (post-login call), always do a full re-resolve.
+    if (!currentUser && activeUserId === uid && activeStudentData) {
+      console.log(`[StudentBusService] User [${uid}] already resolved (background re-trigger). Skipping.`);
+      return activeStudentData;
+    }
+
+    // If a DIFFERENT user is now logging in, clear the previous session first
+    if (activeUserId && activeUserId !== uid) {
+      console.log(`[StudentBusService] Different user detected. Clearing previous session [${activeUserId}].`);
+      cleanupSnapshotListeners();
+      activeStudentData = null;
+    }
+
+    activeUserId = uid;
+
+    // Get the Firebase Auth verified phone number — this is tamper-proof
+    const verifiedPhone = normalizePhone(user.phoneNumber);
+    if (verifiedPhone) {
+      localStorage.setItem('nexride_user_phone', verifiedPhone);
+    }
+
+    console.log(`[StudentBusService] Resolving student for UID [${uid}], verified phone: ${verifiedPhone || 'none'}`);
+
+    // ─── Step 1: Check user-specific local cache (keyed by UID, not shared) ───
     if (!activeStudentData) {
       try {
-        const cached = await cacheGet('active_student_bus');
+        const cacheKey = `student_data_${uid}`;
+        const cached = await cacheGet(cacheKey);
         if (cached && cached.data && cached.data.assignedBus) {
-          const cachedPhone = String(cached.data.cleanPhone || cached.data.phone || '').replace(/\D/g, '').slice(-10);
-          if (!loginPhoneClean || !cachedPhone || cachedPhone === loginPhoneClean) {
+          // Validate cache belongs to this user
+          const cachedPhone = normalizePhone(cached.data.cleanPhone || cached.data.phone || '');
+          const phoneMatches = !verifiedPhone || !cachedPhone || cachedPhone === verifiedPhone;
+          if (phoneMatches) {
+            console.log(`[StudentBusService] Served from UID-keyed cache [${uid}]`);
             activeStudentData = cached.data;
             notifyListeners(activeStudentData);
+            // Continue resolution to get fresh data from Firestore
           }
         }
-      } catch (e) {}
+      } catch (e) { /* cache miss is OK */ }
     }
 
     let foundData = null;
-    let foundDocId = null;
+    let foundStudentDocId = null;
 
-    // CASE A: User has a detected login mobile number (or stored login phone)
-    if (loginPhoneClean) {
-      console.log(`[StudentBusService] Automatic mobile detection: +91 ${loginPhoneClean}. Querying Firestore database for this user's specific bus...`);
+    // ─── Step 2: Direct UID lookup in `users` collection ───
+    // Only use this if the doc has a valid assignedBus — otherwise fall through to phone lookup
+    try {
+      const userSnap = await getDoc(doc(firestore, 'users', uid));
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        const hasBus = !!(data.assignedBus || data.bus || data.busNumber);
 
-      // A1. Direct lookup by user.uid if authenticated and already linked
-      if (user && user.uid) {
-        try {
-          const snap = await getDoc(doc(firestore, 'users', user.uid));
-          if (snap.exists()) {
-            let data = snap.data();
-            const docPhone = String(data.phone || data.mobile || data.phoneNumber || data.cleanPhone || data.contact || '').replace(/\D/g, '').slice(-10);
-            if ((!docPhone || docPhone === loginPhoneClean) && (data.assignedBus || data.bus || data.busNumber || data.bus_no || data['bus no'])) {
-              // Try to fetch full student data if studentId is present
-              let studentFound = false;
-              if (data.studentId) {
-                try {
-                  const studentSnap = await getDoc(doc(firestore, 'students', data.studentId));
-                  if (studentSnap.exists()) {
-                    data = { ...data, ...studentSnap.data() };
-                    studentFound = true;
-                  }
-                } catch (e) {
-                  console.warn('[StudentBusService] Could not fetch full student doc:', e);
-                }
-              }
-              
-              if (!studentFound && loginPhoneClean) {
-                try {
-                   // Fallback search by phone to find full student doc
-                   const q = query(collection(firestore, 'students'), where('phone', '==', loginPhoneClean), limit(1));
-                   const snap = await getDocs(q);
-                   if (!snap.empty) {
-                     data = { ...data, ...snap.docs[0].data(), studentId: snap.docs[0].id };
-                   } else {
-                     const q2 = query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${loginPhoneClean}`), limit(1));
-                     const snap2 = await getDocs(q2);
-                     if (!snap2.empty) {
-                       data = { ...data, ...snap2.docs[0].data(), studentId: snap2.docs[0].id };
-                     }
-                   }
-                } catch(e) {}
-              }
+        if (hasBus) {
+          // Cross-verify phone if we have a verified phone from Firebase Auth
+          if (verifiedPhone) {
+            const docPhone = normalizePhone(
+              data.phone || data.mobile || data.mobileNumber || data.phoneNumber || data.cleanPhone || data.contact || ''
+            );
+            // If doc has a phone stored and it does NOT match the verified phone, reject it
+            if (docPhone && docPhone !== verifiedPhone) {
+              console.warn(`[StudentBusService] users/${uid} phone mismatch! Auth: ${verifiedPhone}, Doc: ${docPhone}. Falling through to phone queries.`);
+            } else {
               foundData = data;
-              foundDocId = snap.id;
-              console.log(`[StudentBusService] Matched authenticated user document [${user.uid}] for mobile ${loginPhoneClean}: Bus ${foundData.assignedBus || foundData.bus}`);
+              foundStudentDocId = userSnap.id;
+              console.log(`[StudentBusService] ✓ Matched via users/${uid}: Bus "${foundData.assignedBus || foundData.bus}"`);
             }
-          }
-        } catch (e) {
-          console.warn('[StudentBusService] Direct uid lookup failed:', e);
-        }
-      }
-
-      // A2. Indexed Firestore queries for this exact 10-digit mobile number
-      if (!foundData) {
-        const phoneQueries = [
-          query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${loginPhoneClean}`), limit(1)),
-          query(collection(firestore, 'students'), where('phone', '==', loginPhoneClean), limit(1)),
-          query(collection(firestore, 'students'), where('mobile', '==', loginPhoneClean), limit(1)),
-          query(collection(firestore, 'students'), where('cleanPhone', '==', loginPhoneClean), limit(1)),
-          query(collection(firestore, 'students'), where('rawPhone', '==', loginPhoneClean), limit(1)),
-          query(collection(firestore, 'students'), where('contact', '==', loginPhoneClean), limit(1))
-        ];
-
-        for (const q of phoneQueries) {
-          try {
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-              const docMatch = snap.docs.find(d => {
-                const dt = d.data();
-                return Boolean(dt.assignedBus || dt.bus || dt.busNumber || dt.bus_no || dt['bus no']);
-              }) || snap.docs[0];
-              foundData = docMatch.data();
-              foundDocId = docMatch.id;
-              console.log(`[StudentBusService] Matched student by indexed phone query [${loginPhoneClean}] -> Doc [${foundDocId}], Bus: ${foundData.assignedBus || foundData.bus}`);
-              break;
-            }
-          } catch (e) {
-            console.warn('[StudentBusService] Phone query attempt failed:', e);
-          }
-        }
-      }
-
-      // A3. Comprehensive collection scan for this exact 10-digit mobile number
-      // (handles spaces, leading zeros, number vs string types, or custom phone fields)
-      if (!foundData) {
-        try {
-          const snap = await getDocs(collection(firestore, 'students'));
-          for (const d of snap.docs) {
-            const dt = d.data();
-            const docPhones = [
-              dt.phone, dt.mobile, dt.phoneNumber, dt.cleanPhone, dt.rawPhone,
-              dt.contact, dt['parent_gaurdian contact'], d.id
-            ].map(p => String(p || '').replace(/\D/g, '').slice(-10));
-
-            if (docPhones.includes(loginPhoneClean)) {
-              foundData = dt;
-              foundDocId = d.id;
-              console.log(`[StudentBusService] Matched student by comprehensive phone scan [${loginPhoneClean}] -> Doc [${foundDocId}], Bus: ${foundData.assignedBus || foundData.bus}`);
-              const hasBus = Boolean(dt.assignedBus || dt.bus || dt.busNumber || dt.bus_no || dt['bus no']);
-              if (hasBus) break;
-            }
-          }
-        } catch (e) {
-          console.warn('[StudentBusService] Comprehensive phone scan failed:', e);
-        }
-      }
-
-      // STRICT USER ISOLATION:
-      // If user logged in with a mobile number and has no matching assigned bus in database,
-      // DO NOT SHOW ANY OTHER USER'S BUS!
-      if (!foundData || !(foundData.assignedBus || foundData.bus || foundData.busNumber)) {
-        console.log(`[StudentBusService] No bus assigned in database for mobile [${loginPhoneClean}]. Strict user isolation applied.`);
-        activeStudentData = null;
-        localStorage.removeItem('nexride_assigned_bus');
-        localStorage.removeItem('nexride_student_id');
-        cacheSet('active_student_bus', null).catch(() => {});
-        notifyListeners(null);
-        listenForNewStudentAllocations(user);
-        return null;
-      }
-    }
-
-    // CASE B: User has a stored Student ID / Registration number (entered manually)
-    if (!foundData) {
-      const storedId = localStorage.getItem('nexride_student_id') || localStorage.getItem('nexride_manual_student_id');
-      if (storedId) {
-        try {
-          const snap = await getDoc(doc(firestore, 'students', storedId));
-          if (snap.exists()) {
-            foundData = snap.data();
-            foundDocId = snap.id;
-            console.log(`[StudentBusService] Matched student by stored ID [${storedId}]`);
           } else {
-            // Query by studentId, regno, or id
-            const qStu = query(collection(firestore, 'students'), where('studentId', '==', storedId), limit(1));
-            const qReg = query(collection(firestore, 'students'), where('regno', '==', storedId), limit(1));
-            const [snapStu, snapReg] = await Promise.all([getDocs(qStu).catch(() => null), getDocs(qReg).catch(() => null)]);
-            const matched = (snapStu && !snapStu.empty && snapStu.docs[0]) || (snapReg && !snapReg.empty && snapReg.docs[0]);
-            if (matched) {
-              foundData = matched.data();
-              foundDocId = matched.id;
-              console.log(`[StudentBusService] Matched student by studentId/regno query [${storedId}] -> Doc [${foundDocId}]`);
-            }
+            // No verified phone from Firebase Auth, trust UID
+            foundData = data;
+            foundStudentDocId = userSnap.id;
           }
-        } catch (e) {
-          console.warn('[StudentBusService] Stored ID lookup failed:', e);
+        } else {
+          console.log(`[StudentBusService] users/${uid} exists but has no assignedBus — falling through to phone queries.`);
         }
       }
+    } catch (e) {
+      console.warn('[StudentBusService] users/{uid} lookup failed:', e);
     }
 
-    // CASE C: Pure unauthenticated developer demo preview (no mobile, no student ID, localhost/demo only)
-    if (!foundData && !loginPhoneClean && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || !user || user.isAnonymous)) {
+    // ─── Step 3: Direct UID lookup in `students` collection ───
+    if (!foundData) {
       try {
-        const snap = await getDocs(collection(firestore, 'students'));
-        if (!snap.empty) {
-          const assignedDocs = snap.docs.filter(d => {
-            const dt = d.data();
-            return Boolean(dt.assignedBus || dt.bus || dt.busNumber || dt.bus_no || dt['bus no']);
-          });
-
-          if (assignedDocs.length > 0) {
-            assignedDocs.sort((a, b) => {
-              const dtA = a.data();
-              const dtB = b.data();
-              const timeA = dtA.updatedAt?.toMillis?.() || dtA.updatedAt?.seconds || 0;
-              const timeB = dtB.updatedAt?.toMillis?.() || dtB.updatedAt?.seconds || 0;
-              return timeB - timeA;
-            });
-            foundData = assignedDocs[0].data();
-            foundDocId = assignedDocs[0].id;
-            console.log(`[StudentBusService] Unauthenticated dev demo fallback: resolved assigned student [${foundDocId}] (Bus ${foundData.assignedBus || foundData.bus})`);
+        const stuSnap = await getDoc(doc(firestore, 'students', uid));
+        if (stuSnap.exists()) {
+          const data = stuSnap.data();
+          if (verifiedPhone) {
+            const docPhone = normalizePhone(
+              data.phone || data.mobile || data.mobileNumber || data.phoneNumber || data.cleanPhone || ''
+            );
+            if (!docPhone || docPhone === verifiedPhone) {
+              foundData = data;
+              foundStudentDocId = stuSnap.id;
+              console.log(`[StudentBusService] ✓ Matched via students/${uid}`);
+            }
+          } else {
+            foundData = data;
+            foundStudentDocId = stuSnap.id;
           }
         }
       } catch (e) {
-        console.warn('[StudentBusService] Demo fallback query failed:', e);
+        console.warn('[StudentBusService] students/{uid} lookup failed:', e);
       }
     }
 
-    // Link and notify
-    if (foundData && foundDocId) {
-      const normalized = normalizeStudentData(foundData, foundDocId);
+    // ─── Step 4: Phone-based queries (only for authenticated, verified phone) ───
+    if (!foundData && verifiedPhone) {
+      console.log(`[StudentBusService] Searching students collection for verified phone [${verifiedPhone}]...`);
 
-      // Link to user.uid document in Firestore so future direct queries succeed
-      if (user && user.uid && foundDocId !== user.uid) {
+      const phoneQueries = [
+        query(collection(firestore, 'students'), where('phone', '==', verifiedPhone), limit(1)),
+        query(collection(firestore, 'students'), where('mobile', '==', verifiedPhone), limit(1)),
+        query(collection(firestore, 'students'), where('mobileNumber', '==', verifiedPhone), limit(1)),
+        query(collection(firestore, 'students'), where('cleanPhone', '==', verifiedPhone), limit(1)),
+        query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${verifiedPhone}`), limit(1)),
+        query(collection(firestore, 'students'), where('contact', '==', verifiedPhone), limit(1)),
+        query(collection(firestore, 'students'), where('rawPhone', '==', verifiedPhone), limit(1)),
+      ];
+
+      for (const q of phoneQueries) {
         try {
-          await setDoc(doc(firestore, 'users', user.uid), {
-            assignedBus: normalized.assignedBus,
-            bus: normalized.bus,
-            busNumber: normalized.busNumber,
-            stage: normalized.stage,
-            pickupStop: normalized.pickupStop,
-            routeId: normalized.routeId,
-            studentId: normalized.studentId,
-            regno: normalized.regno,
-            name: normalized.name,
-            phone: normalized.phone,
-            mobile: normalized.mobile,
-            cleanPhone: normalized.cleanPhone || loginPhoneClean,
-            phoneNumber: normalized.phoneNumber,
-            balance: normalized.balance,
-            fees_status: normalized.fees_status
-          }, { merge: true });
-
-          await setDoc(doc(firestore, 'users', user.uid, 'DigitalID', 'userpass'), normalized.raw, { merge: true });
-          
-          // CRITICAL: Delete any legacy phone-keyed duplicate documents in the users collection
-          // to ensure strictly ONE document per user in the database.
-          if (loginPhoneClean) {
-            import('https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js').then(async (mod) => {
-              const { deleteDoc } = mod;
-              const p1 = `+91${loginPhoneClean}`;
-              const p2 = loginPhoneClean;
-              if (p1 !== user.uid) await deleteDoc(doc(firestore, 'users', p1)).catch(() => {});
-              if (p2 !== user.uid) await deleteDoc(doc(firestore, 'users', p2)).catch(() => {});
-              console.log('[StudentBusService] Cleaned up legacy duplicate phone documents');
-            }).catch(() => {});
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const matched = snap.docs[0];
+            foundData = matched.data();
+            foundStudentDocId = matched.id;
+            console.log(`[StudentBusService] ✓ Matched via phone query [${verifiedPhone}] → students/${foundStudentDocId}: Bus "${foundData.assignedBus || foundData.bus || 'none'}"`);
+            break;
           }
-
-        } catch (linkErr) {
-          console.warn('[StudentBusService] Failed linking student to user.uid doc:', linkErr);
+        } catch (e) {
+          console.warn('[StudentBusService] Phone query failed:', e);
         }
       }
+    }
 
-      // Persist to local caches
-      localStorage.setItem('nexride_student_id', normalized.studentId);
-      localStorage.setItem('nexride_assigned_bus', normalized.assignedBus);
-      if (loginPhoneClean) {
-        localStorage.setItem('nexride_user_phone', loginPhoneClean);
+    // ─── Step 5: Comprehensive phone scan (handles field name / format variations) ───
+    if (!foundData && verifiedPhone) {
+      console.log(`[StudentBusService] Full collection scan for phone [${verifiedPhone}]...`);
+      try {
+        const allStudents = await getDocs(collection(firestore, 'students'));
+        for (const d of allStudents.docs) {
+          const dt = d.data();
+          const docPhones = [
+            dt.phone, dt.mobile, dt.mobileNumber, dt.phoneNumber, dt.cleanPhone,
+            dt.rawPhone, dt.contact, dt['parent_gaurdian contact'], dt.parentContact, d.id
+          ].map(p => normalizePhone(p || '')).filter(Boolean);
+
+          if (docPhones.includes(verifiedPhone)) {
+            foundData = dt;
+            foundStudentDocId = d.id;
+            console.log(`[StudentBusService] ✓ Matched via full scan [${verifiedPhone}] → students/${foundStudentDocId}`);
+            if (foundData.assignedBus || foundData.bus) break; // Prefer record with a bus assigned
+          }
+        }
+      } catch (e) {
+        console.warn('[StudentBusService] Full collection scan failed:', e);
       }
-      cacheSet('active_student_bus', normalized).catch(() => {});
+    }
 
-      // Attach real-time snapshot listeners so changes in admin appear immediately
-      attachRealtimeListeners(foundDocId, user?.uid);
-
-      notifyListeners(normalized);
-      listenForNewStudentAllocations(user);
-      return normalized;
-    } else {
-      listenForNewStudentAllocations(user);
+    // ─── No match found ───
+    if (!foundData) {
+      console.log(`[StudentBusService] No student record found for UID [${uid}] / phone [${verifiedPhone}]. Strict isolation applied.`);
+      activeStudentData = null;
+      localStorage.removeItem('nexride_assigned_bus');
+      localStorage.removeItem('nexride_student_id');
+      try { await cacheSet(`student_data_${uid}`, null); } catch (e) {}
+      notifyListeners(null);
+      // Start listening for new allocations (admin may add later)
+      listenForStudentAllocation(uid, verifiedPhone);
       return null;
     }
+
+    // ─── Found: normalize and resolve related data ───
+    const normalized = normalizeStudentData(foundData, foundStudentDocId);
+
+    // Fetch additional student record if we only have the users doc (to get full details)
+    if (normalized.studentId && normalized.studentId !== foundStudentDocId) {
+      try {
+        const fullSnap = await getDoc(doc(firestore, 'students', normalized.studentId));
+        if (fullSnap.exists()) {
+          const merged = { ...foundData, ...fullSnap.data() };
+          const mergedNorm = normalizeStudentData(merged, foundStudentDocId);
+          if (mergedNorm) Object.assign(normalized, mergedNorm);
+        }
+      } catch (e) { /* optional enrichment, not critical */ }
+    }
+
+    // ─── Link the student doc to the users/{uid} doc for fast future lookups ───
+    if (foundStudentDocId !== uid) {
+      try {
+        await setDoc(doc(firestore, 'users', uid), {
+          // Core transport assignment
+          assignedBus: normalized.assignedBus || '',
+          assignedBusId: normalized.assignedBusId || '',
+          stage: normalized.stage || '',
+          pickupStop: normalized.pickupStop || '',
+          boardingStop: normalized.boardingStop || '',
+          boardingStopId: normalized.boardingStopId || '',
+          routeId: normalized.routeId || '',
+          routeName: normalized.routeName || '',
+          transportStatus: normalized.transportStatus || '',
+          // Identity
+          studentId: normalized.studentId || foundStudentDocId,
+          regno: normalized.regno || '',
+          applicationId: normalized.applicationId || '',
+          name: normalized.name || '',
+          // Contact (store verified phone only)
+          phone: verifiedPhone || normalized.phone || '',
+          mobile: verifiedPhone || normalized.mobile || '',
+          cleanPhone: verifiedPhone || normalized.cleanPhone || '',
+          mobileNumber: verifiedPhone || '',
+          // Fee — preserve DB values exactly, no client-side derivation
+          fees_status: normalized.fees_status || '',
+          feeStatus: normalized.feeStatus || '',
+          feesAmount: normalized.feesAmount || 0,
+          paidAmount: normalized.paidAmount || 0,
+          pendingAmount: normalized.pendingAmount || 0,
+          // Options
+          selectedOptions: normalized.selectedOptions || null,
+          // Academic
+          department: normalized.department || '',
+          year: normalized.year || '',
+          section: normalized.section || '',
+          academicYear: normalized.academicYear || '',
+        }, { merge: true });
+        console.log(`[StudentBusService] Linked students/${foundStudentDocId} → users/${uid}`);
+      } catch (linkErr) {
+        console.warn('[StudentBusService] Failed to link student to users/{uid}:', linkErr);
+      }
+    }
+
+    // ─── Persist to local caches (keyed by UID so users never share caches) ───
+    localStorage.setItem('nexride_student_id', normalized.studentId);
+    localStorage.setItem('nexride_assigned_bus', normalized.assignedBus);
+    if (verifiedPhone) localStorage.setItem('nexride_user_phone', verifiedPhone);
+
+    try {
+      await cacheSet(`student_data_${uid}`, normalized);
+    } catch (e) {}
+
+    // ─── Attach real-time listeners so admin changes appear immediately ───
+    attachRealtimeListeners(foundStudentDocId, uid);
+
+    notifyListeners(normalized);
+    listenForStudentAllocation(uid, verifiedPhone);
+    return normalized;
 
   } catch (err) {
     console.error('[StudentBusService] Error resolving student bus:', err);
@@ -457,247 +564,105 @@ export async function resolveStudentAssignedBus(currentUser = null) {
   }
 }
 
+// =============================================================================
+// REAL-TIME: Listen for new admin allocations for this specific user
+// =============================================================================
+
 /**
- * Listens to the users collection for any newly added or updated student in real time.
- * Strictly respects user mobile number isolation so User A never gets User B's bus.
+ * Opens a targeted real-time listener that fires only when the admin updates
+ * THIS user's record. Never fires for other students.
  */
-function listenForNewStudentAllocations(user) {
-  if (autoCollectionListenerUnsub) return;
+function listenForStudentAllocation(uid, verifiedPhone) {
+  if (autoCollectionListenerUnsub) return; // already listening
+
+  // Listen to the students collection, filtered to this user's phone
+  if (!verifiedPhone) return;
 
   try {
-    const usersCol = collection(firestore, 'students');
-    autoCollectionListenerUnsub = onSnapshot(usersCol, (snap) => {
+    const q = query(
+      collection(firestore, 'students'),
+      where('phone', '==', verifiedPhone),
+      limit(1)
+    );
+
+    autoCollectionListenerUnsub = onSnapshot(q, (snap) => {
       snap.docChanges().forEach(change => {
         if (change.type === 'added' || change.type === 'modified') {
           const data = change.doc.data();
-          const hasBus = Boolean(data.assignedBus || data.bus || data.busNumber || data.bus_no || data['bus no']);
-          if (!hasBus) return;
+          const changeDocPhone = normalizePhone(
+            data.phone || data.mobile || data.mobileNumber || data.cleanPhone || ''
+          );
 
-          // Determine current user's mobile number
-          let currentMobile = null;
-          if (user && user.phoneNumber) {
-            currentMobile = user.phoneNumber.replace(/\D/g, '').slice(-10);
-          }
-          if (!currentMobile) {
-            const sp = localStorage.getItem('nexride_user_phone');
-            if (sp) currentMobile = sp.replace(/\D/g, '').slice(-10);
-          }
+          // Strict phone match — must match verified phone exactly
+          if (!changeDocPhone || changeDocPhone !== verifiedPhone) return;
 
-          const storedId = localStorage.getItem('nexride_student_id');
+          console.log(`[StudentBusService] Admin allocation detected for phone [${verifiedPhone}]: Bus "${data.assignedBus || data.bus}"`);
+          const normalized = normalizeStudentData(data, change.doc.id);
+          if (!normalized) return;
 
-          let isMatch = false;
-
-          // 1. If user is logged in with a mobile number: MATCH ONLY IF THIS CHANGED DOC'S PHONE MATCHES!
-          if (currentMobile) {
-            const changePhones = [
-              data.phone, data.mobile, data.phoneNumber, data.cleanPhone, data.rawPhone,
-              data.contact, data['parent_gaurdian contact'], change.doc.id
-            ].map(p => String(p || '').replace(/\D/g, '').slice(-10));
-
-            if (changePhones.includes(currentMobile)) {
-              isMatch = true;
-              console.log(`[StudentBusService] Real-time assignment MATCHED for mobile [${currentMobile}]: Bus ${data.assignedBus || data.bus}`);
-            }
-          } else if (storedId) {
-            // 2. If user linked by Student ID, match if ID matches
-            if (change.doc.id === storedId || data.studentId === storedId || data.regno === storedId) {
-              isMatch = true;
-            }
-          } else if (user && user.uid && change.doc.id === user.uid) {
-            // 3. Match if direct UID matches
-            isMatch = true;
-          } else if (!user && !currentMobile && !storedId) {
-            // 4. Demo fallback: auto-adopt newly assigned student when unassigned
-            if (!activeStudentData || !activeStudentData.assignedBus) {
-              isMatch = true;
-            }
-          }
-
-          if (isMatch) {
-            const normalized = normalizeStudentData(data, change.doc.id);
-            localStorage.setItem('nexride_student_id', normalized.studentId);
-            localStorage.setItem('nexride_assigned_bus', normalized.assignedBus);
-            cacheSet('active_student_bus', normalized).catch(() => {});
-            notifyListeners(normalized);
-            attachRealtimeListeners(change.doc.id, user?.uid);
-          }
+          localStorage.setItem('nexride_student_id', normalized.studentId);
+          localStorage.setItem('nexride_assigned_bus', normalized.assignedBus);
+          cacheSet(`student_data_${uid}`, normalized).catch(() => {});
+          attachRealtimeListeners(change.doc.id, uid);
+          notifyListeners(normalized);
         }
       });
     }, (err) => {
-      console.warn('[StudentBusService] Collection listener error:', err);
+      console.warn('[StudentBusService] Allocation listener error:', err);
     });
   } catch (e) {
-    console.warn('[StudentBusService] Could not set collection listener:', e);
+    console.warn('[StudentBusService] Could not start allocation listener:', e);
   }
 }
 
-/**
- * Manually link or switch Student ID or Mobile Number
- */
-export async function setManualStudentId(queryInput) {
-  if (!queryInput) return null;
-  const clean = String(queryInput).trim();
-  const cleanDigits = clean.replace(/\D/g, '');
-  const isMobile = cleanDigits.length === 10;
-
-  localStorage.setItem('nexride_student_id', clean);
-  localStorage.setItem('nexride_manual_student_id', clean);
-
-  try {
-    let matchedDoc = null;
-
-    // 1. Direct doc ID lookup
-    const snap = await getDoc(doc(firestore, 'students', clean));
-    if (snap.exists()) {
-      matchedDoc = { id: snap.id, data: snap.data() };
-    }
-
-    // 2. Query by studentId / regno
-    if (!matchedDoc) {
-      const qStu = query(collection(firestore, 'students'), where('studentId', '==', clean), limit(1));
-      const qReg = query(collection(firestore, 'students'), where('regno', '==', clean), limit(1));
-      const [resStu, resReg] = await Promise.all([getDocs(qStu).catch(() => null), getDocs(qReg).catch(() => null)]);
-      if (resStu && !resStu.empty) {
-        matchedDoc = { id: resStu.docs[0].id, data: resStu.docs[0].data() };
-      } else if (resReg && !resReg.empty) {
-        matchedDoc = { id: resReg.docs[0].id, data: resReg.docs[0].data() };
-      }
-    }
-
-    // 3. If 10 digits, query by mobile / phone
-    if (!matchedDoc && isMobile) {
-      const pQueries = [
-        query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${cleanDigits}`), limit(1)),
-        query(collection(firestore, 'students'), where('phone', '==', cleanDigits), limit(1)),
-        query(collection(firestore, 'students'), where('mobile', '==', cleanDigits), limit(1)),
-        query(collection(firestore, 'students'), where('rawPhone', '==', cleanDigits), limit(1)),
-        query(collection(firestore, 'students'), where('contact', '==', cleanDigits), limit(1))
-      ];
-      for (const q of pQueries) {
-        try {
-          const res = await getDocs(q);
-          if (!res.empty) {
-            matchedDoc = { id: res.docs[0].id, data: res.docs[0].data() };
-            break;
-          }
-        } catch (e) {}
-      }
-    }
-
-    // 4. Case-insensitive search across users if still not found
-    if (!matchedDoc) {
-      const allUsers = await getDocs(collection(firestore, 'students'));
-      const lower = clean.toLowerCase();
-      allUsers.forEach(d => {
-        if (matchedDoc) return;
-        const dt = d.data();
-        const sId = String(dt.studentId || dt.regno || dt.id || d.id || '').toLowerCase();
-        const sName = String(dt.name || '').toLowerCase();
-        const sPhone = String(dt.phone || dt.mobile || dt.contact || '').replace(/\D/g, '');
-        if (sId === lower || sName.includes(lower) || (cleanDigits && sPhone.includes(cleanDigits))) {
-          matchedDoc = { id: d.id, data: dt };
-        }
-      });
-    }
-
-    if (matchedDoc) {
-      const normalized = normalizeStudentData(matchedDoc.data, matchedDoc.id);
-
-      const user = auth?.currentUser;
-      if (user && user.uid) {
-        await setDoc(doc(firestore, 'users', user.uid), {
-          assignedBus: normalized.assignedBus,
-          bus: normalized.bus,
-          busNumber: normalized.busNumber,
-          stage: normalized.stage,
-          pickupStop: normalized.pickupStop,
-          routeId: normalized.routeId,
-          studentId: normalized.studentId,
-          regno: normalized.regno,
-          name: normalized.name,
-          phone: normalized.phone
-        }, { merge: true }).catch(() => {});
-
-        await setDoc(doc(firestore, 'users', user.uid, 'DigitalID', 'userpass'), normalized.raw, { merge: true }).catch(() => {});
-      }
-
-      localStorage.setItem('nexride_student_id', normalized.studentId);
-      localStorage.setItem('nexride_assigned_bus', normalized.assignedBus);
-      cacheSet('active_student_bus', normalized).catch(() => {});
-
-      attachRealtimeListeners(matchedDoc.id, user?.uid);
-      notifyListeners(normalized);
-      return normalized;
-    }
-  } catch (e) {
-    console.warn('[StudentBusService] Manual student linking query error:', e);
-  }
-
-  // Trigger general resolution as fallback
-  return resolveStudentAssignedBus();
-}
+// =============================================================================
+// PHONE REGISTRATION CHECK (used by auth-ui.js before sending OTP)
+// =============================================================================
 
 /**
- * Verifies whether a student/passenger mobile number exists in the Firebase database.
- * Queries against users collection fields (phone, mobile, phoneNumber, cleanPhone, rawPhone, contact, etc.)
- * and document IDs to ensure only registered users can access the application.
- * @param {string} phoneRaw - Mobile number (10 digits or with +91)
- * @param {string} [uid] - Optional user auth UID
+ * Checks if a mobile number is registered in the students collection.
+ * Used as a pre-flight check before sending OTP.
+ *
+ * @param {string} phoneRaw - Raw phone input (10 digits or with +91)
+ * @param {string} [uid] - Optional auth UID to allow faster lookup for returning users
  * @returns {Promise<{ registered: boolean, data?: object, docId?: string, reason?: string }>}
  */
 export async function isPhoneNumberRegistered(phoneRaw, uid = null) {
   if (!firestore) {
-    console.warn('[StudentBusService] Firestore not initialized, database registration check unavailable');
+    console.warn('[StudentBusService] Firestore not initialized');
     return { registered: false, reason: 'database_unavailable' };
   }
 
-  const clean10 = String(phoneRaw || '').replace(/\D/g, '').slice(-10);
-  if (!clean10 || clean10.length !== 10) {
+  const clean10 = normalizePhone(phoneRaw);
+  if (!clean10) {
     return { registered: false, reason: 'invalid_format' };
   }
 
   try {
-    // 1. Check if UID doc exists (if authenticated)
+    // 1. If UID given, check users/{uid} first (fastest path for returning users)
     if (uid) {
       try {
-        const snapUid = await getDoc(doc(firestore, 'users', uid));
-        if (snapUid.exists()) {
-          const uData = snapUid.data();
-          const docClean = String(uData.phone || uData.mobile || uData.phoneNumber || uData.cleanPhone || uData.contact || '').replace(/\D/g, '').slice(-10);
-          if (!docClean || docClean === clean10 || uData.assignedBus || uData.bus || uData.name) {
-            return { registered: true, data: uData, docId: snapUid.id };
+        const snap = await getDoc(doc(firestore, 'users', uid));
+        if (snap.exists()) {
+          const d = snap.data();
+          const docPhone = normalizePhone(d.phone || d.mobile || d.mobileNumber || d.cleanPhone || d.phoneNumber || '');
+          if (!docPhone || docPhone === clean10) {
+            return { registered: true, data: d, docId: snap.id };
           }
         }
-      } catch (e) {
-        console.warn('[StudentBusService] UID lookup error in isPhoneNumberRegistered:', e);
-      }
+      } catch (e) { /* continue */ }
     }
 
-    // 2. Direct document ID lookup (clean 10-digit or +91 format)
-    try {
-      const snapDirect = await getDoc(doc(firestore, 'students', clean10));
-      if (snapDirect.exists()) {
-        return { registered: true, data: snapDirect.data(), docId: snapDirect.id };
-      }
-      const snapIntl = await getDoc(doc(firestore, 'users', `+91${clean10}`));
-      if (snapIntl.exists()) {
-        return { registered: true, data: snapIntl.data(), docId: snapIntl.id };
-      }
-    } catch (e) {
-      console.warn('[StudentBusService] Direct doc lookup error in isPhoneNumberRegistered:', e);
-    }
-
-    // 3. Fast parallel indexed queries
+    // 2. Indexed phone queries against students collection
     const phoneQueries = [
       query(collection(firestore, 'students'), where('phone', '==', clean10), limit(1)),
       query(collection(firestore, 'students'), where('mobile', '==', clean10), limit(1)),
+      query(collection(firestore, 'students'), where('mobileNumber', '==', clean10), limit(1)),
       query(collection(firestore, 'students'), where('phoneNumber', '==', `+91${clean10}`), limit(1)),
       query(collection(firestore, 'students'), where('phoneNumber', '==', clean10), limit(1)),
       query(collection(firestore, 'students'), where('cleanPhone', '==', clean10), limit(1)),
-      query(collection(firestore, 'students'), where('rawPhone', '==', clean10), limit(1)),
       query(collection(firestore, 'students'), where('contact', '==', clean10), limit(1)),
-      query(collection(firestore, 'students'), where('phone', '==', `+91${clean10}`), limit(1)),
-      query(collection(firestore, 'students'), where('mobile', '==', `+91${clean10}`), limit(1))
+      query(collection(firestore, 'students'), where('rawPhone', '==', clean10), limit(1)),
     ];
 
     const results = await Promise.allSettled(phoneQueries.map(q => getDocs(q)));
@@ -708,50 +673,120 @@ export async function isPhoneNumberRegistered(phoneRaw, uid = null) {
       }
     }
 
-    // 4. Comprehensive collection scan fallback
+    // 3. Full scan fallback (handles inconsistent field naming)
     try {
-      const snap = await getDocs(collection(firestore, 'students'));
-      for (const d of snap.docs) {
+      const all = await getDocs(collection(firestore, 'students'));
+      for (const d of all.docs) {
         const dt = d.data();
-        const docPhones = [
-          dt.phone,
-          dt.mobile,
-          dt.phoneNumber,
-          dt.cleanPhone,
-          dt.rawPhone,
-          dt.contact,
-          dt['parent_gaurdian contact'],
-          dt['parent_guardian_contact'],
-          dt.parentContact,
-          d.id
-        ].map(p => String(p || '').replace(/\D/g, '').slice(-10));
+        const phones = [
+          dt.phone, dt.mobile, dt.mobileNumber, dt.phoneNumber, dt.cleanPhone,
+          dt.rawPhone, dt.contact, dt['parent_gaurdian contact'], dt.parentContact, d.id
+        ].map(p => normalizePhone(p || '')).filter(Boolean);
 
-        if (docPhones.includes(clean10)) {
+        if (phones.includes(clean10)) {
           return { registered: true, data: dt, docId: d.id };
         }
       }
-    } catch (scanErr) {
-      console.warn('[StudentBusService] Collection scan warning in isPhoneNumberRegistered:', scanErr);
+    } catch (e) {
+      console.warn('[StudentBusService] Full scan error:', e);
     }
 
     return { registered: false, reason: 'not_found' };
   } catch (err) {
-    console.error('[StudentBusService] Error checking mobile registration in database:', err);
+    console.error('[StudentBusService] isPhoneNumberRegistered error:', err);
     throw err;
   }
 }
 
 // =============================================================================
-// GLOBAL EXPOSURE & LIFECYCLE
+// MANUAL STUDENT ID LINKING (admin-assisted fallback)
 // =============================================================================
+
+/**
+ * Manually link a student record by entering their student ID or mobile.
+ * Only used as admin-assisted fallback — the primary path is always UID-based.
+ */
+export async function setManualStudentId(queryInput) {
+  if (!queryInput) return null;
+  const clean = String(queryInput).trim();
+  const cleanDigits = normalizePhone(clean);
+
+  try {
+    let matchedDoc = null;
+
+    // Direct doc ID lookup
+    try {
+      const snap = await getDoc(doc(firestore, 'students', clean));
+      if (snap.exists()) matchedDoc = { id: snap.id, data: snap.data() };
+    } catch (e) {}
+
+    // Query by studentId / regno / applicationId
+    if (!matchedDoc) {
+      const qs = [
+        query(collection(firestore, 'students'), where('studentId', '==', clean), limit(1)),
+        query(collection(firestore, 'students'), where('regno', '==', clean), limit(1)),
+        query(collection(firestore, 'students'), where('applicationId', '==', clean), limit(1)),
+      ];
+      for (const q of qs) {
+        try {
+          const res = await getDocs(q);
+          if (!res.empty) {
+            matchedDoc = { id: res.docs[0].id, data: res.docs[0].data() };
+            break;
+          }
+        } catch (e) {}
+      }
+    }
+
+    // If 10-digit phone number entered
+    if (!matchedDoc && cleanDigits) {
+      const pReg = await isPhoneNumberRegistered(cleanDigits);
+      if (pReg.registered && pReg.docId) {
+        matchedDoc = { id: pReg.docId, data: pReg.data };
+      }
+    }
+
+    if (matchedDoc) {
+      const normalized = normalizeStudentData(matchedDoc.data, matchedDoc.id);
+      const user = auth?.currentUser;
+      if (user && user.uid) {
+        await setDoc(doc(firestore, 'users', user.uid), {
+          studentId: normalized.studentId,
+          assignedBus: normalized.assignedBus,
+          stage: normalized.stage,
+          routeId: normalized.routeId,
+        }, { merge: true }).catch(() => {});
+      }
+      localStorage.setItem('nexride_student_id', normalized.studentId);
+      localStorage.setItem('nexride_assigned_bus', normalized.assignedBus);
+      if (user) await cacheSet(`student_data_${user.uid}`, normalized).catch(() => {});
+      attachRealtimeListeners(matchedDoc.id, user?.uid);
+      notifyListeners(normalized);
+      return normalized;
+    }
+  } catch (e) {
+    console.warn('[StudentBusService] setManualStudentId error:', e);
+  }
+
+  return resolveStudentAssignedBus();
+}
+
+// =============================================================================
+// GLOBAL EXPOSURE & AUTH LIFECYCLE
+// =============================================================================
+
 window.resolveStudentAssignedBus = resolveStudentAssignedBus;
 window.setManualStudentId = setManualStudentId;
 window.getActiveStudentData = getActiveStudentData;
 window.subscribeStudentBus = subscribeStudentBus;
 window.isPhoneNumberRegistered = isPhoneNumberRegistered;
+window.clearStudentSession = clearStudentSession;
 
-// Automatically resolve on auth state change
+// Automatically resolve on auth state change — primary entry point
 onAuthStateChanged(auth, (user) => {
-  resolveStudentAssignedBus(user);
+  if (user && !user.isAnonymous) {
+    resolveStudentAssignedBus(user);
+  } else {
+    clearStudentSession();
+  }
 });
-

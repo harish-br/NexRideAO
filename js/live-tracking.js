@@ -512,19 +512,30 @@ export function initLiveTracking() {
     }
 
     let currentTrackedBusNum = null;
+    let resolvedAtLeastOnce = false; // Track whether resolution has completed
 
     function applyAssignedStudentBus(studentData) {
+        // Always try in-memory cache first as fallback
         if (!studentData || !studentData.assignedBus) {
-            // Check if there is still any active student data from memory/cache
             const fallback = getActiveStudentData();
             if (fallback && fallback.assignedBus) {
                 studentData = fallback;
             }
         }
 
+        // Also try localStorage as an immediate fallback (available before Firebase resolves)
+        if (!studentData || !studentData.assignedBus) {
+            const cachedBus = localStorage.getItem('nexride_assigned_bus');
+            const cachedStage = localStorage.getItem('nexride_user_stage') || '';
+            if (cachedBus && cachedBus.trim() && cachedBus !== 'undefined' && cachedBus !== 'null') {
+                studentData = { assignedBus: cachedBus.trim(), stage: cachedStage, pickupStop: cachedStage };
+            }
+        }
+
         if (studentData && studentData.assignedBus) {
+            resolvedAtLeastOnce = true;
             const busNum = String(studentData.assignedBus).trim();
-            currentUserStage = studentData.stage || studentData.pickupStop || '';
+            currentUserStage = studentData.stage || studentData.pickupStop || studentData.boardingStop || '';
 
             console.log(`[LiveTracking] Displaying assigned Bus ${busNum} (Stage: ${currentUserStage}) from Firestore`);
 
@@ -540,11 +551,24 @@ export function initLiveTracking() {
                 startBusTracking(`bus_${busNum}`, busNum);
             }
         } else {
-            // No bus assigned in database for this student profile
-            if (assignedBusEl) assignedBusEl.textContent = "None";
+            // Only show "No Bus Assigned" if Firebase has already resolved (not still loading).
+            // If null arrived but we haven't resolved yet, keep showing the skeleton.
+            if (!resolvedAtLeastOnce) {
+                // Still loading — keep skeleton visible, don't switch to error state
+                console.log('[LiveTracking] Still resolving student data, keeping skeleton...');
+                return;
+            }
+
+            // Resolution is done and confirmed no bus — show the message
+            resolvedAtLeastOnce = true;
+            if (assignedBusEl) {
+                assignedBusEl.textContent = 'None';
+                assignedBusEl.classList.remove('skeleton-shimmer');
+            }
             if (busStatusEl) {
-                busStatusEl.textContent = "No bus assigned";
-                busStatusEl.style.color = "#6B7280";
+                busStatusEl.textContent = 'No bus assigned';
+                busStatusEl.style.color = '#6B7280';
+                busStatusEl.classList.remove('skeleton-shimmer');
             }
             if (stopsList) {
                 stopsList.innerHTML = `
@@ -563,11 +587,34 @@ export function initLiveTracking() {
         applyAssignedStudentBus(data);
     });
 
+    // Mark as resolved once auth state is determined so the "no bus" message can show if truly unassigned
     const auth = getAuth();
     onAuthStateChanged(auth, async (user) => {
-        await resolveStudentAssignedBus(user);
+        if (user && !user.isAnonymous) {
+            // resolveStudentAssignedBus is already triggered by student-bus-service.js onAuthStateChanged.
+            // We just need to handle the case where subscribeStudentBus fired with null before resolution.
+            // Wait a moment for the service's resolution to propagate, then check again.
+            setTimeout(() => {
+                if (!resolvedAtLeastOnce) {
+                    const current = getActiveStudentData();
+                    if (current !== null) {
+                        // Data is available now — apply it
+                        resolvedAtLeastOnce = true;
+                        applyAssignedStudentBus(current);
+                    } else {
+                        // Truly no bus assigned — now it's safe to show the message
+                        resolvedAtLeastOnce = true;
+                        applyAssignedStudentBus(null);
+                    }
+                }
+            }, 3000);
+        } else {
+            resolvedAtLeastOnce = true;
+            applyAssignedStudentBus(null);
+        }
     });
 }
+
 
 initLiveTracking();
 

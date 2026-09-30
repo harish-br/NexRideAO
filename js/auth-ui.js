@@ -9,7 +9,7 @@ import {
   setPersistence
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
-import { resolveStudentAssignedBus, isPhoneNumberRegistered } from './student-bus-service.js';
+import { resolveStudentAssignedBus, isPhoneNumberRegistered, clearStudentSession } from './student-bus-service.js';
 
 // --- GLOBAL ERROR CAPTURE ---
 window.onerror = (msg, src, line, col, err) => {
@@ -274,11 +274,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           const regCheck = await isPhoneNumberRegistered(cleanPhone, user.uid);
           if (!regCheck.registered) {
             console.warn("[Auth] Localhost user phone not registered in database. Rejecting access.");
+            clearStudentSession();
             await signOut(auth);
             resetAuthState();
-            localStorage.removeItem('nexride_user_phone');
-            localStorage.removeItem('nexride_student_id');
-            localStorage.removeItem('nexride_assigned_bus');
             if (appContainer) appContainer.style.display = 'none';
             otpPage.classList.add('hidden');
             authPage.classList.remove('hidden');
@@ -314,11 +312,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           const regCheck = await isPhoneNumberRegistered(cleanPhone, user.uid);
           if (!regCheck.registered) {
             console.warn("[Auth] Session user is not registered in database. Logging out.");
+            clearStudentSession();
             await signOut(auth);
             resetAuthState();
-            localStorage.removeItem('nexride_user_phone');
-            localStorage.removeItem('nexride_student_id');
-            localStorage.removeItem('nexride_assigned_bus');
             if (appContainer) appContainer.style.display = 'none';
             otpPage.classList.add('hidden');
             authPage.classList.remove('hidden');
@@ -334,7 +330,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (appContainer) appContainer.style.display = 'flex';
         cleanupRecaptchaVerifier();
       } else {
-        console.log("[DEBUG] User not logged in. Showing auth page.");
+        // User logged out — wipe all student state completely
+        console.log("[DEBUG] User not logged in. Clearing student session and showing auth page.");
+        clearStudentSession();
         if (appContainer) appContainer.style.display = 'none';
         otpPage.classList.add('hidden');
         authPage.classList.remove('hidden');
@@ -759,7 +757,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (cleanPhone) {
           localStorage.setItem('nexride_user_phone', cleanPhone);
         }
-        await resolveStudentAssignedBus(user);
+
+        // Force a complete fresh resolution for this user.
+        // This populates all listeners (live-tracking, epass, profile) immediately.
+        const studentData = await resolveStudentAssignedBus(user);
+        if (studentData) {
+          console.log(`[Auth] Student resolved: Bus ${studentData.assignedBus}, Stop: ${studentData.stage}`);
+        } else {
+          console.warn('[Auth] Student record found in DB but no bus assigned yet.');
+        }
 
         // Reset auth state on successful login
         resetAuthState();
@@ -789,10 +795,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       console.log("[DEBUG] --- Logging Out ---");
+      // Clear all student data BEFORE signing out to prevent stale data appearing for next user
+      clearStudentSession();
       resetAuthState();
-      localStorage.removeItem('nexride_user_phone');
-      localStorage.removeItem('nexride_student_id');
-      localStorage.removeItem('nexride_assigned_bus');
       if (auth) {
         try {
           await signOut(auth);
