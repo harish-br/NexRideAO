@@ -6,7 +6,7 @@ import LocationIcon from './assets/svg/location.svg?react';
 import SidePanel from './components/SidePanel';
 import Login from './pages/Login';
 
-function MapController({ userLocation, setMapLoaded }) {
+function MapController({ userLocation, setMapLoaded, trackedBus }) {
   const map = useMap();
 
   useEffect(() => {
@@ -18,10 +18,15 @@ function MapController({ userLocation, setMapLoaded }) {
   }, [map, setMapLoaded]);
 
   useEffect(() => {
-    if (!map || !userLocation) return;
-    map.panTo(userLocation);
-    map.setZoom(15);
-  }, [map, userLocation]);
+    if (!map) return;
+    if (trackedBus && trackedBus.lat && trackedBus.lng) {
+      map.panTo({ lat: trackedBus.lat, lng: trackedBus.lng });
+      map.setZoom(15);
+    } else if (userLocation) {
+      map.panTo(userLocation);
+      map.setZoom(14);
+    }
+  }, [map, trackedBus, userLocation]);
   return null;
 }
 
@@ -74,6 +79,7 @@ export default function App() {
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [trackedBus, setTrackedBus] = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -145,14 +151,15 @@ export default function App() {
             />
           )}
         </Map>
-        <MapController userLocation={userLocation} setMapLoaded={setIsMapLoaded} />
-        <LocateMeButton userLocation={userLocation} activeNav={activeNav} />
+        <MapController userLocation={userLocation} setMapLoaded={setIsMapLoaded} trackedBus={trackedBus} />
+        <LocateMeButton userLocation={userLocation} activeNav={activeNav} trackedBus={trackedBus} />
         <SidePanel
           activeNav={activeNav}
           setActiveNav={setActiveNav}
           isFullView={isFullView}
           setIsFullView={setIsFullView}
           userLocation={userLocation}
+          onSelectBus={setTrackedBus}
         />
       </div>
     </APIProvider>

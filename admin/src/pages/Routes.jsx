@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import RouteForm from '../components/routes/RouteForm';
-import { Plus, Trash2, Search, Edit2, UserCircle, ChevronLeft, ChevronRight } from 'lucide-react';
-import DetailsView from '../components/common/DetailsView';
+import RouteDetails from '../components/routes/RouteDetails';
+import { Plus, Search, UserCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import ScrollingText from '../components/common/ScrollingText';
 import RefreshButton from '../components/common/RefreshButton';
 
@@ -343,17 +343,8 @@ export default function Routes() {
               />
             )}
             {viewMode === 'details' && selectedRoute && (
-              <DetailsView
-                title={selectedRoute.routeName || 'Unknown Route'}
-                subtitle={selectedRoute.status || 'Active'}
-                data={[
-                  { label: 'Start Point', value: selectedRoute.startPoint },
-                  { label: 'Destination', value: selectedRoute.destination },
-                  { label: 'Total Stops', value: selectedRoute.stops ? `${selectedRoute.stops.length} Stops` : '0 Stops' },
-                  { label: 'Assigned Bus', value: selectedRoute.assignedBusName },
-                  { label: 'Distance', value: selectedRoute.distance ? `${selectedRoute.distance} km` : '-' },
-                  { label: 'Estimated Time', value: selectedRoute.estimatedTime ? `${selectedRoute.estimatedTime} mins` : '-' }
-                ]}
+              <RouteDetails
+                route={selectedRoute}
                 onBack={handleBackToList}
                 onEdit={() => handleEdit(selectedRoute)}
                 onDelete={() => handleDelete(selectedRoute)}

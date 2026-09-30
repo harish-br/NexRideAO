@@ -110,16 +110,16 @@ export default function WeatherWidget({ userLocation }) {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: '12px',
-          fontSize: '13px',
+          gap: '10px',
+          fontSize: '12px',
           fontWeight: '500',
-          color: '#555',
+          color: '#666',
           whiteSpace: 'nowrap',
           overflow: 'hidden'
         }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>{currentTime.time}</span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 1 }}>{currentTime.day}</span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>{currentTime.time}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0 }}>{currentTime.day}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
             {error ? 'Weather unavailable' : (
               <>
                 {renderWeatherIcon(weatherData.code)}
@@ -129,7 +129,7 @@ export default function WeatherWidget({ userLocation }) {
           </span>
         </div>
       ) : (
-        <div className="skeleton" style={{ width: '150px', height: '20px', borderRadius: '8px' }}></div>
+        <div className="skeleton" style={{ width: '150px', height: '18px', borderRadius: '8px' }}></div>
       )}
     </>
   );

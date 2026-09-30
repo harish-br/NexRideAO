@@ -1,0 +1,321 @@
+/* admin/src/components/tracking/StopTimeline.css */
+/* Matches the reference screenshot: wide grey track band, bus inside, dots at edge, dividers */
+
+/* ── Wrapper ─────────────────────────────────────────────────────────────── */
+.stop-timeline-wrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 10px;
+  padding-left: 0;
+  padding-right: 0;
+  user-select: none;
+}
+
+/* ── Status banner ────────────────────────────────────────────────────────── */
+.timeline-status-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  background: rgba(248, 249, 250, 0.9);
+  border-radius: 10px;
+  margin: 0 14px 10px 14px;
+  font-size: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.timeline-status-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.timeline-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.timeline-pulse-dot.pulse {
+  animation: timelinePulse 1.8s ease infinite;
+}
+
+@keyframes timelinePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(1.4); }
+}
+
+.timeline-status-right {
+  font-size: 11.5px;
+  color: #6B7280;
+  font-weight: 500;
+}
+
+/* ── Main scroll area ─────────────────────────────────────────────────────── */
+.route-timeline-container {
+  position: relative;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* max-height keeps it inside the card panel */
+  max-height: calc(100vh - 340px);
+  min-height: 200px;
+  /* Fade top & bottom so rows dissolve gracefully when scrolling */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 28px,
+    black calc(100% - 28px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 28px,
+    black calc(100% - 28px),
+    transparent 100%
+  );
+}
+
+.route-timeline-container::-webkit-scrollbar { width: 0; }
+
+/* Vertical Track — grey band width matches the bus icon exactly */
+.tracking-track {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 10px; /* Centered in 52px area ( (52-32)/2 = 10 ) */
+  width: 32px; /* Matches bus icon width */
+  background-color: #F8F9FA;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ── Bus tracker — lives inside the grey band and slides down ─────────────── */
+.bus-tracker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 10px;
+  z-index: 5;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.tracking-bus-img {
+  width: 32px; /* Exactly matches track width */
+  height: auto;
+  object-fit: contain;
+  display: block;
+  transform: rotate(180deg);
+  mix-blend-mode: multiply;
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.15));
+}
+
+.tracking-arrow {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2px;
+}
+
+@keyframes arrowBounce {
+  0%   { transform: translateY(0)   scale(1);    filter: drop-shadow(0px 0px 0px rgba(59,130,246,0)); }
+  50%  { transform: translateY(5px) scale(1.06); filter: drop-shadow(0px 4px 7px rgba(59,130,246,0.38)); }
+  100% { transform: translateY(0)   scale(1);    filter: drop-shadow(0px 0px 0px rgba(59,130,246,0)); }
+}
+
+.arrow-animating {
+  animation: arrowBounce 1.8s infinite ease-in-out;
+}
+
+/* ── Stops list ───────────────────────────────────────────────────────────── */
+.stops-list {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Each row: grey band (90px) + stop info to the right */
+.stop-item {
+  display: flex;
+  align-items: stretch;
+  min-height: 78px;
+  position: relative;
+  /* No background-color here — the grey band is the absolute .tracking-track */
+}
+
+/* ── Stop dot column — exactly as wide as the track band ─────────────────── */
+.stop-icon-wrapper {
+  width: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center; /* Center the dot perfectly in the band */
+  z-index: 3;
+}
+
+/* The dot sits centered on the band */
+.tracking-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #CED4DA;
+  flex-shrink: 0;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+  z-index: 4;
+}
+
+.tracking-dot.departed {
+  background-color: #3B82F6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.tracking-dot.arrived {
+  background-color: #22C55E;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.22);
+}
+
+.tracking-dot.upcoming {
+  background-color: #C4C7D3;
+}
+
+/* ── Stop info — name + time, right of the band ───────────────────────────── */
+.stop-info {
+  flex: 1;
+  padding: 0 16px 0 18px;
+  border-bottom: 1px solid #F1F3F5;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+.stop-item:last-child .stop-info {
+  border-bottom: none;
+}
+
+.stop-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+}
+
+.stop-title-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* "Heading towards" micro-label — matches green text in reference */
+.heading-towards {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #22C55E;
+  line-height: 1.2;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: fadeIn 0.25s ease;
+  letter-spacing: 0.2px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Stop name — uppercase, medium grey, matches reference exactly */
+.stop-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6B7280;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  line-height: 1.35;
+}
+
+/* Current stop name is slightly darker/bolder */
+.stop-item.current-stop .stop-name {
+  color: #1F2937;
+  font-weight: 800;
+}
+
+/* Time column — right-aligned, same grey as stop name */
+.stop-time {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4B5563;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  text-align: right;
+  letter-spacing: -0.3px;
+}
+
+.stop-time.arrived-text {
+  color: #16A34A;
+  font-weight: 700;
+}
+
+.stop-time.departed-text {
+  color: #2563EB;
+  font-weight: 600;
+}
+
+.stop-time.eta-text {
+  color: #0284C7;
+  font-weight: 700;
+}
+
+/* ── Loading skeletons ────────────────────────────────────────────────────── */
+.timeline-skeleton-row {
+  display: flex;
+  align-items: center;
+  min-height: 78px;
+  border-bottom: 1px solid #F3F4F6;
+}
+
+.timeline-skeleton-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #E5E7EB;
+  margin: 0 0 0 22px; /* Center in 52px band ( (52 - 8) / 2 = 22) */
+  flex-shrink: 0;
+}
+
+.timeline-skeleton-bar {
+  height: 13px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #E5E7EB 25%, #F3F4F6 50%, #E5E7EB 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

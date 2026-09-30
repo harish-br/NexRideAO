@@ -1,148 +1,280 @@
-import React from 'react';
-import clockIcon from '../../assets/svg/record-circle.svg';
-import userIcon from '../../assets/svg/profile-2user.svg';
-import monitorIcon from '../../assets/svg/maximize.svg';
+import React, { useEffect, useRef } from 'react';
 
-export default function AuditLogDetails({ log, onClose }) {
-  if (!log) return null;
+/* ── helpers ── */
+const fmt = (ts) => {
+  if (!ts) return { date: '—', time: '' };
+  try {
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return {
+      date: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+    };
+  } catch { return { date: String(ts), time: '' }; }
+};
 
-  const getSeverityColor = (sev) => {
-    switch(sev?.toLowerCase()) {
-      case 'critical': return '#EF4444';
-      case 'warning': return '#F59E0B';
-      default: return '#3B82F6';
-    }
-  };
+const initials = (name) => {
+  if (!name) return 'SY';
+  return name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+};
 
-  const sevColor = getSeverityColor(log.severity);
-  const isSuccess = log.status !== 'failed';
-
-  const formatTime = (ts) => {
-    if (!ts) return '-';
-    try {
-      const d = ts.toDate ? ts.toDate() : new Date(ts);
-      return d.toLocaleString();
-    } catch { return String(ts); }
-  };
-
+/* ── Sub-components ── */
+function Label({ children }) {
   return (
-    <div style={{
-      position: 'fixed', top: 0, right: 0, bottom: 0, width: '450px',
-      background: '#fff', boxShadow: '-4px 0 24px rgba(0,0,0,0.1)',
-      zIndex: 1000, display: 'flex', flexDirection: 'column',
-      animation: 'slideInRight 0.3s ease'
-    }}>
-      <div style={{ 
-        padding: '24px', borderBottom: '1px solid #E5E7EB', display: 'flex', 
-        justifyContent: 'space-between', alignItems: 'flex-start', background: '#F9FAFB'
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <span style={{ 
-              background: isSuccess ? '#D1FAE5' : '#FEE2E2', 
-              color: isSuccess ? '#065F46' : '#991B1B',
-              padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase'
-            }}>
-              {log.status || 'Success'}
-            </span>
-            <span style={{ 
-              background: `${sevColor}15`, color: sevColor,
-              padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase'
-            }}>
-              {log.severity || 'Info'}
-            </span>
-          </div>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
-            {log.action} Event
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6B7280', fontSize: '12px', marginTop: '6px' }}>
-            <img src={clockIcon} alt="" style={{width: 12, height: 12, opacity: 0.5}} /> {formatTime(log.timestamp || log.createdAt)}
-          </div>
-        </div>
-        <button onClick={onClose} style={{ 
-          background: 'none', border: 'none', cursor: 'pointer', color: '#9CA3AF', 
-          padding: '4px', borderRadius: '4px', fontSize: '20px', lineHeight: 1 
-        }}>
-          ✕
-        </button>
-      </div>
-
-      <div style={{ flex: 1, overflowY: 'auto', padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        
-        {/* Core Info */}
-        <section>
-          <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>Event Details</h3>
-          <div style={{ background: '#F9FAFB', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <DetailRow label="Module" value={log.module} />
-            <DetailRow label="Description" value={log.description} />
-            <DetailRow label="Target Entity" value={`${log.entityType} (${log.entityId})`} />
-            {log.entityName && <DetailRow label="Entity Name" value={log.entityName} />}
-          </div>
-        </section>
-
-        {/* Actor Info */}
-        <section>
-          <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>Actor Information</h3>
-          <div style={{ background: '#F9FAFB', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <DetailRow label="Name" value={log.actor?.name} icon={<img src={userIcon} alt="" style={{width: 14, height: 14, opacity: 0.6}} />} />
-            <DetailRow label="Email" value={log.actor?.email} />
-            <DetailRow label="Role" value={log.actor?.role} />
-            <DetailRow label="UID" value={log.actor?.uid} mono />
-          </div>
-        </section>
-
-        {/* Changes */}
-        {log.changes && (log.changes.before || log.changes.after) && (
-          <section>
-            <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>Changes</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              {log.changes.before && (
-                <div style={{ background: '#FEF2F2', padding: '12px', borderRadius: '8px', border: '1px solid #FCA5A5' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '600', color: '#991B1B', marginBottom: '8px' }}>BEFORE</div>
-                  <pre style={{ margin: 0, fontSize: '11px', color: '#7F1D1D', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                    {JSON.stringify(log.changes.before, null, 2)}
-                  </pre>
-                </div>
-              )}
-              {log.changes.after && (
-                <div style={{ background: '#F0FDF4', padding: '12px', borderRadius: '8px', border: '1px solid #86EFAC', gridColumn: log.changes.before ? 'auto' : 'span 2' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '600', color: '#065F46', marginBottom: '8px' }}>AFTER</div>
-                  <pre style={{ margin: 0, fontSize: '11px', color: '#14532D', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                    {JSON.stringify(log.changes.after, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Metadata */}
-        {log.metadata && (
-          <section>
-            <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#6B7280', textTransform: 'uppercase', marginBottom: '12px', letterSpacing: '0.05em' }}>Request Metadata</h3>
-            <div style={{ background: '#F9FAFB', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <DetailRow label="Device/Browser" value={log.metadata.userAgent} icon={<img src={monitorIcon} alt="" style={{width: 14, height: 14, opacity: 0.6}} />} />
-              <DetailRow label="Platform" value={log.metadata.platform} />
-              <DetailRow label="Language" value={log.metadata.language} />
-            </div>
-          </section>
-        )}
-
-      </div>
+    <div style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: '500', marginBottom: '3px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+      {children}
     </div>
   );
 }
 
-function DetailRow({ label, value, icon, mono }) {
-  if (!value) return null;
+function Value({ children }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-      <div style={{ fontSize: '11px', color: '#6B7280', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '4px' }}>
-        {icon} {label}
-      </div>
-      <div style={{ fontSize: '13px', color: '#111827', fontFamily: mono ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>
-        {value}
-      </div>
+    <div style={{ fontSize: '13px', color: '#111827', fontWeight: '500', wordBreak: 'break-word' }}>
+      {children || <span style={{ color: '#C4CAD4', fontWeight: '400' }}>—</span>}
     </div>
+  );
+}
+
+function Field({ label, value, mono }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Value>
+        {value
+          ? <span style={{ fontFamily: mono ? '"SF Mono","Fira Code",monospace' : 'inherit', fontSize: mono ? '12px' : '13px' }}>{value}</span>
+          : null
+        }
+      </Value>
+    </div>
+  );
+}
+
+function Divider() {
+  return <div style={{ height: '1px', background: '#F0F2F5', margin: '4px 0' }} />;
+}
+
+/* ── Severity / Status styles ── */
+const SEV_STYLE = {
+  critical: { color: '#E53935', bg: '#FEF2F2' },
+  warning:  { color: '#D98B00', bg: '#FFF8EA' },
+  info:     { color: '#2563EB', bg: '#EBF2FF' },
+};
+const STA_DOT = {
+  success: '#00A86B',
+  failed:  '#E53935',
+  pending: '#D98B00',
+};
+
+export default function AuditLogDetails({ log, onClose }) {
+  const drawerRef = useRef(null);
+
+  useEffect(() => {
+    if (!log) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    drawerRef.current?.focus();
+    return () => window.removeEventListener('keydown', onKey);
+  }, [log, onClose]);
+
+  if (!log) return null;
+
+  const { date, time } = fmt(log.timestamp || log.createdAt);
+  const sev = SEV_STYLE[log.severity?.toLowerCase()] || SEV_STYLE.info;
+  const dotColor = STA_DOT[log.status?.toLowerCase()] || '#00A86B';
+  const ini = initials(log.actor?.name);
+
+  /* compute changed keys only */
+  const before = log.changes?.before || {};
+  const after  = log.changes?.after  || {};
+  const changedKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).filter(
+    k => JSON.stringify(before[k]) !== JSON.stringify(after[k])
+  );
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(15,23,42,0.15)',
+          zIndex: 998,
+        }}
+      />
+
+      {/* Drawer */}
+      <div
+        ref={drawerRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Audit event details"
+        style={{
+          position: 'fixed', top: 0, right: 0, bottom: 0,
+          width: '440px',
+          background: '#fff',
+          borderLeft: '1px solid #E7EAF0',
+          boxShadow: '-8px 0 32px rgba(15,23,42,0.08)',
+          zIndex: 999,
+          display: 'flex', flexDirection: 'column',
+          outline: 'none',
+          animation: 'auditDrawerIn 0.25s ease',
+        }}
+      >
+        {/* Header */}
+        <div style={{
+          padding: '20px 24px',
+          borderBottom: '1px solid #F0F2F5',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          flexShrink: 0,
+        }}>
+          <div>
+            <h2 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: '700', color: '#111827' }}>
+              Audit Details
+            </h2>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                background: dotColor === '#00A86B' ? '#E8F8F1' : dotColor === '#E53935' ? '#FEF2F2' : '#FFF8EA',
+                color: dotColor, padding: '2px 9px', borderRadius: '100px',
+                fontSize: '11px', fontWeight: '600',
+              }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: dotColor, display: 'inline-block' }} />
+                {log.status === 'failed' ? 'Failed' : 'Success'}
+              </span>
+              <span style={{
+                background: sev.bg, color: sev.color,
+                padding: '2px 9px', borderRadius: '100px',
+                fontSize: '11px', fontWeight: '600', textTransform: 'capitalize',
+              }}>
+                {log.severity || 'info'}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: '#F6F8FB', border: '1px solid #E7EAF0',
+              borderRadius: '8px', width: '32px', height: '32px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#667085', flexShrink: 0,
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#EAECF0'}
+            onMouseLeave={e => e.currentTarget.style.background = '#F6F8FB'}
+          >
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <path d="M1 1l11 11M12 1L1 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* Actor */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '12px',
+            padding: '14px 16px',
+            background: '#F6F8FB', borderRadius: '12px',
+            border: '1px solid #F0F2F5',
+          }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px', flexShrink: 0,
+              background: '#EAF1FF',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '13px', fontWeight: '700', color: '#0044CC',
+            }}>
+              {ini}
+            </div>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                {log.actor?.name || 'System User'}
+              </div>
+              <div style={{ fontSize: '12px', color: '#667085', marginTop: '2px' }}>
+                {log.actor?.email || '—'} · <span style={{ textTransform: 'capitalize' }}>{log.actor?.role || 'admin'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Event Details */}
+          <section>
+            <div style={{ fontSize: '11px', fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '12px' }}>
+              Event Details
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <Field label="Timestamp"  value={`${date} ${time}`} />
+              <Divider />
+              <Field label="Event ID"   value={log.id}        mono />
+              <Divider />
+              <Field label="Action"     value={log.action} />
+              <Divider />
+              <Field label="Module"     value={log.module} />
+              <Divider />
+              <Field label="Entity"     value={log.entityType ? `${log.entityType}${log.entityId ? ` · ${log.entityId}` : ''}` : null} />
+              {log.entityName && <>
+                <Divider />
+                <Field label="Entity Name" value={log.entityName} />
+              </>}
+              <Divider />
+              <Field label="Description" value={log.description} />
+            </div>
+          </section>
+
+          {/* Changes */}
+          {changedKeys.length > 0 && (
+            <section>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '12px' }}>
+                Changes
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {changedKeys.map(k => (
+                  <div key={k} style={{
+                    border: '1px solid #F0F2F5',
+                    borderRadius: '10px',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{ padding: '8px 12px', background: '#F6F8FB', fontSize: '12px', fontWeight: '600', color: '#374151', borderBottom: '1px solid #F0F2F5', textTransform: 'capitalize' }}>
+                      {k.replace(/_/g, ' ')}
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                      <div style={{ padding: '10px 12px', borderRight: '1px solid #F0F2F5' }}>
+                        <div style={{ fontSize: '10px', fontWeight: '600', color: '#9CA3AF', marginBottom: '4px', letterSpacing: '0.4px' }}>BEFORE</div>
+                        <div style={{ fontSize: '12px', color: '#111827', wordBreak: 'break-word' }}>
+                          {before[k] !== undefined ? String(before[k]) : <span style={{ color: '#C4CAD4' }}>—</span>}
+                        </div>
+                      </div>
+                      <div style={{ padding: '10px 12px' }}>
+                        <div style={{ fontSize: '10px', fontWeight: '600', color: '#00A86B', marginBottom: '4px', letterSpacing: '0.4px' }}>AFTER</div>
+                        <div style={{ fontSize: '12px', color: '#111827', wordBreak: 'break-word' }}>
+                          {after[k] !== undefined ? String(after[k]) : <span style={{ color: '#C4CAD4' }}>—</span>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Metadata */}
+          {log.metadata && (
+            <section>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '12px' }}>
+                Request Metadata
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <Field label="Platform" value={log.metadata.platform} />
+                <Divider />
+                <Field label="Language" value={log.metadata.language} />
+                <Divider />
+                <Field label="User Agent" value={log.metadata.userAgent} />
+              </div>
+            </section>
+          )}
+
+        </div>
+      </div>
+    </>
   );
 }
