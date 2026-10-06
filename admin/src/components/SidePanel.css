@@ -115,7 +115,7 @@
 
 .content-panel.live-view {
   overflow: hidden;
-  padding: 20px 22px;
+  padding: 18px 20px;
   min-height: 0;
   padding-bottom: 0;
 }
@@ -138,9 +138,9 @@
 }
 
 .header h1 {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
-  letter-spacing: -0.6px;
+  letter-spacing: -0.7px;
   margin: 0;
   color: #111;
 }
@@ -182,9 +182,9 @@
 .tab {
   flex: 1;
   text-align: center;
-  padding: 7px 4px;
+  padding: 6px 4px;
   border-radius: 100px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -193,13 +193,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #888;
 }
 
 .tab.active {
-  background: #111;
+  background: #2563EB;
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
 }
 
 .tab:not(.active) {
@@ -207,21 +208,20 @@
 }
 
 .tab:not(.active):hover {
-  color: #111;
-  background: rgba(255, 255, 255, 0.6);
+  color: #2563EB;
+  background: rgba(37, 99, 235, 0.08);
 }
 
 /* Order Cards */
 .orders-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
   padding-right: 2px;
   padding-bottom: 16px;
-  /* Fade top edge so cards don't smash into tabs */
   mask-image: linear-gradient(to bottom, transparent 0px, black 8px);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 8px);
 }
@@ -236,26 +236,101 @@
 }
 
 .order-card {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 16px;
   padding: 14px 16px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.order-card:hover:not(.expanded) {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+.order-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
-.order-card.active {
+.order-card.active,
+.order-card.selected {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: rgba(37, 99, 235, 0.45) !important;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.10) !important;
+}
+
+/* Horizontal Floating Bus Detail Card (Blank Rectangle Placeholder) */
+.bus-detail-panel {
+  position: fixed;
+  bottom: 24px;
+  left: 488px;
+  right: 86px;
+  height: 120px;
   background: rgba(255, 255, 255, 0.85);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06) !important;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+  overflow: hidden;
+  box-sizing: border-box;
+  transform-origin: left center;
+  animation: expandLeftToRight 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.bus-detail-panel.closing {
+  animation: collapseRightToLeft 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+}
+
+@keyframes expandLeftToRight {
+  0% {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0 round 22px);
+    transform: scaleX(0.85);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 22px);
+    transform: scaleX(1);
+  }
+}
+
+@keyframes collapseRightToLeft {
+  0% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0 round 22px);
+    transform: scaleX(1);
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0 round 22px);
+    transform: scaleX(0.85);
+  }
+}
+
+@media (max-width: 900px) {
+  .bus-detail-panel {
+    left: 20px;
+    right: 86px;
+    bottom: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bus-detail-panel,
+  .bus-detail-panel.closing {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    clip-path: none !important;
+    opacity: 1 !important;
+  }
 }
 
 .card-header {
@@ -334,11 +409,13 @@
   margin-top: 14px;
   margin-left: -16px;
   margin-right: -16px;
-  margin-bottom: -14px; /* Pull to the bottom edge too */
+  margin-bottom: -14px;
+  /* Pull to the bottom edge too */
   border-top: 1px solid rgba(0, 0, 0, 0.06);
   cursor: default;
   overflow: hidden;
-  border-radius: 0 0 16px 16px; /* follow card's border-radius on the bottom */
+  border-radius: 0 0 16px 16px;
+  /* follow card's border-radius on the bottom */
 }
 
 .order-card.expanded {

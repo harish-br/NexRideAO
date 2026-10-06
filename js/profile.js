@@ -308,7 +308,9 @@ function updateAllProfileImages(photoUrl) {
 let currentUserRole = 'student';
 
 /**
- * Applies profile data fields to DOM elements
+ * Applies profile data fields to DOM elements.
+ * All values come from the database via student-bus-service.js — never hardcoded.
+ * Shows "Not Assigned" or "Not Available" for missing fields instead of undefined/null.
  */
 function applyProfileData(data) {
     if (!data) return;
@@ -316,52 +318,135 @@ function applyProfileData(data) {
 
     const upPhotoOverlay = document.querySelector('.up-photo-overlay');
     if (upPhotoOverlay) {
-        // Completely disable camera icon overlay for everyone (admin updates this from backend)
         upPhotoOverlay.style.display = 'none';
     }
 
-    const hasCustomName = data.name && data.name !== "User" && data.name !== "Add your name";
-    if (valName) valName.textContent = hasCustomName ? data.name : "Add your name";
-    if (profileUserNameDisplay) profileUserNameDisplay.textContent = hasCustomName ? data.name : "User";
+    const safeText = (val) => (val && String(val).trim() && String(val).trim() !== 'undefined' && String(val).trim() !== 'null') ? String(val).trim() : null;
 
-    if (data.gender && valGender) {
-        valGender.textContent = data.gender;
-    }
+    // ── Name ──
+    const safeName = safeText(data.name);
+    const hasCustomName = safeName && safeName !== 'User' && safeName !== 'Not Available';
+    if (valName) valName.textContent = hasCustomName ? safeName : 'Add your name';
+    if (profileUserNameDisplay) profileUserNameDisplay.textContent = hasCustomName ? safeName : 'User';
+
+    // ── Personal Info ──
+    if (valGender) valGender.textContent = safeText(data.gender) || 'Not Available';
     if (data.email && valEmail) {
         valEmail.textContent = data.email;
         valEmail.style.color = '#111111';
     }
-    if (data.phone && valPhone) {
-        valPhone.textContent = data.phone;
+    const phone = safeText(data.phone || data.mobile || data.cleanPhone || data.mobileNumber || '');
+    if (phone && valPhone) {
+        valPhone.textContent = phone;
         if (phoneBadge) phoneBadge.style.display = 'inline-block';
         if (phoneVerifiedText) phoneVerifiedText.style.display = 'inline-block';
-        if (upInputPhone) upInputPhone.value = data.phone;
+        if (upInputPhone) upInputPhone.value = phone;
     }
 
-    const photo = data.photoURL || data.profilePic || data.avatar || null;
-    if (photo) {
-        updateAllProfileImages(photo);
-    }
+    // ── Photo ──
+    const photo = safeText(data.photoURL || data.profilePic || data.avatar || '');
+    if (photo) updateAllProfileImages(photo);
 
-    // Display Student ID / Registration Number
+    // ── Student ID / Application ID ──
     const valStudentId = document.getElementById('val-student-id');
     if (valStudentId) {
-        const stuId = data.studentId || data.regno || data.id || localStorage.getItem('nexride_student_id');
-        valStudentId.textContent = (stuId && stuId !== data.uid) ? stuId : "Not linked";
+        const stuId = safeText(data.applicationId || data.studentId || data.regno || data.id || localStorage.getItem('nexride_student_id'));
+        valStudentId.textContent = (stuId && stuId !== data.uid) ? stuId : 'Not Assigned';
     }
 
-    // Display Assigned College Bus
+    // ── Register / Roll Number ──
+    const valRegNo = document.getElementById('val-reg-no') || document.getElementById('val-register-number');
+    if (valRegNo) valRegNo.textContent = safeText(data.registerNumber || data.rollNumber || data.regno) || 'Not Available';
+
+    // ── Academic Details ──
+    const valDept = document.getElementById('val-department');
+    if (valDept) valDept.textContent = safeText(data.department) || 'Not Available';
+
+    const valYear = document.getElementById('val-year');
+    if (valYear) valYear.textContent = safeText(data.year) || 'Not Available';
+
+    const valSection = document.getElementById('val-section');
+    if (valSection) valSection.textContent = safeText(data.section) || 'Not Available';
+
+    const valAcadYear = document.getElementById('val-academic-year');
+    if (valAcadYear) valAcadYear.textContent = safeText(data.academicYear || data.academic_year) || 'Not Available';
+
+    // ── Transport Assignment (all from DB) ──
     const valAssignedBus = document.getElementById('val-assigned-bus');
     if (valAssignedBus) {
-        const busNum = data.assignedBus || data.bus || data.busNumber || '';
-        const stageStr = data.stage || data.pickupStop || '';
-        valAssignedBus.textContent = busNum ? `Bus ${busNum}${stageStr ? ` (${stageStr})` : ''}` : "No bus assigned";
+        const busNum = safeText(data.assignedBus || data.bus || data.busNumber);
+        valAssignedBus.textContent = busNum ? `Bus ${busNum}` : 'Bus Not Assigned';
     }
 
+    const valBoardingStop = document.getElementById('val-boarding-stop') || document.getElementById('val-stage');
+    if (valBoardingStop) {
+        valBoardingStop.textContent = safeText(data.boardingStop || data.boardingStopName || data.stage || data.pickupStop) || 'Not Assigned';
+    }
+
+    const valRoute = document.getElementById('val-route') || document.getElementById('val-route-name');
+    if (valRoute) {
+        valRoute.textContent = safeText(data.routeName || data.route || data.routeId) || 'Not Assigned';
+    }
+
+    const valTransportStatus = document.getElementById('val-transport-status');
+    if (valTransportStatus) {
+        valTransportStatus.textContent = safeText(data.transportStatus || data.transport_status) || 'Not Available';
+    }
+
+    // ── Fee Information (all directly from DB — no client-side calculation) ──
+    const valFeeStatus = document.getElementById('val-fee-status') || document.getElementById('val-fees-status');
+    if (valFeeStatus) {
+        const feeStatus = safeText(data.fees_status || data.feeStatus || data.fee_status || data.balance);
+        valFeeStatus.textContent = feeStatus || 'Not Available';
+        if (feeStatus) {
+            const isPaid = /paid/i.test(feeStatus);
+            valFeeStatus.style.color = isPaid ? '#10B981' : '#EF4444';
+        }
+    }
+
+    const valFeeAmount = document.getElementById('val-fee-amount') || document.getElementById('val-fees-amount');
+    if (valFeeAmount) {
+        const amount = data.feesAmount || data.fees_amount || data.feesTotal || data.feeAmount;
+        valFeeAmount.textContent = amount ? `₹${Number(amount).toLocaleString('en-IN')}` : 'Not Available';
+    }
+
+    const valPaidAmount = document.getElementById('val-paid-amount');
+    if (valPaidAmount) {
+        const paid = data.paidAmount || data.paid_amount;
+        valPaidAmount.textContent = paid !== undefined && paid !== null && paid !== '' ? `₹${Number(paid).toLocaleString('en-IN')}` : 'Not Available';
+    }
+
+    const valPendingAmount = document.getElementById('val-pending-amount');
+    if (valPendingAmount) {
+        const pending = data.pendingAmount || data.pending_amount;
+        valPendingAmount.textContent = pending !== undefined && pending !== null && pending !== '' ? `₹${Number(pending).toLocaleString('en-IN')}` : 'Not Available';
+    }
+
+    // ── Selected Transport Options (dynamic — only show what's in DB for this student) ──
+    const selectedServicesContainer = document.getElementById('val-selected-services') || document.getElementById('selected-services-list');
+    if (selectedServicesContainer && data.selectedOptions) {
+        const opts = data.selectedOptions;
+        if (typeof opts === 'object' && opts !== null) {
+            const activeServices = Object.entries(opts)
+                .filter(([, v]) => v === true || v === 'true' || v === 1)
+                .map(([k]) => k.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim());
+
+            if (activeServices.length > 0) {
+                selectedServicesContainer.innerHTML = activeServices
+                    .map(s => `<span class="service-tag">${s.charAt(0).toUpperCase() + s.slice(1)}</span>`)
+                    .join('');
+            } else {
+                selectedServicesContainer.innerHTML = '<span>No services selected</span>';
+            }
+        }
+    }
+
+    // ── Preferences ──
     if (data.preferences || data.notificationPreferences) {
         applyPreferencesToUI(data.preferences || data.notificationPreferences);
     }
 }
+
 
 function resetToDefault() {
     if (valName) valName.textContent = "Add your name";

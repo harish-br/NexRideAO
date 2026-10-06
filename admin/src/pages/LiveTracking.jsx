@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { db } from '../firebase';
 import { getApp } from 'firebase/app';
 import { getDatabase, ref, onValue, off } from 'firebase/database';
 import { collection, onSnapshot } from 'firebase/firestore';
-import StopTimeline from '../components/tracking/StopTimeline';
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 // ─── Status helpers ────────────────────────────────────────────────────────────
 const STATUS_CFG = {
-  'Active':      { label: 'On Route',    dot: '#12B76A', bg: '#ECFDF3', color: '#027A48' },
-  'On Route':    { label: 'On Route',    dot: '#12B76A', bg: '#ECFDF3', color: '#027A48' },
-  'At Stop':     { label: 'At Stop',     dot: '#2563EB', bg: '#EFF6FF', color: '#1D4ED8' },
-  'Delayed':     { label: 'Delayed',     dot: '#F59E0B', bg: '#FFFBEB', color: '#92400E' },
-  'Offline':     { label: 'Offline',     dot: '#9CA3AF', bg: '#F3F4F6', color: '#6B7280' },
-  'Halted':      { label: 'Offline',     dot: '#9CA3AF', bg: '#F3F4F6', color: '#6B7280' },
+  'Active': { label: 'On Route', dot: '#12B76A', bg: '#ECFDF3', color: '#027A48' },
+  'On Route': { label: 'On Route', dot: '#12B76A', bg: '#ECFDF3', color: '#027A48' },
+  'At Stop': { label: 'At Stop', dot: '#2563EB', bg: '#EFF6FF', color: '#1D4ED8' },
+  'Delayed': { label: 'Delayed', dot: '#F59E0B', bg: '#FFFBEB', color: '#92400E' },
+  'Offline': { label: 'Offline', dot: '#9CA3AF', bg: '#F3F4F6', color: '#6B7280' },
+  'Halted': { label: 'Offline', dot: '#9CA3AF', bg: '#F3F4F6', color: '#6B7280' },
   'Maintenance': { label: 'Maintenance', dot: '#9CA3AF', bg: '#F3F4F6', color: '#6B7280' },
 };
 
@@ -29,7 +29,7 @@ function getBusCfg(bus, live) {
   if (live === undefined) {
     return STATUS_CFG['Offline'];
   }
-  
+
   return STATUS_CFG[bus.status] || STATUS_CFG['Active'];
 }
 
@@ -125,19 +125,19 @@ function BusMap({ lat, lng, stops }) {
 
 // ─── Expanded detail (inside the card) ────────────────────────────────────────
 function ExpandedDetail({ bus, live }) {
-  const ts      = live && (live.lastUpdated || live.timestamp);
+  const ts = live && (live.lastUpdated || live.timestamp);
   const elapsed = useElapsed(ts);
-  const isLive  = live && live.isOnline === true;
+  const isLive = live && live.isOnline === true;
   const isStale = ts && (Date.now() - new Date(ts).getTime()) > 120000;
-  const lat     = live && (live.latitude  || live.lat);
-  const lng     = live && (live.longitude || live.lng);
-  const spd     = live && live.speed   != null ? Math.round(live.speed)   + ' km/h' : null;
-  const hdg     = live && live.heading != null ? Math.round(live.heading) + '°'     : null;
+  const lat = live && (live.latitude || live.lat);
+  const lng = live && (live.longitude || live.lng);
+  const spd = live && live.speed != null ? Math.round(live.speed) + ' km/h' : null;
+  const hdg = live && live.heading != null ? Math.round(live.heading) + '°' : null;
 
-  const stops  = bus.stops || [];
+  const stops = bus.stops || [];
   const sorted = [...stops].sort((a, b) => (a.order || a.stopOrder || 0) - (b.order || b.stopOrder || 0));
   const origin = sorted[0];
-  const dest   = sorted[sorted.length - 1];
+  const dest = sorted[sorted.length - 1];
   const driver = bus.assignedDriverName || bus.driverName;
 
   return (
@@ -236,60 +236,173 @@ function ExpandedDetail({ bus, live }) {
   );
 }
 
-// ─── Bus card ──────────────────────────────────────────────────────────────────
-function BusCard({ bus, expanded, onToggle, live, onPositionChange }) {
+
+// ─── 12-Hour Time Formatter ────────────────────────────────────────────────
+function formatTime12(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return '';
+  const trimmed = timeStr.trim();
+  if (!trimmed) return '';
+  if (/(am|pm)/i.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (match) {
+    let hour = parseInt(match[1], 10);
+    const minute = match[2];
+    const period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+    return `${hour}:${minute} ${period}`;
+  }
+  return trimmed;
+}
+
+// ─── Bus card ───────────────────────────────────────────────────────────────
+function BusCard({ bus, live, isSelected, onCardClick, onPositionChange }) {
   const route = bus.assignedRouteName || bus.routeName || bus.route || null;
+  const driver = bus.assignedDriverName || bus.driverName || null;
+
+  // Schedule — support nested (schedules.*) and flat (operatingTimings.*) schemas
+  const sched = bus.schedules || {};
+  const opTimings = bus.operatingTimings || {};
+  const mDep = sched.morningDeparture || opTimings.morning?.departure || bus.morningDeparture || null;
+  const mArr = sched.morningArrival || opTimings.morning?.arrival || bus.morningArrival || null;
+  const eDep = sched.eveningDeparture || opTimings.evening?.departure || bus.eveningDeparture || null;
+  const eArr = sched.eveningArrival || opTimings.evening?.arrival || bus.eveningArrival || null;
+
+  // Show morning (midnight–noon) or evening (noon–midnight)
+  const isMorning = new Date().getHours() < 12;
+  const showDep = isMorning ? mDep : eDep;
+  const showArr = isMorning ? mArr : eArr;
+  const dep12 = formatTime12(showDep);
+  const arr12 = formatTime12(showArr);
+  const hasSchedule = Boolean(dep12 || arr12);
+
+  const fontStack = "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif";
+  const iconStyle = { flexShrink: 0, display: 'block' };
+
+  const handleSelect = () => {
+    if (onCardClick) {
+      onCardClick(bus);
+    }
+    if (onPositionChange) {
+      const lat = live?.latitude ?? live?.lat ?? bus?.lat ?? bus?.latitude;
+      const lng = live?.longitude ?? live?.lng ?? bus?.lng ?? bus?.longitude;
+      onPositionChange({
+        id: bus.id,
+        busNumber: bus.busNumber,
+        lat: lat ? parseFloat(lat) : 11.5760,
+        lng: lng ? parseFloat(lng) : 77.7014,
+        status: bus.status
+      });
+    }
+  };
 
   return (
     <div
-      className={`order-card${expanded ? ' expanded active' : ''}`}
-      onClick={onToggle}
+      className={`order-card${isSelected ? ' selected' : ''}`}
+      onClick={handleSelect}
+      style={{ cursor: 'pointer' }}
     >
-      {/* Header */}
-      <div className="card-header">
-        <div className="route">
-          <span style={{ fontSize: '15px', fontWeight: '700', color: '#111', letterSpacing: '-0.3px', flexShrink: 0 }}>
+      {/* ── Row 1: Bus identity + status ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        justifyContent: 'space-between', gap: '10px', minWidth: 0,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, overflow: 'hidden' }}>
+          <span style={{
+            fontSize: '15px', fontWeight: '700', color: '#111827',
+            letterSpacing: '-0.3px', lineHeight: 1.2, flexShrink: 0,
+            fontFamily: fontStack,
+          }}>
             {bus.busNumber || '—'}
           </span>
           {route && (
-            <span
-              style={{ fontSize: '13px', color: '#666', fontWeight: '400', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              title={route}
-            >
-              &nbsp;·&nbsp;{route}
+            <span style={{
+              fontSize: '14px', fontWeight: '500', color: '#4B5563',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              lineHeight: 1.2, fontFamily: fontStack,
+            }} title={route}>
+              {route}
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ flexShrink: 0 }}>
           <StatusBadge bus={bus} live={live} />
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="#9CA3AF"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{
-              transition: 'transform 0.3s ease',
-              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)'
-            }}
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
         </div>
       </div>
 
-      {/* Bus ID row */}
-      <p className="order-id">
-        {bus.registrationNumber || bus.regNumber || bus.id?.slice(0, 8) || ''}
-      </p>
+      {/* ── Row 2: Driver & Timing horizontally ── */}
+      {(driver || hasSchedule) && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: driver && hasSchedule ? 'space-between' : 'flex-start',
+          gap: '10px',
+          marginTop: '8px',
+          minWidth: 0,
+        }}>
+          {driver && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              minWidth: 0,
+              flex: 1,
+              overflow: 'hidden',
+            }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={iconStyle}>
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>
+              <span style={{
+                fontSize: '13px',
+                fontWeight: '500',
+                color: '#4B5563',
+                fontFamily: fontStack,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                lineHeight: 1.3,
+              }} title={driver}>
+                {driver}
+              </span>
+            </div>
+          )}
 
-      {/* Expanded Stop Timeline matching Image 2 */}
-      {expanded && (
-        <div onClick={e => e.stopPropagation()} className="expanded-timeline-section">
-          <StopTimeline bus={bus} live={live} onPositionChange={onPositionChange} />
+          {hasSchedule && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              flexShrink: 0,
+            }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                style={iconStyle}>
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span style={{
+                fontSize: '12px',
+                fontWeight: '500',
+                color: '#6B7280',
+                fontFamily: fontStack,
+                whiteSpace: 'nowrap',
+                lineHeight: 1.3,
+              }}>
+                {dep12 && arr12 ? (
+                  <>
+                    <span>{dep12}</span>
+                    <span style={{ color: '#CBD5E1', margin: '0 4px', fontWeight: '400' }}>→</span>
+                    <span>{arr12}</span>
+                  </>
+                ) : (
+                  <span>{dep12 || arr12}</span>
+                )}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -298,11 +411,11 @@ function BusCard({ bus, expanded, onToggle, live, onPositionChange }) {
 
 // ─── Filter tabs ──────────────────────────────────────────────────────────────
 const TABS = [
-  { key: 'all',      label: 'All' },
+  { key: 'all', label: 'All' },
   { key: 'on_route', label: 'On Route' },
-  { key: 'at_stop',  label: 'At Stop' },
-  { key: 'delayed',  label: 'Delayed' },
-  { key: 'offline',  label: 'Offline' },
+  { key: 'at_stop', label: 'At Stop' },
+  { key: 'delayed', label: 'Delayed' },
+  { key: 'offline', label: 'Offline' },
 ];
 
 function matchTab(bus, live, tab) {
@@ -313,18 +426,62 @@ function matchTab(bus, live, tab) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function LiveTracking({ onSelectBus }) {
-  const [buses, setBuses]         = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
-  const [search, setSearch]       = useState('');
-  const [deb, setDeb]             = useState('');
-  const [tab, setTab]             = useState('all');
-  const [expandedId, setExpandedId] = useState(null);
-  const [liveMap, setLiveMap]     = useState({});
+  const [buses, setBuses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState('');
+  const [deb, setDeb] = useState('');
+  const [tab, setTab] = useState('all');
+  const [liveMap, setLiveMap] = useState({});
   const [searchOpen, setSearchOpen] = useState(false);
+  const [selectedBus, setSelectedBus] = useState(null);
+  const [panelBus, setPanelBus] = useState(null);
+  const [isClosing, setIsClosing] = useState(false);
   const searchRef = useRef(null);
   const listeners = useRef({});
   const rtdb = useRef(null);
+
+  const closePanel = useCallback(() => {
+    if (!panelBus || isClosing) return;
+    setIsClosing(true);
+    setSelectedBus(null);
+  }, [panelBus, isClosing]);
+
+  const handleSelectBus = (busItem) => {
+    if (selectedBus?.id === busItem.id) {
+      closePanel();
+    } else {
+      setIsClosing(false);
+      setSelectedBus(busItem);
+      setPanelBus(busItem);
+    }
+  };
+
+  const handleAnimationEnd = (e) => {
+    if (isClosing && e.animationName === 'collapseRightToLeft') {
+      setIsClosing(false);
+      setPanelBus(null);
+    }
+  };
+
+  // Close blank panel on Escape or outside click
+  useEffect(() => {
+    if (!panelBus || isClosing) return;
+    const handleDown = (e) => {
+      if (!e.target.closest('.bus-detail-panel') && !e.target.closest('.order-card')) {
+        closePanel();
+      }
+    };
+    const handleKey = (e) => {
+      if (e.key === 'Escape') closePanel();
+    };
+    window.addEventListener('pointerdown', handleDown);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('pointerdown', handleDown);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [panelBus, isClosing, closePanel]);
 
   useEffect(() => {
     try { rtdb.current = getDatabase(getApp()); } catch (e) { /* no RTDB */ }
@@ -356,7 +513,7 @@ export default function LiveTracking({ onSelectBus }) {
   // Subscribe live for all buses
   useEffect(() => {
     if (!rtdb.current || buses.length === 0) return;
-    
+
     buses.forEach(bus => {
       const busId = bus.id;
       if (!listeners.current[busId]) {
@@ -373,29 +530,7 @@ export default function LiveTracking({ onSelectBus }) {
     return () => { Object.values(listeners.current).forEach(r => off(r)); };
   }, []);
 
-  const toggle = id => {
-    setExpandedId(prev => {
-      const nextId = prev === id ? null : id;
-      if (nextId && onSelectBus) {
-        const selected = buses.find(b => b.id === nextId);
-        if (selected) {
-          const live = liveMap[selected.id];
-          const lat = live?.latitude ?? live?.lat ?? selected?.lat ?? selected?.latitude;
-          const lng = live?.longitude ?? live?.lng ?? selected?.lng ?? selected?.longitude;
-          onSelectBus({
-            id: selected.id,
-            busNumber: selected.busNumber,
-            lat: lat ? parseFloat(lat) : 11.5760,
-            lng: lng ? parseFloat(lng) : 77.7014,
-            status: selected.status
-          });
-        }
-      } else if (!nextId && onSelectBus) {
-        onSelectBus(null);
-      }
-      return nextId;
-    });
-  };
+
 
   const filtered = buses.filter(bus => {
     const live = liveMap[bus.id];
@@ -412,7 +547,11 @@ export default function LiveTracking({ onSelectBus }) {
         @keyframes lbPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(1.5)} }
         @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
         .lb-search-input {
-          transition: width 0.25s ease, opacity 0.2s ease;
+          transition: width 0.25s ease, opacity 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .lb-search-input:focus {
+          border-color: #2563EB !important;
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
         }
       `}</style>
 
@@ -489,21 +628,30 @@ export default function LiveTracking({ onSelectBus }) {
           <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF', fontSize: '13px' }}>⚠ {error}</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
-            <div style={{ fontSize: '24px', marginBottom: '10px' }}>🚌</div>
-            <div style={{ fontSize: '14px', fontWeight: '600', color: '#111', marginBottom: '4px' }}>No buses found</div>
+            <div style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>No buses found</div>
             <div style={{ fontSize: '13px', color: '#9CA3AF' }}>{deb ? 'Try a different search.' : 'No active buses right now.'}</div>
           </div>
         ) : filtered.map(bus => (
           <BusCard
             key={bus.id}
             bus={bus}
-            expanded={expandedId === bus.id}
-            onToggle={() => toggle(bus.id)}
             live={liveMap[bus.id]}
+            isSelected={selectedBus?.id === bus.id}
+            onCardClick={handleSelectBus}
             onPositionChange={onSelectBus}
           />
         ))}
       </div>
+
+      {/* ── Blank Horizontal Bus Detail Panel (Placeholder for Live-Location) ── */}
+      {panelBus !== null && createPortal(
+        <div
+          className={`bus-detail-panel${isClosing ? ' closing' : ''}`}
+          onAnimationEnd={handleAnimationEnd}
+          aria-label="Bus details"
+        />,
+        document.body
+      )}
     </div>
   );
 }
