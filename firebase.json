@@ -17,6 +17,16 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "rewrites": [
+      {
+        "source": "/admin/**",
+        "destination": "/admin/index.html"
+      },
+      {
+        "source": "/simulator",
+        "destination": "/simulator.html"
+      }
+    ],
     "headers": [
       {
         "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|js|css|eot|otf|ttf|ttc|woff|woff2)",

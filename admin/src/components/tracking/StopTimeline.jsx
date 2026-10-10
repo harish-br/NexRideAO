@@ -45,6 +45,23 @@ function parseTimeToMinutes(timeStr) {
   return h * 60 + m;
 }
 
+function formatStop12(timeStr) {
+  if (!timeStr || typeof timeStr !== 'string') return '';
+  const trimmed = timeStr.trim();
+  if (!trimmed) return '';
+  if (/(am|pm)/i.test(trimmed)) return trimmed;
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  if (match) {
+    let hour = parseInt(match[1], 10);
+    const minute = match[2];
+    const period = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+    return `${hour}:${minute} ${period}`;
+  }
+  return trimmed;
+}
+
 export default function StopTimeline({ bus, live, onPositionChange }) {
   const [stops, setStops] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,14 +74,13 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
   const busTrackerRef = useRef(null);
   const stopRefs = useRef([]);
 
-  // Resolve telemetry (ignore mock bus data if no live GPS data exists)
-  const hasLiveData = live !== null && live !== undefined;
-  const isOnline = hasLiveData && live.isOnline !== false;
-  
-  const lat = isOnline ? (live.latitude ?? live.lat ?? bus?.lat ?? bus?.latitude) : null;
-  const lng = isOnline ? (live.longitude ?? live.lng ?? bus?.lng ?? bus?.longitude) : null;
-  const speed = isOnline ? (live.speed ?? 0) : 0;
-  const status = isOnline ? (live.status || bus?.status || 'Active') : 'Offline';
+  // Resolve telemetry directly from database (RTDB live telemetry or Firestore bus document)
+  const lat = (live?.latitude ?? live?.lat ?? bus?.latitude ?? bus?.lat) ?? null;
+  const lng = (live?.longitude ?? live?.lng ?? bus?.longitude ?? bus?.lng) ?? null;
+  const speed = live?.speed != null ? Number(live.speed) : (bus?.speed != null ? Number(bus.speed) : 0);
+  const rawStatus = live?.status || bus?.status || 'Active';
+  const isOnline = live ? live.isOnline !== false : (rawStatus !== 'Offline' && rawStatus !== 'Maintenance');
+  const status = isOnline ? rawStatus : 'Offline';
 
   // Notify parent of location changes for map synchronization
   useEffect(() => {
@@ -86,7 +102,8 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
     async function loadStops() {
       setLoading(true);
       const busNum = String(bus.busNumber || '').trim();
-      const routeId = bus.assignedRouteId;
+      const busNumInt = parseInt(busNum, 10);
+      const routeId = bus.assignedRouteId || bus.routeId;
 
       // 1. If assignedRouteId is known
       if (routeId) {
@@ -103,7 +120,8 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
 
       // 2. Query routes collection
       try {
-        const q = query(collection(db, 'routes'), where('assignedBus', 'in', [busNum, `bus_${busNum}`, bus.id]));
+        const busNumList = [busNum, Number.isInteger(busNumInt) ? busNumInt : null, `bus_${busNum}`, bus.id].filter(Boolean);
+        const q = query(collection(db, 'routes'), where('assignedBus', 'in', busNumList));
         const qSnap = await getDocs(q);
         if (!qSnap.empty) {
           const rDoc = qSnap.docs[0];
@@ -137,7 +155,8 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
 
         const stopLat = parseFloat(s.lat || s.latitude) || fallback?.lat || null;
         const stopLng = parseFloat(s.lng || s.longitude) || fallback?.lng || null;
-        const time = s.morningArrival || s.arrivalTime || s.scheduledArrival || s.eveningArrival || '';
+        const rawTime = s.morningArrival || s.arrivalTime || s.scheduledArrival || s.eveningArrival || s.time || '';
+        const time = formatStop12(rawTime);
 
         return {
           id: s.id || `stop-${idx}`,
@@ -155,7 +174,7 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
     return () => {
       if (unsub) unsub();
     };
-  }, [bus.id, bus.busNumber, bus.assignedRouteId, bus.stops]);
+  }, [bus.id, bus.busNumber, bus.assignedRouteId, bus.routeId, bus.stops]);
 
   // 2. Calculate Current Leg and Next Leg
   useEffect(() => {
@@ -163,12 +182,27 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
 
     let cIdx = 0;
     let nIdx = 1;
-    let moving = speed > 5 || status === 'On Route' || status === 'Active';
+    
+    // Explicitly determine if bus is at a stop or halted
+    const isAtStop = status === 'At Stop' || status === 'stopped' || rawStatus === 'At Stop' || rawStatus === 'stopped' || speed <= 0;
+    let moving = false;
+    if (isOnline && status !== 'Offline' && status !== 'Halted' && status !== 'Stopped' && !isAtStop) {
+      if (speed > 0 || status === 'moving') {
+        moving = true;
+      }
+    }
 
     // A) Explicit DB index
-    if (typeof live?.currentStopIndex === 'number') {
+    if (typeof live?.currentStopIndex === 'number' && live.currentStopIndex >= 0 && live.currentStopIndex < stops.length) {
       cIdx = live.currentStopIndex;
       nIdx = live.nextStopIndex ?? Math.min(cIdx + 1, stops.length - 1);
+    } else if (live?.currentStop) {
+      const q = String(live.currentStop).toLowerCase().trim();
+      const idx = stops.findIndex(s => s.name?.toLowerCase().trim() === q);
+      if (idx !== -1) {
+        cIdx = idx;
+        nIdx = Math.min(idx + 1, stops.length - 1);
+      }
     } else if (typeof bus?.currentStopIndex === 'number') {
       cIdx = bus.currentStopIndex;
       nIdx = bus.nextStopIndex ?? Math.min(cIdx + 1, stops.length - 1);
@@ -201,14 +235,14 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
       nIdx = Math.min(1, stops.length - 1);
     }
 
-    if (status === 'Offline' || status === 'Halted' || status === 'Stopped') {
+    if (status === 'Offline' || status === 'Halted' || status === 'Stopped' || !isOnline) {
       moving = false;
     }
 
     setCurrentIdx(cIdx);
     setNextIdx(nIdx);
     setIsMoving(moving);
-  }, [stops, lat, lng, speed, status, live?.currentStopIndex, live?.nextStopIndex, bus?.currentStopIndex, bus?.nextStopIndex]);
+  }, [stops, lat, lng, speed, status, isOnline, live?.currentStopIndex, live?.nextStopIndex, live?.currentStop, bus?.currentStopIndex, bus?.nextStopIndex]);
 
   // 3. Compute Target Y Position on Timeline Track
   useEffect(() => {
@@ -300,7 +334,13 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
             }}
           />
           <span style={{ color: !isOnline ? '#6B7280' : isMoving ? '#027A48' : '#1D4ED8' }}>
-            {!isOnline ? 'Offline' : isMoving ? (speed ? `Moving · ${Math.round(speed)} km/h` : 'On Route') : 'At Stop'}
+            {!isOnline
+              ? 'Bus Offline'
+              : isMoving && speed > 0
+                ? `Bus in movement · ${Math.round(speed)} km/h`
+                : isMoving
+                  ? 'Bus in movement'
+                  : 'Bus at Stop'}
           </span>
         </div>
         <div className="timeline-status-right">

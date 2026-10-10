@@ -66,16 +66,14 @@
   /* Fade top & bottom so rows dissolve gracefully when scrolling */
   mask-image: linear-gradient(
     to bottom,
-    transparent 0px,
-    black 28px,
-    black calc(100% - 28px),
+    black 0%,
+    black calc(100% - 24px),
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
-    transparent 0px,
-    black 28px,
-    black calc(100% - 28px),
+    black 0%,
+    black calc(100% - 24px),
     transparent 100%
   );
 }

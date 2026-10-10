@@ -1042,6 +1042,11 @@
     const btnReset = document.getElementById('btn-reset');
     const btnStep = document.getElementById('btn-step');
 
+    const manualScrubSlider = document.getElementById('manual-scrub-slider');
+    const scrubValDisplay = document.getElementById('scrub-val-display');
+    const scrubberTicksContainer = document.getElementById('scrubber-ticks-container');
+    let isUserScrubbing = false;
+
     // Logging helper
     function appendLog(event, data) {
       if (!consoleLogs) return;
@@ -1135,11 +1140,6 @@
         stopsTimelineItems.appendChild(el);
       });
     }
-
-    const manualScrubSlider = document.getElementById('manual-scrub-slider');
-    const scrubValDisplay = document.getElementById('scrub-val-display');
-    const scrubberTicksContainer = document.getElementById('scrubber-ticks-container');
-    let isUserScrubbing = false;
 
     // Render Stop Ticks along scrubber slider
     function renderScrubberTicks(stops) {
@@ -1397,13 +1397,32 @@
     // Initial load
     async function init() {
       try {
-        await sim.loadStops('32');
-        if (sim.stops.length === 0) {
-          console.log('[Simulator] Auto-seeding default stops for Bus 32...');
-          await sim.seedDefaultStops('32');
+        // Fetch registered fleet buses directly from database
+        const busesList = await sim.fetchAllBuses();
+        if (busesList.length > 0) {
+          busSelector.innerHTML = '';
+          busesList.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b.busNumber;
+            opt.textContent = `Bus ${b.busNumber}${b.routeName ? ` · ${b.routeName}` : ''}`;
+            busSelector.appendChild(opt);
+          });
+          const customOpt = document.createElement('option');
+          customOpt.value = 'custom';
+          customOpt.textContent = '+ Custom Bus No...';
+          busSelector.appendChild(customOpt);
+
+          const defaultBus = busesList.find(b => b.busNumber === '67') ? '67' : busesList[0].busNumber;
+          busSelector.value = defaultBus;
+          sim.busNumber = defaultBus;
+          if (logBusId) logBusId.textContent = defaultBus;
+          await sim.loadStops(defaultBus);
+        } else {
+          await sim.loadStops('67');
         }
+
         updateUI(sim.getState());
-        appendLog('INITIALIZED', `Bus 32 loaded with ${sim.stops.length} stops.`);
+        appendLog('INITIALIZED', `Bus ${sim.busNumber} loaded with ${sim.stops.length} stops from database.`);
       } catch (err) {
         console.error('Simulator init error:', err);
       }

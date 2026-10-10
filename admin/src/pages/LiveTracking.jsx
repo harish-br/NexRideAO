@@ -1,12 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { db } from '../firebase';
-import { getApp } from 'firebase/app';
-import { getDatabase, ref, onValue, off } from 'firebase/database';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { db, rtdb } from '../firebase';
+import { ref, onValue, off } from 'firebase/database';
 import { collection, onSnapshot } from 'firebase/firestore';
-
-// ─── Config ────────────────────────────────────────────────────────────────────
-const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+import StopTimeline from '../components/tracking/StopTimeline';
 
 // ─── Status helpers ────────────────────────────────────────────────────────────
 const STATUS_CFG = {
@@ -20,17 +16,25 @@ const STATUS_CFG = {
 };
 
 function getBusCfg(bus, live) {
-  // Ignore mock Firestore data if there is no live GPS connection.
-  // If live is explicitly null (no GPS data found) or isOnline is false, mark as Offline.
-  if (live === null || (live && live.isOnline === false)) {
+  if (live && live.isOnline === false) {
     return STATUS_CFG['Offline'];
   }
-  // If live is undefined, it means RTDB hasn't responded yet. We can assume Offline temporarily.
-  if (live === undefined) {
-    return STATUS_CFG['Offline'];
-  }
+  const s = live?.status || bus?.status;
+  if (!s) return STATUS_CFG['Offline'];
+  return STATUS_CFG[s] || STATUS_CFG['Active'];
+}
 
-  return STATUS_CFG[bus.status] || STATUS_CFG['Active'];
+function getLiveForBus(bus, liveMap) {
+  if (!bus || !liveMap) return null;
+  const num = String(bus.busNumber || '').trim();
+  const id = String(bus.id || '').trim();
+  return (
+    liveMap[id] ||
+    (num ? liveMap[num] : null) ||
+    (num ? liveMap['BUS_' + num] : null) ||
+    (num ? liveMap['bus_' + num] : null) ||
+    null
+  );
 }
 
 function StatusBadge({ bus, live }) {
@@ -42,200 +46,6 @@ function StatusBadge({ bus, live }) {
     </span>
   );
 }
-
-// ─── Elapsed timestamp ────────────────────────────────────────────────────────
-function useElapsed(ts) {
-  const [v, setV] = useState('');
-  useEffect(() => {
-    if (!ts) return;
-    const tick = () => {
-      const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
-      setV(s < 60 ? s + 's ago' : s < 3600 ? Math.floor(s / 60) + 'm ago' : Math.floor(s / 3600) + 'h ago');
-    };
-    tick();
-    const id = setInterval(tick, 5000);
-    return () => clearInterval(id);
-  }, [ts]);
-  return v;
-}
-
-// ─── Google Maps loader (singleton) ──────────────────────────────────────────
-let _loaded = false, _loading = false, _q = [];
-function loadMaps() {
-  return new Promise(res => {
-    if (_loaded) return res();
-    _q.push(res);
-    if (_loading) return;
-    _loading = true;
-    window.__lbGmReady = () => { _loaded = true; _q.forEach(f => f()); _q = []; };
-    const s = document.createElement('script');
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${MAPS_KEY}&callback=__lbGmReady`;
-    s.async = true;
-    document.head.appendChild(s);
-  });
-}
-
-// ─── Compact map ──────────────────────────────────────────────────────────────
-function BusMap({ lat, lng, stops }) {
-  const el = useRef(null);
-  const gmap = useRef(null);
-  const gmarker = useRef(null);
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => { loadMaps().then(() => setReady(true)); }, []);
-
-  useEffect(() => {
-    if (!ready || !el.current || !lat || !lng) return;
-    const pos = { lat, lng };
-    if (!gmap.current) {
-      gmap.current = new window.google.maps.Map(el.current, {
-        center: pos, zoom: 14,
-        mapTypeControl: false, streetViewControl: false, fullscreenControl: false, zoomControl: true,
-        styles: [{ featureType: 'poi', stylers: [{ visibility: 'off' }] }],
-      });
-      gmarker.current = new window.google.maps.Marker({
-        position: pos, map: gmap.current,
-        icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 9, fillColor: '#134eff', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2.5 },
-        zIndex: 10,
-      });
-      (stops || []).filter(s => s.lat && s.lng).forEach(s => {
-        new window.google.maps.Marker({
-          position: { lat: s.lat, lng: s.lng }, map: gmap.current,
-          icon: { path: window.google.maps.SymbolPath.CIRCLE, scale: 4, fillColor: '#9CA3AF', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 1.5 },
-          title: s.name || s.stopName,
-        });
-      });
-    } else {
-      gmap.current.panTo(pos);
-      gmarker.current?.setPosition(pos);
-    }
-  }, [ready, lat, lng]);
-
-  return (
-    <div style={{ height: '200px', borderRadius: '14px', overflow: 'hidden', background: '#E5E7EB', marginBottom: '16px', position: 'relative' }}>
-      {!ready && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', color: '#9CA3AF' }}>
-          Loading map…
-        </div>
-      )}
-      <div ref={el} style={{ width: '100%', height: '100%' }} />
-    </div>
-  );
-}
-
-// ─── Expanded detail (inside the card) ────────────────────────────────────────
-function ExpandedDetail({ bus, live }) {
-  const ts = live && (live.lastUpdated || live.timestamp);
-  const elapsed = useElapsed(ts);
-  const isLive = live && live.isOnline === true;
-  const isStale = ts && (Date.now() - new Date(ts).getTime()) > 120000;
-  const lat = live && (live.latitude || live.lat);
-  const lng = live && (live.longitude || live.lng);
-  const spd = live && live.speed != null ? Math.round(live.speed) + ' km/h' : null;
-  const hdg = live && live.heading != null ? Math.round(live.heading) + '°' : null;
-
-  const stops = bus.stops || [];
-  const sorted = [...stops].sort((a, b) => (a.order || a.stopOrder || 0) - (b.order || b.stopOrder || 0));
-  const origin = sorted[0];
-  const dest = sorted[sorted.length - 1];
-  const driver = bus.assignedDriverName || bus.driverName;
-
-  return (
-    <div className="expanded-content">
-
-      {/* Live status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
-        {isLive && !isStale ? (
-          <>
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#12B76A', display: 'inline-block', animation: 'lbPulse 1.8s ease infinite' }} />
-            <span style={{ fontSize: '12px', fontWeight: '600', color: '#065F46' }}>Live</span>
-            {elapsed && <span style={{ fontSize: '12px', color: '#9CA3AF' }}>· {elapsed}</span>}
-          </>
-        ) : isStale ? (
-          <span style={{ fontSize: '12px', color: '#92400E', fontWeight: '500' }}>⚠ Delayed · {elapsed}</span>
-        ) : (
-          <span style={{ fontSize: '12px', color: '#9CA3AF' }}>{ts ? 'Last seen ' + elapsed : 'Location unavailable'}</span>
-        )}
-      </div>
-
-      {/* Map */}
-      {lat && lng ? (
-        <BusMap lat={lat} lng={lng} stops={stops} />
-      ) : (
-        <div style={{ height: '60px', borderRadius: '12px', background: '#F9FAFB', border: '1px dashed #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: '#9CA3AF', marginBottom: '16px' }}>
-          No live location
-        </div>
-      )}
-
-      {/* Route timeline */}
-      {origin && dest && origin !== dest && (
-        <div className="timeline">
-          <div style={{ marginBottom: '20px' }}>
-            <div className="timeline-icon" />
-            <div className="timeline-label">Origin</div>
-            <div className="timeline-address">{origin.name || origin.stopName}</div>
-          </div>
-          <div>
-            <div className="timeline-icon outline" />
-            <div className="timeline-label">Destination</div>
-            <div className="timeline-address">{dest.name || dest.stopName}</div>
-          </div>
-        </div>
-      )}
-
-      {/* Live data row */}
-      {(spd || hdg || (lat && lng)) && (
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          {spd && (
-            <div style={{ flex: 1, minWidth: '80px', background: '#F9FAFB', borderRadius: '10px', padding: '10px 12px' }}>
-              <div style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: '500', marginBottom: '2px' }}>Speed</div>
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#111' }}>{spd}</div>
-            </div>
-          )}
-          {hdg && (
-            <div style={{ flex: 1, minWidth: '80px', background: '#F9FAFB', borderRadius: '10px', padding: '10px 12px' }}>
-              <div style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: '500', marginBottom: '2px' }}>Heading</div>
-              <div style={{ fontSize: '15px', fontWeight: '700', color: '#111' }}>{hdg}</div>
-            </div>
-          )}
-          {lat && lng && (
-            <div style={{ flex: 2, minWidth: '140px', background: '#F9FAFB', borderRadius: '10px', padding: '10px 12px' }}>
-              <div style={{ fontSize: '11px', color: '#9CA3AF', fontWeight: '500', marginBottom: '2px' }}>Coordinates</div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#111', fontFamily: 'monospace' }}>{lat.toFixed(5)}, {lng.toFixed(5)}</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Driver */}
-      {driver && (
-        <div className="courier-info">
-          <div className="courier-profile">
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '50%',
-              background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '14px', fontWeight: '700', color: '#4F46E5', flexShrink: 0,
-            }}>
-              {driver.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2)}
-            </div>
-            <div className="courier-details">
-              <h4>{driver}</h4>
-              <p>Assigned Driver</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bus reg + timings */}
-      {(bus.registrationNumber || bus.regNumber) && (
-        <div style={{ fontSize: '12px', color: '#9CA3AF', fontFamily: 'monospace', marginBottom: '4px', textAlign: 'center' }}>
-          {bus.registrationNumber || bus.regNumber}
-        </div>
-      )}
-    </div>
-  );
-}
-
 
 // ─── 12-Hour Time Formatter ────────────────────────────────────────────────
 function formatTime12(timeStr) {
@@ -256,7 +66,7 @@ function formatTime12(timeStr) {
 }
 
 // ─── Bus card ───────────────────────────────────────────────────────────────
-function BusCard({ bus, live, isSelected, onCardClick, onPositionChange }) {
+function BusCard({ bus, expanded, onToggle, live, onPositionChange }) {
   const route = bus.assignedRouteName || bus.routeName || bus.route || null;
   const driver = bus.assignedDriverName || bus.driverName || null;
 
@@ -279,30 +89,13 @@ function BusCard({ bus, live, isSelected, onCardClick, onPositionChange }) {
   const fontStack = "'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif";
   const iconStyle = { flexShrink: 0, display: 'block' };
 
-  const handleSelect = () => {
-    if (onCardClick) {
-      onCardClick(bus);
-    }
-    if (onPositionChange) {
-      const lat = live?.latitude ?? live?.lat ?? bus?.lat ?? bus?.latitude;
-      const lng = live?.longitude ?? live?.lng ?? bus?.lng ?? bus?.longitude;
-      onPositionChange({
-        id: bus.id,
-        busNumber: bus.busNumber,
-        lat: lat ? parseFloat(lat) : 11.5760,
-        lng: lng ? parseFloat(lng) : 77.7014,
-        status: bus.status
-      });
-    }
-  };
-
   return (
     <div
-      className={`order-card${isSelected ? ' selected' : ''}`}
-      onClick={handleSelect}
+      className={`order-card${expanded ? ' expanded active' : ''}`}
+      onClick={onToggle}
       style={{ cursor: 'pointer' }}
     >
-      {/* ── Row 1: Bus identity + status ── */}
+      {/* ── Row 1: Bus identity + status + chevron ── */}
       <div style={{
         display: 'flex', alignItems: 'center',
         justifyContent: 'space-between', gap: '10px', minWidth: 0,
@@ -325,8 +118,25 @@ function BusCard({ bus, live, isSelected, onCardClick, onPositionChange }) {
             </span>
           )}
         </div>
-        <div style={{ flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <StatusBadge bus={bus} live={live} />
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#9CA3AF"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+              transition: 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              flexShrink: 0,
+            }}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
         </div>
       </div>
 
@@ -405,6 +215,21 @@ function BusCard({ bus, live, isSelected, onCardClick, onPositionChange }) {
           )}
         </div>
       )}
+
+      {/* ── Expanded Stop Timeline (Old style matching user app) ── */}
+      {expanded && (
+        <div
+          onClick={e => e.stopPropagation()}
+          className="expanded-timeline-section"
+          style={{
+            marginTop: '12px',
+            borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+            paddingTop: '6px'
+          }}
+        >
+          <StopTimeline bus={bus} live={live} onPositionChange={onPositionChange} />
+        </div>
+      )}
     </div>
   );
 }
@@ -432,60 +257,32 @@ export default function LiveTracking({ onSelectBus }) {
   const [search, setSearch] = useState('');
   const [deb, setDeb] = useState('');
   const [tab, setTab] = useState('all');
+  const [expandedId, setExpandedId] = useState(null);
   const [liveMap, setLiveMap] = useState({});
   const [searchOpen, setSearchOpen] = useState(false);
-  const [selectedBus, setSelectedBus] = useState(null);
-  const [panelBus, setPanelBus] = useState(null);
-  const [isClosing, setIsClosing] = useState(false);
   const searchRef = useRef(null);
-  const listeners = useRef({});
-  const rtdb = useRef(null);
+  const hasInitialSelected = useRef(false);
 
-  const closePanel = useCallback(() => {
-    if (!panelBus || isClosing) return;
-    setIsClosing(true);
-    setSelectedBus(null);
-  }, [panelBus, isClosing]);
-
-  const handleSelectBus = (busItem) => {
-    if (selectedBus?.id === busItem.id) {
-      closePanel();
-    } else {
-      setIsClosing(false);
-      setSelectedBus(busItem);
-      setPanelBus(busItem);
-    }
-  };
-
-  const handleAnimationEnd = (e) => {
-    if (isClosing && e.animationName === 'collapseRightToLeft') {
-      setIsClosing(false);
-      setPanelBus(null);
-    }
-  };
-
-  // Close blank panel on Escape or outside click
-  useEffect(() => {
-    if (!panelBus || isClosing) return;
-    const handleDown = (e) => {
-      if (!e.target.closest('.bus-detail-panel') && !e.target.closest('.order-card')) {
-        closePanel();
+  const toggle = useCallback((bus) => {
+    setExpandedId(prev => {
+      const nextId = prev === bus.id ? null : bus.id;
+      if (nextId && onSelectBus) {
+        const live = getLiveForBus(bus, liveMap);
+        const lat = live?.latitude ?? live?.lat ?? bus?.lat ?? bus?.latitude;
+        const lng = live?.longitude ?? live?.lng ?? bus?.lng ?? bus?.longitude;
+        if (lat && lng) {
+          onSelectBus({
+            id: bus.id,
+            busNumber: bus.busNumber,
+            lat: parseFloat(lat),
+            lng: parseFloat(lng),
+            status: live?.status || bus.status
+          });
+        }
       }
-    };
-    const handleKey = (e) => {
-      if (e.key === 'Escape') closePanel();
-    };
-    window.addEventListener('pointerdown', handleDown);
-    window.addEventListener('keydown', handleKey);
-    return () => {
-      window.removeEventListener('pointerdown', handleDown);
-      window.removeEventListener('keydown', handleKey);
-    };
-  }, [panelBus, isClosing, closePanel]);
-
-  useEffect(() => {
-    try { rtdb.current = getDatabase(getApp()); } catch (e) { /* no RTDB */ }
-  }, []);
+      return nextId;
+    });
+  }, [liveMap, onSelectBus]);
 
   // Debounce search
   useEffect(() => {
@@ -506,34 +303,54 @@ export default function LiveTracking({ onSelectBus }) {
       data.sort((a, b) => (ord[a.status] ?? 2) - (ord[b.status] ?? 2));
       setBuses(data);
       setLoading(false);
+
+      if (!hasInitialSelected.current && data.length > 0) {
+        hasInitialSelected.current = true;
+        const initialBus = data.find(b => b.status === 'Active' || b.status === 'On Route') || data[0];
+        if (initialBus && onSelectBus) {
+          const live = getLiveForBus(initialBus, liveMap);
+          const lat = live?.latitude ?? live?.lat ?? initialBus.lat ?? initialBus.latitude;
+          const lng = live?.longitude ?? live?.lng ?? initialBus.lng ?? initialBus.longitude;
+          if (lat && lng) {
+            onSelectBus({
+              id: initialBus.id,
+              busNumber: initialBus.busNumber,
+              lat: parseFloat(lat),
+              lng: parseFloat(lng),
+              status: live?.status || initialBus.status
+            });
+          }
+        }
+      }
     }, () => { setError('Failed to load buses.'); setLoading(false); });
     return () => unsub();
-  }, []);
+  }, [onSelectBus, liveMap]);
 
-  // Subscribe live for all buses
+  // Subscribe live for all buses across RTDB
   useEffect(() => {
-    if (!rtdb.current || buses.length === 0) return;
-
-    buses.forEach(bus => {
-      const busId = bus.id;
-      if (!listeners.current[busId]) {
-        const r = ref(rtdb.current, 'bus_live/' + busId);
-        onValue(r, snap => {
-          setLiveMap(prev => ({ ...prev, [busId]: snap.val() || null }));
-        });
-        listeners.current[busId] = r;
-      }
+    if (!rtdb) return;
+    const r = ref(rtdb, 'bus_live');
+    const unsub = onValue(r, snap => {
+      setLiveMap(snap.val() || {});
     });
-  }, [buses]);
-
-  useEffect(() => {
-    return () => { Object.values(listeners.current).forEach(r => off(r)); };
+    return () => off(r);
   }, []);
 
+  // Use registered Firestore fleet with real RTDB live telemetry
+  const allBuses = useMemo(() => {
+    const list = [...buses];
+    const ord = { Active: 0, 'On Route': 0, Delayed: 1, 'At Stop': 2, Offline: 3, Halted: 3, Maintenance: 4 };
+    return list.sort((a, b) => {
+      const liveA = getLiveForBus(a, liveMap);
+      const liveB = getLiveForBus(b, liveMap);
+      const statusA = liveA?.status || a.status;
+      const statusB = liveB?.status || b.status;
+      return (ord[statusA] ?? 2) - (ord[statusB] ?? 2);
+    });
+  }, [buses, liveMap]);
 
-
-  const filtered = buses.filter(bus => {
-    const live = liveMap[bus.id];
+  const filtered = allBuses.filter(bus => {
+    const live = getLiveForBus(bus, liveMap);
     if (!matchTab(bus, live, tab)) return false;
     if (!deb) return true;
     const q = deb.toLowerCase();
@@ -558,7 +375,7 @@ export default function LiveTracking({ onSelectBus }) {
       {/* Header — matches .header h1 exactly */}
       <div className="header">
         <h1>Live Bus</h1>
-        {/* Expandable search — matches the reference circular button */}
+        {/* Expandable search */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {searchOpen && (
             <input
@@ -566,7 +383,7 @@ export default function LiveTracking({ onSelectBus }) {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Bus, route, driver…"
+              placeholder="Bus, route, driver, simulator…"
               className="lb-search-input"
               style={{
                 height: '36px', padding: '0 12px',
@@ -600,7 +417,7 @@ export default function LiveTracking({ onSelectBus }) {
         </div>
       </div>
 
-      {/* Filter tabs — matches .tabs / .tab */}
+      {/* Filter tabs */}
       <div className="tabs">
         {TABS.map(t => (
           <div
@@ -613,8 +430,77 @@ export default function LiveTracking({ onSelectBus }) {
         ))}
       </div>
 
-      {/* Bus list — matches .orders-list */}
+      {/* Bus list */}
       <div className="orders-list">
+        {/* Only show Simulator when user searches for it */}
+        {deb && /sim|gps|telematics/i.test(deb) && (
+          <a
+            href={`${typeof window !== 'undefined' ? window.location.origin : ''}/simulator.html`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="order-card"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '12px 16px',
+              backgroundColor: '#EFF6FF',
+              border: '1.5px solid #BFDBFE',
+              borderRadius: '16px',
+              textDecoration: 'none',
+              marginBottom: '10px',
+              cursor: 'pointer',
+              transition: 'all 0.18s ease'
+            }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#DBEAFE'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#EFF6FF'; }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '10px',
+                backgroundColor: '#2563EB',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '17px',
+                flexShrink: 0
+              }}>
+                🎮
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E40AF', letterSpacing: '-0.2px' }}>
+                  Open GPS Bus Simulator
+                </div>
+                <div style={{ fontSize: '12px', color: '#3B82F6', fontWeight: '500' }}>
+                  Launch live telemetry simulation in new tab
+                </div>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '12px',
+              fontWeight: '600',
+              color: '#2563EB',
+              background: '#fff',
+              padding: '4px 10px',
+              borderRadius: '100px',
+              border: '1px solid #BFDBFE'
+            }}>
+              <span>Open</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </div>
+          </a>
+        )}
+
         {loading ? (
           <>
             {[1, 2, 3].map(i => (
@@ -626,7 +512,7 @@ export default function LiveTracking({ onSelectBus }) {
           </>
         ) : error ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: '#9CA3AF', fontSize: '13px' }}>⚠ {error}</div>
-        ) : filtered.length === 0 ? (
+        ) : filtered.length === 0 && !/sim|gps|telematics/i.test(deb) ? (
           <div style={{ textAlign: 'center', padding: '60px 0' }}>
             <div style={{ fontSize: '14px', fontWeight: '600', color: '#374151', marginBottom: '4px' }}>No buses found</div>
             <div style={{ fontSize: '13px', color: '#9CA3AF' }}>{deb ? 'Try a different search.' : 'No active buses right now.'}</div>
@@ -635,23 +521,13 @@ export default function LiveTracking({ onSelectBus }) {
           <BusCard
             key={bus.id}
             bus={bus}
-            live={liveMap[bus.id]}
-            isSelected={selectedBus?.id === bus.id}
-            onCardClick={handleSelectBus}
+            expanded={expandedId === bus.id}
+            onToggle={() => toggle(bus)}
+            live={getLiveForBus(bus, liveMap)}
             onPositionChange={onSelectBus}
           />
         ))}
       </div>
-
-      {/* ── Blank Horizontal Bus Detail Panel (Placeholder for Live-Location) ── */}
-      {panelBus !== null && createPortal(
-        <div
-          className={`bus-detail-panel${isClosing ? ' closing' : ''}`}
-          onAnimationEnd={handleAnimationEnd}
-          aria-label="Bus details"
-        />,
-        document.body
-      )}
     </div>
   );
 }

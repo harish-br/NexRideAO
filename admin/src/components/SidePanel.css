@@ -28,28 +28,63 @@
   transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Left Navigation Bar */
+/* ==========================================================================
+   Expandable Sidebar Navigation
+   ========================================================================== */
+
+/* Left Navigation Bar Container */
 .nav-bar {
-  width: 66px;
+  width: 68px;
+  min-width: 68px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 20px 0;
-  background: rgba(255, 255, 255, 0.25);
-  border-right: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 16px 12px;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 25;
+  transition: width 260ms cubic-bezier(0.2, 0, 0, 1),
+              background 260ms ease,
+              box-shadow 260ms cubic-bezier(0.2, 0, 0, 1),
+              border-color 260ms ease;
+  will-change: width;
 }
 
+/* Expanded State on Hover / Active State */
+.nav-bar:hover,
+.nav-bar.expanded {
+  width: 240px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 6px 0 24px rgba(0, 0, 0, 0.06);
+  border-right-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Responsive adjustment for quarter view when sidebar expands */
+.side-panel-container.quarter-view.sidebar-expanded,
+.side-panel-container.quarter-view:has(.nav-bar:hover) {
+  width: 632px;
+}
+
+/* Brand / Top Live Action Button */
 .brand-logo {
-  width: 38px;
-  height: 38px;
-  color: #999;
+  width: 100%;
+  height: 44px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin-bottom: 24px;
-  transition: all 0.2s ease;
+  color: #64748b;
   border-radius: 12px;
+  cursor: pointer;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  flex-shrink: 0;
+  transition: background 0.18s ease, color 0.18s ease;
 }
 
 .brand-logo:hover {
@@ -60,15 +95,50 @@
 .brand-logo.active {
   color: #134eff;
   background: rgba(19, 78, 255, 0.1);
+  font-weight: 600;
 }
 
+.brand-logo.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3.5px;
+  height: 20px;
+  background: #134eff;
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 10px rgba(19, 78, 255, 0.5);
+}
+
+.brand-logo.active .nav-icon-wrapper svg {
+  animation: pulseLive 2s infinite ease-in-out;
+}
+
+@keyframes pulseLive {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.85; }
+}
+
+/* Divider under top brand item */
+.nav-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 10px 0 12px 0;
+  flex-shrink: 0;
+}
+
+/* Navigation Icons Container */
 .nav-icons {
   display: flex;
   flex-direction: column;
-  gap: clamp(10px, 1.8vh, 18px);
+  gap: 6px;
   flex: 1;
-  align-items: center;
+  width: 100%;
+  align-items: stretch;
   overflow-y: auto;
+  overflow-x: hidden;
   scrollbar-width: none;
 }
 
@@ -76,31 +146,162 @@
   display: none;
 }
 
+/* Individual Navigation Item */
+.nav-item,
 .nav-icon {
-  width: 38px;
-  height: 38px;
+  width: 100%;
+  height: 42px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: #888;
+  color: #64748b;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border-radius: 10px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  flex-shrink: 0;
 }
 
+.nav-item:hover,
 .nav-icon:hover {
-  color: #111;
-  background: rgba(0, 0, 0, 0.04);
+  color: #0f172a;
+  background: rgba(0, 0, 0, 0.045);
 }
 
+/* Active Section Highlight */
+.nav-item.active,
 .nav-icon.active {
   color: #134eff;
   background: rgba(19, 78, 255, 0.1);
+  font-weight: 600;
 }
 
+.nav-item.active::before,
+.nav-icon.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3.5px;
+  height: 20px;
+  background: #134eff;
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 10px rgba(19, 78, 255, 0.5);
+}
+
+/* Icon Wrapper - Exactly 44px wide to preserve 100% identical icon centering */
+.nav-icon-wrapper {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  color: inherit;
+  transition: transform 0.18s ease, color 0.18s ease;
+}
+
+.nav-item:hover .nav-icon-wrapper,
+.nav-icon:hover .nav-icon-wrapper {
+  transform: scale(1.05);
+}
+
+.nav-item.active .nav-icon-wrapper,
+.nav-icon.active .nav-icon-wrapper {
+  color: #134eff;
+}
+
+/* Label text - smoothly fades and slides in on expand */
+.nav-label {
+  white-space: nowrap;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  color: inherit;
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+  user-select: none;
+}
+
+.nav-bar:hover .nav-label,
+.nav-bar.expanded .nav-label {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  transition: opacity 220ms cubic-bezier(0.2, 0, 0, 1) 40ms,
+              transform 220ms cubic-bezier(0.2, 0, 0, 1) 40ms;
+}
+
+.nav-item.active .nav-label,
+.nav-icon.active .nav-label {
+  color: #134eff;
+  font-weight: 600;
+}
+
+/* Group wrapper for top brand / live item */
+.nav-label-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  min-width: 0;
+  padding-right: 12px;
+  opacity: 0;
+  transform: translateX(-8px);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.nav-bar:hover .nav-label-wrapper,
+.nav-bar.expanded .nav-label-wrapper {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  transition: opacity 220ms cubic-bezier(0.2, 0, 0, 1) 40ms,
+              transform 220ms cubic-bezier(0.2, 0, 0, 1) 40ms;
+}
+
+.nav-live-badge {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(19, 78, 255, 0.12);
+  color: #134eff;
+  line-height: 1.2;
+}
+
+.brand-logo.active .nav-live-badge {
+  background: #134eff;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(19, 78, 255, 0.35);
+}
+
+/* Bottom Logout Area */
 .nav-bottom {
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: 10px;
+  width: 100%;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+}
+
+.nav-logout:hover {
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.nav-logout:hover .nav-icon-wrapper {
+  color: #dc2626;
 }
 
 /* Main Content Panel */
@@ -220,10 +421,7 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  padding-right: 2px;
-  padding-bottom: 16px;
-  mask-image: linear-gradient(to bottom, transparent 0px, black 8px);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 8px);
+  padding: 6px 4px 16px 4px;
 }
 
 .orders-list::-webkit-scrollbar {
@@ -256,81 +454,6 @@
   background: rgba(255, 255, 255, 0.96) !important;
   border-color: rgba(37, 99, 235, 0.45) !important;
   box-shadow: 0 4px 16px rgba(37, 99, 235, 0.10) !important;
-}
-
-/* Horizontal Floating Bus Detail Card (Blank Rectangle Placeholder) */
-.bus-detail-panel {
-  position: fixed;
-  bottom: 24px;
-  left: 488px;
-  right: 86px;
-  height: 120px;
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-  z-index: 10;
-  overflow: hidden;
-  box-sizing: border-box;
-  transform-origin: left center;
-  animation: expandLeftToRight 320ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.bus-detail-panel.closing {
-  animation: collapseRightToLeft 280ms cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
-}
-
-@keyframes expandLeftToRight {
-  0% {
-    opacity: 0;
-    clip-path: inset(0 100% 0 0 round 22px);
-    transform: scaleX(0.85);
-  }
-  35% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0 round 22px);
-    transform: scaleX(1);
-  }
-}
-
-@keyframes collapseRightToLeft {
-  0% {
-    opacity: 1;
-    clip-path: inset(0 0 0 0 round 22px);
-    transform: scaleX(1);
-  }
-  65% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    clip-path: inset(0 100% 0 0 round 22px);
-    transform: scaleX(0.85);
-  }
-}
-
-@media (max-width: 900px) {
-  .bus-detail-panel {
-    left: 20px;
-    right: 86px;
-    bottom: 20px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bus-detail-panel,
-  .bus-detail-panel.closing {
-    animation: none !important;
-    transition: none !important;
-    transform: none !important;
-    clip-path: none !important;
-    opacity: 1 !important;
-  }
 }
 
 .card-header {

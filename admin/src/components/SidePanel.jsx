@@ -32,6 +32,19 @@ import LiveTracking from '../pages/LiveTracking';
 import WeatherWidget from './WeatherWidget';
 import './SidePanel.css';
 
+const NAV_ITEMS = [
+  { id: 'home', label: 'Dashboard', icon: HomeIcon },
+  { id: 'live', label: 'Live Tracking', icon: RecordCircleIcon },
+  { id: 'buses', label: 'Buses', icon: BusIcon },
+  { id: 'drivers', label: 'Drivers', icon: DriverIcon },
+  { id: 'students', label: 'Students', icon: StudentIcon },
+  { id: 'routes', label: 'Routes', icon: RouteIcon },
+  { id: 'reports', label: 'Reports', icon: ReportIcon },
+  { id: 'notifications', label: 'Notifications', icon: NotificationIcon },
+  { id: 'audit logs', label: 'Audit Logs', icon: AuditLogIcon },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon },
+];
+
 export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFullView, userLocation, onSelectBus }) {
   
   const handleLogout = async () => {
@@ -43,19 +56,11 @@ export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFu
   };
 
   const [shining, setShining] = useState(false);
+  const [isNavHovered, setIsNavHovered] = useState(false);
 
   const handleLiveClick = () => {
-    if (isFullView) {
-      setShining(true);
-      setTimeout(() => {
-        setIsFullView(false);
-        setActiveNav('live');
-      }, 60);
-      setTimeout(() => setShining(false), 700);
-    } else {
-      setActiveNav('live');
-      setIsFullView(false);
-    }
+    setActiveNav('live');
+    setIsFullView(false);
   };
 
   return (
@@ -78,38 +83,77 @@ export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFu
         }
       `}</style>
 
-      <div className={`side-panel-container ${isFullView ? 'full-view' : 'quarter-view'}`} style={{ position: 'absolute' }}>
+      <div className={`side-panel-container ${isFullView ? 'full-view' : 'quarter-view'} ${isNavHovered ? 'sidebar-expanded' : ''}`} style={{ position: 'absolute' }}>
         {shining && <div className="panel-shine" />}
 
         {/* Left Navigation Bar */}
-        <div className="nav-bar">
+        <nav
+          className={`nav-bar ${isNavHovered ? 'expanded' : ''}`}
+          aria-label="Sidebar navigation"
+          onMouseEnter={() => setIsNavHovered(true)}
+          onMouseLeave={() => setIsNavHovered(false)}
+        >
+          {/* Brand / Live Fleet Button */}
           <div
-            className={`brand-logo ${activeNav === 'live' ? 'active' : ''}`}
-            title="Live"
+            className={`brand-logo nav-item nav-icon ${activeNav === 'live' ? 'active' : ''}`}
+            title="Live Fleet Tracking"
             onClick={handleLiveClick}
             style={{ cursor: 'pointer' }}
           >
-            <RecordCircleIcon width={24} height={24} />
-          </div>
-
-          <div className="nav-icons">
-            <div className={`nav-icon ${activeNav === 'home' ? 'active' : ''}`} title="Dashboard" onClick={() => { setActiveNav('home'); setIsFullView(true); }}><HomeIcon width={20} height={20} /></div>
-            <div className={`nav-icon ${activeNav === 'buses' ? 'active' : ''}`} title="Buses" onClick={() => { setActiveNav('buses'); setIsFullView(true); }}><BusIcon width={20} height={20} /></div>
-            <div className={`nav-icon ${activeNav === 'drivers' ? 'active' : ''}`} title="Drivers" onClick={() => { setActiveNav('drivers'); setIsFullView(true); }}><DriverIcon width={20} height={20} /></div>
-            <div className={`nav-icon ${activeNav === 'students' ? 'active' : ''}`} title="Students" onClick={() => { setActiveNav('students'); setIsFullView(true); }}><StudentIcon width={20} height={20} /></div>
-            <div className={`nav-icon ${activeNav === 'routes' ? 'active' : ''}`} title="Routes" onClick={() => { setActiveNav('routes'); setIsFullView(true); }}><RouteIcon width={20} height={20} /></div>
-            <div className={`nav-icon ${activeNav === 'reports' ? 'active' : ''}`} title="Reports" onClick={() => { setActiveNav('reports'); setIsFullView(true); }}><ReportIcon width={20} height={20} /></div>
-            <div className={`nav-icon ${activeNav === 'notifications' ? 'active' : ''}`} title="Notifications" onClick={() => { setActiveNav('notifications'); setIsFullView(true); }}><NotificationIcon width={20} height={20} /></div>
-            <div className={`nav-icon ${activeNav === 'audit logs' ? 'active' : ''}`} title="Audit Logs" onClick={() => { setActiveNav('audit logs'); setIsFullView(true); }}><AuditLogIcon width={20} height={20} /></div>
-            <div className={`nav-icon ${activeNav === 'settings' ? 'active' : ''}`} title="Settings" onClick={() => { setActiveNav('settings'); setIsFullView(true); }}><SettingsIcon width={20} height={20} /></div>
-          </div>
-
-          <div className="nav-bottom">
-            <div className="nav-icon" title="Logout" onClick={handleLogout} style={{ cursor: 'pointer' }}>
-              <LogoutIcon width={24} height={24} />
+            <div className="nav-icon-wrapper">
+              <RecordCircleIcon width={22} height={22} />
+            </div>
+            <div className="nav-label-wrapper">
+              <span className="nav-label">Live Fleet</span>
+              <span className="nav-live-badge">LIVE</span>
             </div>
           </div>
-        </div>
+
+          <div className="nav-divider" />
+
+          {/* Navigation Items */}
+          <div className="nav-icons">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeNav === item.id;
+              return (
+                <div
+                  key={item.id}
+                  className={`nav-item nav-icon ${isActive ? 'active' : ''}`}
+                  title={item.label}
+                  onClick={() => {
+                    if (item.id === 'live') {
+                      handleLiveClick();
+                    } else {
+                      setActiveNav(item.id);
+                      setIsFullView(true);
+                    }
+                  }}
+                >
+                  <div className="nav-icon-wrapper">
+                    <Icon width={20} height={20} />
+                  </div>
+                  <span className="nav-label">{item.label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Bottom Section (Logout) */}
+          <div className="nav-bottom">
+            <div
+              className="nav-item nav-icon nav-logout"
+              title="Logout"
+              onClick={handleLogout}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className="nav-icon-wrapper">
+                <LogoutIcon width={22} height={22} />
+              </div>
+              <span className="nav-label">Logout</span>
+            </div>
+          </div>
+        </nav>
 
         {/* Main Content Panel */}
         <div className={`content-panel ${activeNav === 'live' ? 'live-view' : ''}`}>

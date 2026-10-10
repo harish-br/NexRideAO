@@ -48,9 +48,9 @@ function Row({ label, description, children, last }) {
       gap: '24px',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '14px', fontWeight: '500', color: T.color.text }}>{label}</div>
+        <div style={{ fontSize: '14.5px', fontWeight: '500', color: T.color.text }}>{label}</div>
         {description && (
-          <div style={{ fontSize: '13px', color: T.color.secondary, marginTop: '2px' }}>{description}</div>
+          <div style={{ fontSize: '13px', color: T.color.secondary, marginTop: '3px', lineHeight: '1.4' }}>{description}</div>
         )}
       </div>
       <div style={{ flexShrink: 0 }}>{children}</div>
@@ -61,9 +61,9 @@ function Row({ label, description, children, last }) {
 function SectionTitle({ children }) {
   return (
     <h3 style={{
-      fontSize: '13px', fontWeight: '600', color: T.color.secondary,
-      textTransform: 'uppercase', letterSpacing: '0.6px',
-      margin: '0 0 4px 0',
+      fontSize: '13px', fontWeight: '700', color: T.color.secondary,
+      textTransform: 'uppercase', letterSpacing: '0.8px',
+      margin: '0 0 6px 0',
     }}>
       {children}
     </h3>
@@ -78,11 +78,12 @@ function SectionCard({ title, description, children }) {
       borderRadius: T.radius.lg,
       padding: '0 24px',
       marginBottom: '20px',
+      boxShadow: '0 1px 3px rgba(16, 24, 40, 0.04)',
     }}>
       {(title || description) && (
         <div style={{ padding: '20px 0 16px 0', borderBottom: T.border }}>
-          {title && <div style={{ fontSize: '15px', fontWeight: '600', color: T.color.text }}>{title}</div>}
-          {description && <div style={{ fontSize: '13px', color: T.color.secondary, marginTop: '3px' }}>{description}</div>}
+          {title && <div style={{ fontSize: '16px', fontWeight: '600', color: T.color.text, letterSpacing: '-0.2px' }}>{title}</div>}
+          {description && <div style={{ fontSize: '13.5px', color: T.color.secondary, marginTop: '3px', lineHeight: '1.4' }}>{description}</div>}
         </div>
       )}
       <div style={{ paddingBottom: '4px' }}>{children}</div>
@@ -98,7 +99,7 @@ function Toggle({ checked, onChange, disabled }) {
       onClick={() => !disabled && onChange(!checked)}
       disabled={disabled}
       style={{
-        width: '40px', height: '22px', borderRadius: '100px',
+        width: '42px', height: '24px', borderRadius: '100px',
         background: checked ? T.color.primary : '#D0D5DD',
         border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
         position: 'relative', transition: 'background 0.15s',
@@ -109,7 +110,7 @@ function Toggle({ checked, onChange, disabled }) {
       <span style={{
         position: 'absolute', top: '3px',
         left: checked ? '21px' : '3px',
-        width: '16px', height: '16px', borderRadius: '50%',
+        width: '18px', height: '18px', borderRadius: '50%',
         background: '#fff', transition: 'left 0.15s',
         boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
       }} />
@@ -583,14 +584,32 @@ function ApplicationSection({ uid, addToast }) {
 
   const RadioGroup = ({ label, description, name, options, value, onChange }) => (
     <Row label={label} description={description} last={false}>
-      <div style={{ display: 'flex', gap: '16px' }}>
+      <div style={{ display: 'flex', gap: '12px' }}>
         {options.map(o => (
-          <label key={o.value} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', color: T.color.text }}>
+          <label
+            key={o.value}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: value === o.value ? '600' : '400',
+              color: value === o.value ? T.color.text : T.color.secondary,
+              padding: '6px 12px',
+              borderRadius: T.radius.sm,
+              background: value === o.value ? '#F0F5FF' : 'transparent',
+              border: value === o.value ? '1px solid #C7D7FE' : '1px solid transparent',
+              transition: 'all 0.15s',
+            }}
+          >
             <input
-              type="radio" name={name} value={o.value}
+              type="radio"
+              name={name}
+              value={o.value}
               checked={value === o.value}
               onChange={() => onChange(o.value)}
-              style={{ accentColor: T.color.primary }}
+              style={{ accentColor: T.color.primary, width: '15px', height: '15px', margin: 0, cursor: 'pointer' }}
             />
             {o.label}
           </label>
@@ -621,9 +640,10 @@ function ApplicationSection({ uid, addToast }) {
             value={prefs.rowsPerPage}
             onChange={e => set('rowsPerPage', e.target.value)}
             style={{
-              height: '36px', padding: '0 10px', borderRadius: T.radius.sm,
-              border: T.border, fontSize: '13px', color: T.color.text,
+              height: '38px', padding: '0 12px', borderRadius: T.radius.sm,
+              border: T.border, fontSize: '14px', color: T.color.text,
               background: T.color.surface, cursor: 'pointer', outline: 'none',
+              fontWeight: '500', minWidth: '110px',
             }}
           >
             {['10','20','50','100'].map(n => <option key={n} value={n}>{n} rows</option>)}
@@ -725,39 +745,76 @@ export default function Settings() {
           {/* Left Navigation */}
           {!legalView && (
             <div style={{
-              width: '200px', flexShrink: 0,
+              width: '240px', flexShrink: 0,
               background: T.color.surface,
               border: T.border,
               borderRadius: T.radius.lg,
-              padding: '8px',
+              padding: '10px',
               alignSelf: 'flex-start',
+              boxShadow: '0 1px 3px rgba(16, 24, 40, 0.04)',
             }}>
-              <div style={{ fontSize: '11px', fontWeight: '600', color: T.color.secondary, textTransform: 'uppercase', letterSpacing: '0.6px', padding: '8px 10px 6px 10px' }}>
+              <div style={{
+                fontSize: '11.5px',
+                fontWeight: '700',
+                color: T.color.secondary,
+                textTransform: 'uppercase',
+                letterSpacing: '0.8px',
+                padding: '8px 12px 10px 12px',
+              }}>
                 Settings
               </div>
-              {NAV_ITEMS.map(item => {
-                const isActive = activeSection === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveSection(item.id)}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: '9px',
-                      padding: '9px 10px', borderRadius: '8px', border: 'none',
-                      background: isActive ? '#EAF1FF' : 'transparent',
-                      color: isActive ? T.color.primary : T.color.secondary,
-                      fontSize: '13px', fontWeight: isActive ? '600' : '400',
-                      cursor: 'pointer', textAlign: 'left',
-                      transition: 'background 0.15s, color 0.15s',
-                    }}
-                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = T.color.bg; e.currentTarget.style.color = T.color.text; } }}
-                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = T.color.secondary; } }}
-                  >
-                    <item.Icon width={16} height={16} style={{ display: 'block', flexShrink: 0 }} />
-                    {item.label}
-                  </button>
-                );
-              })}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                {NAV_ITEMS.map(item => {
+                  const isActive = activeSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveSection(item.id)}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '11px 14px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        background: isActive ? '#EAF1FF' : 'transparent',
+                        color: isActive ? T.color.primary : '#475467',
+                        fontSize: '14.5px',
+                        fontWeight: isActive ? '600' : '500',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'background 0.15s, color 0.15s',
+                        boxSizing: 'border-box',
+                      }}
+                      onMouseEnter={e => {
+                        if (!isActive) {
+                          e.currentTarget.style.background = '#F8FAFC';
+                          e.currentTarget.style.color = '#1D2939';
+                        }
+                      }}
+                      onMouseLeave={e => {
+                        if (!isActive) {
+                          e.currentTarget.style.background = 'transparent';
+                          e.currentTarget.style.color = '#475467';
+                        }
+                      }}
+                    >
+                      <item.Icon
+                        width={20}
+                        height={20}
+                        style={{
+                          display: 'block',
+                          flexShrink: 0,
+                          color: isActive ? T.color.primary : '#64748B',
+                          transition: 'color 0.15s',
+                        }}
+                      />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 

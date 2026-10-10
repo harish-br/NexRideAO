@@ -2,6 +2,8 @@ import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics } from "firebase/analytics";
+import { getAuth } from "firebase/auth";
+import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBWS5Ah5TNrdrZFiTPG6WY0bG8c2BvFrb8",
@@ -14,12 +16,11 @@ const firebaseConfig = {
   measurementId: "G-S5XY5GEPZE"
 };
 
-import { getAuth } from "firebase/auth";
-
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, "nexrideao");
 export const storage = getStorage(app);
 export const auth = getAuth(app);
+export const rtdb = getDatabase(app);
 
 // Initialize analytics only if window is defined (to prevent SSR issues if any, though this is a standard Vite app)
 export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;

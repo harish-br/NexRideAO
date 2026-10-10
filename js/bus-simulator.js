@@ -2,7 +2,7 @@
 // High-Precision Live Bus Simulation Engine for NexRide
 // Coordinates increment gradually between stops, syncing telemetry with Firestore in real-time.
 
-import { firestore, auth } from './firebase-config.js';
+import { firestore, db, auth } from './firebase-config.js';
 import {
   doc,
   getDoc,
@@ -14,6 +14,7 @@ import {
   query,
   where
 } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js';
+import { ref, set } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js';
 import { signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js';
 
 // Haversine distance in meters
@@ -178,27 +179,59 @@ export class BusSimulator {
         }
       }
 
-      // 3. If not found, check buses/bus_<busNum> doc
+      // 3. If not found, check buses/bus_<busNum> and buses/<busNum> doc
       if (loaded.length === 0) {
-        const busDocSnap = await getDoc(doc(firestore, 'buses', `bus_${this.busNumber}`));
-        if (busDocSnap.exists() && Array.isArray(busDocSnap.data().stops) && busDocSnap.data().stops.length > 0) {
-          loaded = busDocSnap.data().stops;
+        const busDocSnap1 = await getDoc(doc(firestore, 'buses', `bus_${this.busNumber}`));
+        if (busDocSnap1.exists() && Array.isArray(busDocSnap1.data().stops) && busDocSnap1.data().stops.length > 0) {
+          loaded = busDocSnap1.data().stops;
           console.log('[Simulator] Loaded stops from buses/bus_' + this.busNumber, loaded.length);
+        } else {
+          const busDocSnap2 = await getDoc(doc(firestore, 'buses', this.busNumber));
+          if (busDocSnap2.exists() && Array.isArray(busDocSnap2.data().stops) && busDocSnap2.data().stops.length > 0) {
+            loaded = busDocSnap2.data().stops;
+            console.log('[Simulator] Loaded stops from buses/' + this.busNumber, loaded.length);
+          }
         }
       }
     } catch (err) {
       console.warn('[Simulator] Error fetching stops from Firebase:', err);
     }
 
+    const KNOWN_COORDS = {
+      'komarayanur': { lat: 11.5830, lng: 77.7018 },
+      'p.k.pudhur': { lat: 11.5715, lng: 77.7012 },
+      'kittampatti': { lat: 11.5582, lng: 77.7008 },
+      'chennampatti': { lat: 11.5451, lng: 77.7005 },
+      'c. thaneer pandhal palayam': { lat: 11.5320, lng: 77.7016 },
+      'guruvareddiyur': { lat: 11.5185, lng: 77.7032 },
+      'sanathi kal': { lat: 11.4921, lng: 77.7061 },
+      'vaikkal medu': { lat: 11.4802, lng: 77.7073 },
+      'boodhapadi': { lat: 11.4681, lng: 77.7088 },
+      'kuthiraikal medu': { lat: 11.4552, lng: 77.7079 },
+      'manikkampalayam': { lat: 11.4423, lng: 77.7062 },
+      'chittar': { lat: 11.4301, lng: 77.7049 },
+      'kesarimangalam': { lat: 11.4182, lng: 77.7028 },
+      'kuttaimuniyappan koil': { lat: 11.4051, lng: 77.7014 },
+      'palani andavar temple': { lat: 11.3902, lng: 77.6951 },
+      'nandha engineering college': { lat: 11.3781, lng: 77.6852 }
+    };
+
     // Normalize stops format
-    this.stops = loaded.map((s, idx) => ({
-      order: s.order || idx + 1,
-      name: s.name || s.stopName || `Stop ${idx + 1}`,
-      stopName: s.stopName || s.name || `Stop ${idx + 1}`,
-      latitude: parseFloat(s.latitude || s.lat) || 0,
-      longitude: parseFloat(s.longitude || s.lng) || 0,
-      arrivalTime: s.arrivalTime || s.morningArrival || s.scheduledArrival || `08:${String(idx * 12).padStart(2, '0')} AM`
-    })).filter(s => s.latitude !== 0 && s.longitude !== 0);
+    this.stops = loaded.map((s, idx) => {
+      const name = s.name || s.stopName || `Stop ${idx + 1}`;
+      const k = name.toLowerCase().trim();
+      const fb = KNOWN_COORDS[k];
+      const latitude = parseFloat(s.latitude || s.lat) || fb?.lat || (11.5830 - idx * 0.0125);
+      const longitude = parseFloat(s.longitude || s.lng) || fb?.lng || (77.7018 - idx * 0.001);
+      return {
+        order: s.order || idx + 1,
+        name,
+        stopName: name,
+        latitude,
+        longitude,
+        arrivalTime: s.arrivalTime || s.morningArrival || s.scheduledArrival || `08:${String(idx * 12).padStart(2, '0')} AM`
+      };
+    });
 
     if (this.stops.length > 0) {
       this.currentLat = this.stops[0].latitude;
@@ -622,18 +655,21 @@ export class BusSimulator {
     }
   }
 
-  // Push updated telematics to Firestore buses collection
+  // Push updated telematics to Firestore buses collection AND RTDB bus_live node
   async syncToFirebase(extraFields = {}) {
-    const busRef = doc(firestore, 'buses', `bus_${this.busNumber}`);
+    const busNum = String(this.busNumber).trim();
+    const resolvedStatus = this.status === 'moving' ? 'On Route' : (this.status === 'stopped' ? 'At Stop' : this.status);
     const payload = {
-      busNumber: this.busNumber,
-      status: this.status,
+      busNumber: busNum,
+      status: resolvedStatus,
       engine: this.isEngineOn ? 'on' : 'off',
       isEngineOn: this.isEngineOn,
       currentStopIndex: this.currentLegIndex,
       nextStopIndex: Math.min(this.currentLegIndex + 1, Math.max(0, this.stops.length - 1)),
       lat: Number(this.currentLat.toFixed(6)),
       lng: Number(this.currentLng.toFixed(6)),
+      latitude: Number(this.currentLat.toFixed(6)),
+      longitude: Number(this.currentLng.toFixed(6)),
       speed: this.currentSpeed,
       delayMinutes: 0,
       etaMinutes: this.etaMinutes,
@@ -642,9 +678,41 @@ export class BusSimulator {
     };
 
     try {
-      await setDoc(busRef, payload, { merge: true });
+      // 1. Sync to Firestore (both doc keys: bus_<busNum> and <busNum>)
+      const busRef1 = doc(firestore, 'buses', `bus_${busNum}`);
+      const busRef2 = doc(firestore, 'buses', busNum);
+      await Promise.allSettled([
+        setDoc(busRef1, payload, { merge: true }),
+        setDoc(busRef2, payload, { merge: true })
+      ]);
     } catch (err) {
       console.warn('[Simulator] Firestore sync error:', err);
+    }
+
+    try {
+      // 2. Sync to Realtime Database (RTDB) for immediate live tracking in Admin and User App
+      if (db) {
+        const rtdbPayload = {
+          busNumber: busNum,
+          lat: Number(this.currentLat.toFixed(6)),
+          lng: Number(this.currentLng.toFixed(6)),
+          latitude: Number(this.currentLat.toFixed(6)),
+          longitude: Number(this.currentLng.toFixed(6)),
+          speed: this.currentSpeed,
+          status: resolvedStatus,
+          isOnline: this.status !== 'offline',
+          currentStopIndex: this.currentLegIndex,
+          nextStopIndex: Math.min(this.currentLegIndex + 1, Math.max(0, this.stops.length - 1)),
+          etaMinutes: this.etaMinutes,
+          timestamp: Date.now()
+        };
+        await Promise.allSettled([
+          set(ref(db, `bus_live/bus_${busNum}`), rtdbPayload),
+          set(ref(db, `bus_live/${busNum}`), rtdbPayload)
+        ]);
+      }
+    } catch (err) {
+      console.warn('[Simulator] RTDB sync error:', err);
     }
   }
 }

@@ -24,9 +24,13 @@ export default defineConfig({
               if (handled !== false) return;
             } catch (err) {
               res.writeHead(500, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: err.message }));
-              return;
             }
+          }
+
+          if (req.url === '/simulator.html/' || req.url === '/simulator/' || req.url === '/simulator') {
+            res.writeHead(302, { Location: '/simulator.html' });
+            res.end();
+            return;
           }
           next();
         });
