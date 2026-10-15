@@ -360,11 +360,8 @@ function ProfileSection({ user }) {
             fontSize: '12px', fontWeight: '600',
           }}>Administrator</span>
         </Row>
-        <Row label="Account Status" last={false}>
+        <Row label="Account Status" last={true}>
           <StatusDot ok={true} label="Active" />
-        </Row>
-        <Row label="Account ID" last={true}>
-          <span style={{ fontSize: '12px', fontFamily: 'monospace', color: T.color.secondary }}>{uid}</span>
         </Row>
       </SectionCard>
 
