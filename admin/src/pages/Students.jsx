@@ -328,7 +328,7 @@ export default function Students() {
                           {(() => {
                             const fee = getStudentFeeSummary(student);
                             return (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
                                 <div style={{ color: '#111827', fontSize: '14px', fontWeight: '600' }}>
                                   ₹{fee.totalRequired.toLocaleString('en-IN')}
                                 </div>
@@ -343,9 +343,6 @@ export default function Students() {
                                 }}>
                                   {fee.status}
                                 </span>
-                                <div style={{ color: '#6B7280', fontSize: '11px', lineHeight: '1.2' }}>
-                                  Paid: ₹{fee.paid.toLocaleString('en-IN')} {fee.pending > 0 ? `• Due: ₹${fee.pending.toLocaleString('en-IN')}` : ''}
-                                </div>
                               </div>
                             );
                           })()}
