@@ -7,6 +7,7 @@ import DetailsView from '../components/common/DetailsView';
 import ScrollingText from '../components/common/ScrollingText';
 import RefreshButton from '../components/common/RefreshButton';
 import { useSettings } from '../context/SettingsContext';
+import { getStudentFeeSummary, getFeeStatusColor } from '../utils/feeUtils';
 
 export default function Students() {
   const { rowsPerPage } = useSettings();
@@ -87,20 +88,11 @@ export default function Students() {
   };
 
   const calculateFeesStatus = (student) => {
-    const total = Number(student.feesTotal) || 0;
-    const paid = Number(student.paidAmount) || 0;
-    if (total === 0) return 'Pending';
-    if (paid >= total) return 'Paid';
-    return 'Pending';
+    return getStudentFeeSummary(student).status;
   };
 
   const getStatusColor = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'paid': return '#16A34A';
-      case 'pending': return '#D97706';
-      case 'overdue': return '#DC2626';
-      default: return '#6B7280';
-    }
+    return getFeeStatusColor(status);
   };
 
   // Derived filter options
@@ -226,7 +218,7 @@ export default function Students() {
                       <option value="">All Fees Status</option>
                       <option value="Paid">Paid</option>
                       <option value="Pending">Pending</option>
-                      <option value="Overdue">Overdue</option>
+                      <option value="Not Paid">Not Paid</option>
                     </select>
                   </div>
 
@@ -333,20 +325,30 @@ export default function Students() {
                           </div>
 
                           {/* Fees */}
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-start' }}>
-                            <div style={{ color: '#374151', fontSize: '14px', fontWeight: '500' }}>₹{student.feesTotal || '0'}</div>
-                            <span style={{ 
-                              color: getStatusColor(calculateFeesStatus(student)),
-                              background: `${getStatusColor(calculateFeesStatus(student))}15`,
-                              padding: '3px 10px',
-                              borderRadius: '100px',
-                              fontSize: '11px',
-                              fontWeight: '600',
-                              border: `1px solid ${getStatusColor(calculateFeesStatus(student))}30`
-                            }}>
-                              {calculateFeesStatus(student)}
-                            </span>
-                          </div>
+                          {(() => {
+                            const fee = getStudentFeeSummary(student);
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                <div style={{ color: '#111827', fontSize: '14px', fontWeight: '600' }}>
+                                  ₹{fee.totalRequired.toLocaleString('en-IN')}
+                                </div>
+                                <span style={{ 
+                                  color: getFeeStatusColor(fee.status),
+                                  background: `${getFeeStatusColor(fee.status)}15`,
+                                  padding: '3px 10px',
+                                  borderRadius: '100px',
+                                  fontSize: '11px',
+                                  fontWeight: '600',
+                                  border: `1px solid ${getFeeStatusColor(fee.status)}30`
+                                }}>
+                                  {fee.status}
+                                </span>
+                                <div style={{ color: '#6B7280', fontSize: '11px', lineHeight: '1.2' }}>
+                                  Paid: ₹{fee.paid.toLocaleString('en-IN')} {fee.pending > 0 ? `• Due: ₹${fee.pending.toLocaleString('en-IN')}` : ''}
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* Transport */}
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflow: 'hidden' }}>
@@ -444,36 +446,45 @@ export default function Students() {
                 onSaveComplete={handleBackToList} 
               />
             )}
-            {viewMode === 'details' && selectedStudent && (
-              <DetailsView
-                title={selectedStudent.studentName || 'Unknown Student'}
-                data={[
-                  { label: 'Department', value: selectedStudent.department },
-                  { label: 'Year', value: selectedStudent.year },
-                  { label: 'Academic Year', value: selectedStudent.academicYear },
-                  { label: 'Phone Number', value: selectedStudent.phoneNumber },
-                  { label: 'Stage', value: selectedStudent.stage },
-                  { label: 'Route Number', value: selectedStudent.routeNumber },
-                  { label: 'Fees Total', value: `₹${selectedStudent.feesTotal || '0'}` },
-                  { label: 'Paid Amount', value: `₹${selectedStudent.paidAmount || '0'}` },
-                  { label: 'Status', value: calculateFeesStatus(selectedStudent), element: (
-                    <span style={{ 
-                      color: getStatusColor(calculateFeesStatus(selectedStudent)),
-                      background: `${getStatusColor(calculateFeesStatus(selectedStudent))}15`,
-                      padding: '4px 10px',
-                      borderRadius: '100px',
-                      fontSize: '12px',
-                      fontWeight: '600'
-                    }}>
-                      {calculateFeesStatus(selectedStudent)}
-                    </span>
-                  )}
-                ]}
-                onBack={handleBackToList}
-                onEdit={() => handleEdit(selectedStudent)}
-                onDelete={() => handleDelete(selectedStudent)}
-              />
-            )}
+            {viewMode === 'details' && selectedStudent && (() => {
+              const fee = getStudentFeeSummary(selectedStudent);
+              return (
+                <DetailsView
+                  title={selectedStudent.studentName || 'Unknown Student'}
+                  data={[
+                    { label: 'Department', value: selectedStudent.department },
+                    { label: 'Year', value: selectedStudent.year },
+                    { label: 'Academic Year', value: selectedStudent.academicYear },
+                    { label: 'Phone Number', value: selectedStudent.phoneNumber },
+                    { label: 'Stage', value: selectedStudent.stage },
+                    { label: 'Route Number', value: selectedStudent.routeNumber },
+                    { label: 'Fees Total', value: `₹${Number(selectedStudent.feesTotal || 0).toLocaleString('en-IN')}` },
+                    ...(selectedStudent.concessionAmount ? [{ label: 'Concession Amount', value: `₹${Number(selectedStudent.concessionAmount).toLocaleString('en-IN')}` }] : []),
+                    { label: 'Amount Fixed', value: `₹${fee.fixed.toLocaleString('en-IN')}` },
+                    ...(fee.fine > 0 ? [{ label: 'Fine Amount', value: `₹${fee.fine.toLocaleString('en-IN')}` }] : []),
+                    { label: 'Total Payable', value: `₹${fee.totalRequired.toLocaleString('en-IN')}` },
+                    { label: 'Paid Amount', value: `₹${fee.paid.toLocaleString('en-IN')}` },
+                    { label: 'Pending Amount', value: `₹${fee.pending.toLocaleString('en-IN')}` },
+                    { label: 'Status', value: fee.status, element: (
+                      <span style={{ 
+                        color: getFeeStatusColor(fee.status),
+                        background: `${getFeeStatusColor(fee.status)}15`,
+                        padding: '4px 12px',
+                        borderRadius: '100px',
+                        fontSize: '12px',
+                        fontWeight: '700',
+                        border: `1px solid ${getFeeStatusColor(fee.status)}30`
+                      }}>
+                        {fee.status}
+                      </span>
+                    )}
+                  ]}
+                  onBack={handleBackToList}
+                  onEdit={() => handleEdit(selectedStudent)}
+                  onDelete={() => handleDelete(selectedStudent)}
+                />
+              );
+            })()}
           </div>
         )}
       </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { getStudentFeeSummary, getFeeStatusColor } from '../../utils/feeUtils';
 
 const inputStyle = {
   padding: '10px 12px',
@@ -49,19 +50,19 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
     stage: student?.stage || '',
     
     // Fees & Concession
-    feesTotal: student?.feesTotal || '',
+    feesTotal: student?.feesTotal !== undefined && student?.feesTotal !== null ? student.feesTotal : '',
     concessionType: student?.concessionType || '',
-    concessionAmount: student?.concessionAmount || '',
+    concessionAmount: student?.concessionAmount !== undefined && student?.concessionAmount !== null ? student.concessionAmount : '',
     concessionApproved: student?.concessionApproved || 'No',
-    amountFixed: student?.amountFixed || '',
+    amountFixed: student?.amountFixed !== undefined && student?.amountFixed !== null ? student.amountFixed : '',
     printout: student?.printout || 'No',
     remark: student?.remark || '',
     
     // Payment Tracking
-    paidAmount: student?.paidAmount || '',
+    paidAmount: student?.paidAmount !== undefined && student?.paidAmount !== null ? student.paidAmount : '',
     paidDate: student?.paidDate || '',
-    pendingAmount: student?.pendingAmount || '',
-    fineAmount: student?.fineAmount || '',
+    pendingAmount: student?.pendingAmount !== undefined && student?.pendingAmount !== null ? student.pendingAmount : '',
+    fineAmount: student?.fineAmount !== undefined && student?.fineAmount !== null ? student.fineAmount : '',
     discontinueAmount: student?.discontinueAmount || '',
     cancelledAmount: student?.cancelledAmount || ''
   });
@@ -69,14 +70,151 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Derived current fee summary
+  const derivedFee = getStudentFeeSummary(formData);
+
+  // Synchronized field change handlers
+  const handleFeesTotalChange = (val) => {
+    const total = val === '' ? '' : Number(val);
+    const concession = formData.concessionAmount === '' ? 0 : Number(formData.concessionAmount);
+    const newFixed = total !== '' ? Math.max(0, total - concession) : '';
+
+    setFormData(prev => {
+      const nextFixed = (prev.amountFixed === '' || prev.amountFixed === undefined) ? newFixed : prev.amountFixed;
+      const fine = Number(prev.fineAmount) || 0;
+      const target = (Number(nextFixed) || 0) + fine;
+      const paid = Number(prev.paidAmount) || 0;
+      const pending = Math.max(0, target - paid);
+      return {
+        ...prev,
+        feesTotal: val,
+        amountFixed: nextFixed,
+        pendingAmount: prev.paidAmount !== '' ? pending : prev.pendingAmount
+      };
+    });
+  };
+
+  const handleConcessionAmountChange = (val) => {
+    const total = formData.feesTotal === '' ? 0 : Number(formData.feesTotal);
+    const concession = val === '' ? 0 : Number(val);
+    const newFixed = Math.max(0, total - concession);
+
+    setFormData(prev => {
+      const fine = Number(prev.fineAmount) || 0;
+      const target = newFixed + fine;
+      const paid = Number(prev.paidAmount) || 0;
+      const pending = Math.max(0, target - paid);
+      return {
+        ...prev,
+        concessionAmount: val,
+        amountFixed: total > 0 ? newFixed : prev.amountFixed,
+        pendingAmount: prev.paidAmount !== '' ? pending : prev.pendingAmount
+      };
+    });
+  };
+
+  const handleConcessionTypeChange = (val) => {
+    const num = parseFloat(val);
+    const total = Number(formData.feesTotal) || 0;
+    if (!isNaN(num) && num > 0 && num <= 1 && total > 0) {
+      const concAmt = Math.round(total * num);
+      const newFixed = Math.max(0, total - concAmt);
+      const fine = Number(formData.fineAmount) || 0;
+      const target = newFixed + fine;
+      const paid = Number(formData.paidAmount) || 0;
+      setFormData(prev => ({
+        ...prev,
+        concessionType: val,
+        concessionAmount: concAmt,
+        amountFixed: newFixed,
+        pendingAmount: prev.paidAmount !== '' ? Math.max(0, target - paid) : prev.pendingAmount
+      }));
+    } else {
+      setFormData(prev => ({ ...prev, concessionType: val }));
+    }
+  };
+
+  const handleAmountFixedChange = (val) => {
+    const fixed = Number(val) || 0;
+    const fine = Number(formData.fineAmount) || 0;
+    const target = fixed + fine;
+    const paid = Number(formData.paidAmount) || 0;
+    const newPending = Math.max(0, target - paid);
+    const newStatus = target > 0 && paid >= target ? 'Paid' : (paid > 0 ? 'Pending' : 'Not Paid');
+
+    setFormData(prev => ({
+      ...prev,
+      amountFixed: val,
+      pendingAmount: prev.paidAmount !== '' ? newPending : prev.pendingAmount,
+      remark: prev.remark === '' || prev.remark === 'Fully Paid' || prev.remark === 'Not Paid' || prev.remark.startsWith('Pending')
+        ? (newStatus === 'Paid' ? 'Fully Paid' : (newStatus === 'Pending' ? `Pending ₹${newPending}` : 'Not Paid'))
+        : prev.remark
+    }));
+  };
+
+  const handleFineAmountChange = (val) => {
+    const fixed = Number(formData.amountFixed) > 0 ? Number(formData.amountFixed) : (Number(formData.feesTotal) || 0);
+    const fine = Number(val) || 0;
+    const target = fixed + fine;
+    const paid = Number(formData.paidAmount) || 0;
+    const newPending = Math.max(0, target - paid);
+    const newStatus = target > 0 && paid >= target ? 'Paid' : (paid > 0 ? 'Pending' : 'Not Paid');
+
+    setFormData(prev => ({
+      ...prev,
+      fineAmount: val,
+      pendingAmount: prev.paidAmount !== '' ? newPending : prev.pendingAmount,
+      remark: prev.remark === '' || prev.remark === 'Fully Paid' || prev.remark === 'Not Paid' || prev.remark.startsWith('Pending')
+        ? (newStatus === 'Paid' ? 'Fully Paid' : (newStatus === 'Pending' ? `Pending ₹${newPending}` : 'Not Paid'))
+        : prev.remark
+    }));
+  };
+
+  const handlePaidAmountChange = (val) => {
+    const fixed = Number(formData.amountFixed) > 0 ? Number(formData.amountFixed) : (Number(formData.feesTotal) || 0);
+    const fine = Number(formData.fineAmount) || 0;
+    const target = fixed + fine;
+    const paid = val === '' ? 0 : Number(val);
+    const newPending = Math.max(0, target - paid);
+    const newStatus = target > 0 && paid >= target ? 'Paid' : (paid > 0 ? 'Pending' : 'Not Paid');
+
+    setFormData(prev => ({
+      ...prev,
+      paidAmount: val,
+      pendingAmount: val !== '' ? newPending : '',
+      remark: prev.remark === '' || prev.remark === 'Fully Paid' || prev.remark === 'Not Paid' || prev.remark.startsWith('Pending')
+        ? (newStatus === 'Paid' ? 'Fully Paid' : (newStatus === 'Pending' ? `Pending ₹${newPending}` : 'Not Paid'))
+        : prev.remark
+    }));
+  };
+
+  const handlePendingAmountChange = (val) => {
+    const fixed = Number(formData.amountFixed) > 0 ? Number(formData.amountFixed) : (Number(formData.feesTotal) || 0);
+    const fine = Number(formData.fineAmount) || 0;
+    const target = fixed + fine;
+    const pending = val === '' ? 0 : Number(val);
+    const newPaid = Math.max(0, target - pending);
+    const newStatus = target > 0 && pending <= 0 && newPaid > 0 ? 'Paid' : (newPaid > 0 ? 'Pending' : 'Not Paid');
+
+    setFormData(prev => ({
+      ...prev,
+      pendingAmount: val,
+      paidAmount: val !== '' ? newPaid : prev.paidAmount,
+      remark: prev.remark === '' || prev.remark === 'Fully Paid' || prev.remark === 'Not Paid' || prev.remark.startsWith('Pending')
+        ? (newStatus === 'Paid' ? 'Fully Paid' : (newStatus === 'Pending' ? `Pending ₹${pending}` : 'Not Paid'))
+        : prev.remark
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     
     try {
-      const feesStatus = Number(formData.pendingAmount) === 0 && Number(formData.paidAmount) > 0 ? 'Paid' : 'Pending';
-      const balanceStatus = Number(formData.pendingAmount) === 0 && Number(formData.paidAmount) > 0 ? 'Fully Paid' : 'Unpaid';
+      const feeSummary = getStudentFeeSummary(formData);
+      const feesStatus = feeSummary.status; // 'Paid', 'Pending', or 'Not Paid'
+      const balanceStatus = feesStatus === 'Paid' ? 'Fully Paid' : (feesStatus === 'Pending' ? `Pending ₹${feeSummary.pending}` : 'Not Paid');
 
       const studentData = {
         ...formData,
@@ -84,18 +222,22 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
         concessionAmount: Number(formData.concessionAmount) || 0,
         amountFixed: Number(formData.amountFixed) || 0,
         paidAmount: Number(formData.paidAmount) || 0,
-        pendingAmount: Number(formData.pendingAmount) || 0,
+        pendingAmount: Number(formData.pendingAmount) !== undefined && formData.pendingAmount !== '' ? Number(formData.pendingAmount) : feeSummary.pending,
         fineAmount: Number(formData.fineAmount) || 0,
+        feesAmount: feeSummary.totalRequired,
+        fees_amount: feeSummary.totalRequired,
         discontinueAmount: Number(formData.discontinueAmount) || 0,
         cancelledAmount: Number(formData.cancelledAmount) || 0,
-        busNumber: formData.routeNumber, // Ensures mobile app detects bus assignment
+        busNumber: formData.routeNumber,
         assignedBus: formData.routeNumber,
-        phone: formData.phoneNumber, // Explicit mapping for user app
-        mobile: formData.phoneNumber, // Explicit mapping for user app
+        phone: formData.phoneNumber,
+        mobile: formData.phoneNumber,
         fees_status: feesStatus,
+        feeStatus: feesStatus,
         balance: balanceStatus,
         updatedAt: new Date().toISOString()
       };
+
       
       let studentDocId = student?.id;
       
@@ -122,8 +264,12 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
             passengerType: 'Student',
             stage: formData.stage || '',
             fees_status: feesStatus,
+            feeStatus: feesStatus,
             balance: balanceStatus,
             feesTotal: Number(formData.feesTotal) || 0,
+            amountFixed: Number(formData.amountFixed) || 0,
+            fineAmount: Number(formData.fineAmount) || 0,
+            feesAmount: feeSummary.totalRequired,
             paidAmount: Number(formData.paidAmount) || 0,
             pendingAmount: Number(formData.pendingAmount) || 0
           };
@@ -142,6 +288,8 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
       setLoading(false);
     }
   };
+
+  const liveFee = getStudentFeeSummary(formData);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'rgba(255, 255, 255, 0.6)', borderRadius: '16px', overflow: 'hidden' }}>
@@ -238,16 +386,16 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
           <SectionHeader title="Fees & Concession Details" />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <FormGroup label="Fees Total (₹)">
-              <input type="number" style={inputStyle} value={formData.feesTotal} onChange={e => setFormData({...formData, feesTotal: e.target.value})} />
+              <input type="number" style={inputStyle} value={formData.feesTotal} onChange={e => handleFeesTotalChange(e.target.value)} />
             </FormGroup>
             <FormGroup label="Amount Fixed (₹)">
-              <input type="number" style={inputStyle} value={formData.amountFixed} onChange={e => setFormData({...formData, amountFixed: e.target.value})} />
+              <input type="number" style={inputStyle} value={formData.amountFixed} onChange={e => handleAmountFixedChange(e.target.value)} />
             </FormGroup>
             <FormGroup label="Concession Type">
-              <input type="text" style={inputStyle} value={formData.concessionType} onChange={e => setFormData({...formData, concessionType: e.target.value})} />
+              <input type="text" style={inputStyle} value={formData.concessionType} onChange={e => handleConcessionTypeChange(e.target.value)} />
             </FormGroup>
             <FormGroup label="Concession Amount (₹)">
-              <input type="number" style={inputStyle} value={formData.concessionAmount} onChange={e => setFormData({...formData, concessionAmount: e.target.value})} />
+              <input type="number" style={inputStyle} value={formData.concessionAmount} onChange={e => handleConcessionAmountChange(e.target.value)} />
             </FormGroup>
             <FormGroup label="Concession Approved">
               <select style={inputStyle} value={formData.concessionApproved} onChange={e => setFormData({...formData, concessionApproved: e.target.value})}>
@@ -268,18 +416,59 @@ export default function StudentForm({ student, onBack, onSaveComplete }) {
           </FormGroup>
 
           <SectionHeader title="Payment Details" />
+
+          {/* Dynamic Fee Status & Calculation Card */}
+          <div style={{
+            background: liveFee.status === 'Paid' ? 'rgba(34, 197, 94, 0.08)' : (liveFee.status === 'Pending' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)'),
+            border: `1px solid ${liveFee.status === 'Paid' ? 'rgba(34, 197, 94, 0.3)' : (liveFee.status === 'Pending' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)')}`,
+            borderRadius: '10px',
+            padding: '14px 18px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px'
+          }}>
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Total Payable: ₹{liveFee.totalRequired.toLocaleString('en-IN')}
+                <span style={{ fontSize: '12px', fontWeight: '400', color: '#6B7280', marginLeft: '8px' }}>
+                  (Fixed: ₹{liveFee.fixed.toLocaleString('en-IN')}{liveFee.fine > 0 ? ` + Fine: ₹${liveFee.fine.toLocaleString('en-IN')}` : ''})
+                </span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#4B5563', marginTop: '4px' }}>
+                Paid: <b>₹{liveFee.paid.toLocaleString('en-IN')}</b> &nbsp;|&nbsp; Due / Pending: <b>₹{liveFee.pending.toLocaleString('en-IN')}</b>
+              </div>
+            </div>
+            <div>
+              <span style={{
+                display: 'inline-block',
+                padding: '4px 14px',
+                borderRadius: '9999px',
+                fontSize: '12px',
+                fontWeight: '700',
+                background: getFeeStatusColor(liveFee.status),
+                color: '#fff',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+              }}>
+                {liveFee.status}
+              </span>
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             <FormGroup label="Paid Amount (₹)">
-              <input type="number" style={inputStyle} value={formData.paidAmount} onChange={e => setFormData({...formData, paidAmount: e.target.value})} />
+              <input type="number" style={inputStyle} value={formData.paidAmount} onChange={e => handlePaidAmountChange(e.target.value)} />
             </FormGroup>
             <FormGroup label="Paid Date">
               <input type="date" style={inputStyle} value={formData.paidDate} onChange={e => setFormData({...formData, paidDate: e.target.value})} />
             </FormGroup>
             <FormGroup label="Pending Amount (₹)">
-              <input type="number" style={inputStyle} value={formData.pendingAmount} onChange={e => setFormData({...formData, pendingAmount: e.target.value})} />
+              <input type="number" style={inputStyle} value={formData.pendingAmount} onChange={e => handlePendingAmountChange(e.target.value)} />
             </FormGroup>
             <FormGroup label="Fine Amount (₹)">
-              <input type="number" style={inputStyle} value={formData.fineAmount} onChange={e => setFormData({...formData, fineAmount: e.target.value})} />
+              <input type="number" style={inputStyle} value={formData.fineAmount} onChange={e => handleFineAmountChange(e.target.value)} />
             </FormGroup>
             <FormGroup label="Discontinue Amount (₹)">
               <input type="number" style={inputStyle} value={formData.discontinueAmount} onChange={e => setFormData({...formData, discontinueAmount: e.target.value})} />
