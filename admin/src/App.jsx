@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { auth, db, rtdb } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -8,6 +8,8 @@ import LocationIcon from './assets/svg/location.svg?react';
 import SidePanel from './components/SidePanel';
 import Login from './pages/Login';
 import busMarkerImg from './assets/bus-marker.png';
+import { deduplicateBuses, getBusKey, getDynamicRouteName } from './utils/busUtils';
+import { SettingsProvider } from './context/SettingsContext';
 
 function getBusCoords(bus, live) {
   let lat = null;
@@ -36,27 +38,53 @@ function getBusCoords(bus, live) {
   return null;
 }
 
-function MapController({ userLocation, setMapLoaded, trackedBus, busesWithPos }) {
+function MapController({ userLocation, setMapLoaded, trackedBus, busesWithPos, mapCenterTarget }) {
   const map = useMap();
   const hasAutoCentered = useRef(false);
+  const isUserInteractingRef = useRef(false);
+  const lastTrackedIdRef = useRef(null);
 
   useEffect(() => {
     if (!map) return;
+    map.setOptions({
+      disableDefaultUI: true,
+      zoomControl: true,
+      cameraControl: false,
+      rotateControl: false,
+      tiltInteractionEnabled: false,
+      headingInteractionEnabled: false
+    });
+
     const listener = window.google.maps.event.addListenerOnce(map, 'tilesloaded', () => {
       setMapLoaded(true);
     });
-    return () => window.google.maps.event.removeListener(listener);
+
+    // Detect user manual interactions (drag, pan) so background updates don't hijack the camera
+    const dragListener = map.addListener('dragstart', () => {
+      isUserInteractingRef.current = true;
+    });
+
+    return () => {
+      window.google.maps.event.removeListener(listener);
+      window.google.maps.event.removeListener(dragListener);
+    };
   }, [map, setMapLoaded]);
 
+  // Explicit centering target (e.g. from Fetch Location button)
   useEffect(() => {
-    if (!map) return;
-    if (trackedBus && trackedBus.lat && trackedBus.lng) {
-      map.panTo({ lat: trackedBus.lat, lng: trackedBus.lng });
-      map.setZoom(15);
-    } else if (userLocation) {
-      map.panTo(userLocation);
-      map.setZoom(14);
-    } else if (!hasAutoCentered.current && busesWithPos && busesWithPos.length > 0) {
+    if (!map || !mapCenterTarget) return;
+    isUserInteractingRef.current = false;
+    map.panTo({ lat: mapCenterTarget.lat, lng: mapCenterTarget.lng });
+    if (mapCenterTarget.zoom) {
+      map.setZoom(mapCenterTarget.zoom);
+    }
+  }, [map, mapCenterTarget]);
+
+  // Initial centering (only once when map & fleet or location load)
+  useEffect(() => {
+    if (!map || hasAutoCentered.current) return;
+
+    if (busesWithPos && busesWithPos.length > 0) {
       hasAutoCentered.current = true;
       if (busesWithPos.length === 1) {
         map.panTo(busesWithPos[0].coords);
@@ -66,51 +94,101 @@ function MapController({ userLocation, setMapLoaded, trackedBus, busesWithPos })
         busesWithPos.forEach(item => bounds.extend(item.coords));
         map.fitBounds(bounds, { top: 80, bottom: 80, left: 100, right: 80 });
       }
+    } else if (userLocation) {
+      hasAutoCentered.current = true;
+      map.panTo(userLocation);
+      map.setZoom(14);
     }
-  }, [map, trackedBus, userLocation, busesWithPos]);
+  }, [map, busesWithPos, userLocation]);
+
+  // Tracked bus camera follow
+  useEffect(() => {
+    if (!map || !trackedBus || !trackedBus.lat || !trackedBus.lng) return;
+
+    const isNewBusSelection = lastTrackedIdRef.current !== trackedBus.id;
+    if (isNewBusSelection) {
+      // User explicitly selected a new bus: center and zoom in
+      lastTrackedIdRef.current = trackedBus.id;
+      isUserInteractingRef.current = false;
+      map.panTo({ lat: trackedBus.lat, lng: trackedBus.lng });
+      map.setZoom(15);
+    } else if (!isUserInteractingRef.current) {
+      // Passive position update while following: pan smoothly WITHOUT overriding zoom
+      map.panTo({ lat: trackedBus.lat, lng: trackedBus.lng });
+    }
+  }, [map, trackedBus]);
+
   return null;
 }
 
-function LocateMeButton({ userLocation, activeNav }) {
+function LocateMeButton({ userLocation, onFetchLocation, isLocating, activeNav, isFullView }) {
   const map = useMap();
-  const isVisible = activeNav === 'live' && userLocation;
+  const isVisible = activeNav === 'live' || !isFullView;
+
+  if (!isVisible) return null;
 
   return (
     <button
       onClick={() => {
-        if (map && isVisible) {
+        if (onFetchLocation) {
+          onFetchLocation();
+        } else if (map && userLocation) {
           map.panTo(userLocation);
           map.setZoom(15);
         }
       }}
+      disabled={isLocating}
       style={{
         position: 'absolute',
-        bottom: '32px',
-        right: '32px',
-        width: '38px',
-        height: '38px',
+        bottom: '124px',
+        right: '20px',
+        width: '40px',
+        height: '40px',
         borderRadius: '12px',
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(255, 255, 255, 0.5)',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+        WebkitBackdropFilter: 'blur(10px)',
+        border: '1px solid rgba(255, 255, 255, 0.6)',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        cursor: isVisible ? 'pointer' : 'default',
-        zIndex: 10,
+        cursor: isLocating ? 'wait' : 'pointer',
+        zIndex: 9999,
         color: '#134eff',
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'scale(1) translateY(0)' : 'scale(0.8) translateY(10px)',
-        pointerEvents: isVisible ? 'auto' : 'none',
-        transition: 'all 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
+        padding: 0,
+        transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+        outline: 'none'
       }}
       title="Re-center to my location"
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'scale(1.08)';
+        e.currentTarget.style.boxShadow = '0 6px 20px rgba(19, 78, 255, 0.25)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'scale(1)';
+        e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.12)';
+      }}
     >
-      <LocationIcon width={24} height={24} />
+      {isLocating ? (
+        <span
+          style={{
+            width: '18px',
+            height: '18px',
+            border: '2.5px solid rgba(19, 78, 255, 0.2)',
+            borderTopColor: '#134eff',
+            borderRadius: '50%',
+            display: 'inline-block',
+            animation: 'spin 0.8s linear infinite'
+          }}
+        />
+      ) : (
+        <LocationIcon width={24} height={24} />
+      )}
     </button>
   );
 }
+
 
 export default function App() {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -124,7 +202,43 @@ export default function App() {
   const [buses, setBuses] = useState([]);
   const [liveMap, setLiveMap] = useState({});
   const [selectedMarkerBus, setSelectedMarkerBus] = useState(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [mapCenterTarget, setMapCenterTarget] = useState(null);
   const rtdbListeners = useRef({});
+
+  const handleFetchLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      console.warn("Geolocation is not supported by your browser");
+      if (userLocation) {
+        setMapCenterTarget({ ...userLocation, zoom: 15, timestamp: Date.now() });
+      }
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const pos = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        setUserLocation(pos);
+        setMapCenterTarget({ ...pos, zoom: 15, timestamp: Date.now() });
+        setIsLocating(false);
+      },
+      (error) => {
+        console.warn("Geolocation error/denied:", error);
+        setIsLocating(false);
+        if (userLocation) {
+          setMapCenterTarget({ ...userLocation, zoom: 15, timestamp: Date.now() });
+        } else {
+          setMapCenterTarget({ lat: 11.5760, lng: 77.7014, zoom: 14, timestamp: Date.now() });
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
+  }, [userLocation]);
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -176,9 +290,11 @@ export default function App() {
   const busesWithPos = useMemo(() => {
     const list = [];
     const seen = new Set();
+    const dedupedFleet = deduplicateBuses(buses);
 
     // Process registered Firestore fleet buses
-    buses.forEach(b => {
+    dedupedFleet.forEach(b => {
+      const busKey = getBusKey(b);
       const busNum = String(b.busNumber || b.id || '').replace(/^bus_/i, '').replace(/^bus/i, '').trim();
       const live =
         liveMap[b.id] ||
@@ -191,11 +307,13 @@ export default function App() {
 
       const coords = getBusCoords(b, live);
       if (coords) {
-        if (busNum) seen.add(busNum);
-        seen.add(String(b.id));
+        if (busKey && seen.has(busKey)) return;
+        if (busKey) seen.add(busKey);
+
         const isSelected = trackedBus && (
           String(trackedBus.id) === String(b.id) ||
-          String(trackedBus.busNumber) === String(b.busNumber)
+          String(trackedBus.busNumber) === String(b.busNumber) ||
+          (busNum && String(trackedBus.busNumber) === busNum)
         );
         list.push({
           bus: b,
@@ -240,7 +358,8 @@ export default function App() {
   }
 
   return (
-    <APIProvider apiKey={apiKey}>
+    <SettingsProvider user={user}>
+      <APIProvider apiKey={apiKey}>
       <div className={isMapLoaded ? "" : "map-skeleton-bg"} style={{ position: 'relative', width: '100vw', height: '100vh', transition: 'background 0.5s ease' }}>
         <Map
           style={{ width: '100%', height: '100%' }}
@@ -249,6 +368,13 @@ export default function App() {
           mapTypeId="terrain"
           gestureHandling="greedy"
           disableDefaultUI={true}
+          zoomControl={true}
+          cameraControl={false}
+          rotateControl={false}
+          mapTypeControl={false}
+          streetViewControl={false}
+          fullscreenControl={false}
+          scaleControl={false}
           styles={[
             {
               featureType: "poi",
@@ -316,9 +442,9 @@ export default function App() {
                     {selectedMarkerBus.live?.isOnline ? 'GPS Live' : (selectedMarkerBus.bus.status || 'Offline')}
                   </span>
                 </div>
-                {selectedMarkerBus.bus.assignedRouteName && (
+                {(selectedMarkerBus.bus.assignedRouteName || selectedMarkerBus.bus.routeName) && (
                   <div style={{ fontSize: '11px', color: '#4B5563', marginBottom: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    Route: {selectedMarkerBus.bus.assignedRouteName}
+                    Route: {getDynamicRouteName(selectedMarkerBus.bus)}
                   </div>
                 )}
                 <div style={{ fontSize: '11px', color: '#6B7280', display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -335,14 +461,27 @@ export default function App() {
             </InfoWindow>
           )}
         </Map>
-        <MapController userLocation={userLocation} setMapLoaded={setIsMapLoaded} trackedBus={trackedBus} busesWithPos={busesWithPos} />
-        <LocateMeButton userLocation={userLocation} activeNav={activeNav} trackedBus={trackedBus} />
+        <MapController
+          userLocation={userLocation}
+          setMapLoaded={setIsMapLoaded}
+          trackedBus={trackedBus}
+          busesWithPos={busesWithPos}
+          mapCenterTarget={mapCenterTarget}
+        />
+        <LocateMeButton
+          userLocation={userLocation}
+          onFetchLocation={handleFetchLocation}
+          isLocating={isLocating}
+          activeNav={activeNav}
+          isFullView={isFullView}
+        />
         <SidePanel
           activeNav={activeNav}
           setActiveNav={setActiveNav}
           isFullView={isFullView}
           setIsFullView={setIsFullView}
           userLocation={userLocation}
+          user={user}
           onSelectBus={(busInfo) => {
             setTrackedBus(busInfo);
             const found = busesWithPos.find(b => String(b.bus.id) === String(busInfo.id));
@@ -353,5 +492,6 @@ export default function App() {
         />
       </div>
     </APIProvider>
+  </SettingsProvider>
   );
 }

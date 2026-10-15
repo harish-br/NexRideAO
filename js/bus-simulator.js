@@ -678,13 +678,10 @@ export class BusSimulator {
     };
 
     try {
-      // 1. Sync to Firestore (both doc keys: bus_<busNum> and <busNum>)
-      const busRef1 = doc(firestore, 'buses', `bus_${busNum}`);
-      const busRef2 = doc(firestore, 'buses', busNum);
-      await Promise.allSettled([
-        setDoc(busRef1, payload, { merge: true }),
-        setDoc(busRef2, payload, { merge: true })
-      ]);
+      // 1. Sync to Firestore using canonical bus_<busNum> doc ID
+      const canonicalDocId = busNum.startsWith('bus_') ? busNum : `bus_${busNum}`;
+      const busRef = doc(firestore, 'buses', canonicalDocId);
+      await setDoc(busRef, payload, { merge: true });
     } catch (err) {
       console.warn('[Simulator] Firestore sync error:', err);
     }

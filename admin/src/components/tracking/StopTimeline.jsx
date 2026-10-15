@@ -35,14 +35,38 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function parseTimeToMinutes(timeStr) {
-  if (!timeStr) return null;
-  const parts = timeStr.trim().split(':');
-  if (parts.length < 2) return null;
-  const h = parseInt(parts[0], 10);
-  const m = parseInt(parts[1], 10);
-  if (isNaN(h) || isNaN(m)) return null;
+function parseTime12ToMinutes(tStr) {
+  if (!tStr || typeof tStr !== 'string') return null;
+  const clean = tStr.trim();
+  const match = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?$/i);
+  if (!match) return null;
+  let h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  const p = (match[3] || '').toUpperCase();
+  if (p === 'PM' && h < 12) h += 12;
+  if (p === 'AM' && h === 12) h = 0;
   return h * 60 + m;
+}
+
+function minutesToTime12(mins) {
+  let h = Math.floor(mins / 60) % 24;
+  const m = Math.floor(mins % 60);
+  const p = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${String(m).padStart(2, '0')} ${p}`;
+}
+
+function interpolateTime(startStr, endStr, idx, totalStops) {
+  const startM = parseTime12ToMinutes(startStr);
+  const endM = parseTime12ToMinutes(endStr);
+  if (startM == null || endM == null || totalStops <= 1) return formatStop12(startStr);
+  if (idx === 0) return formatStop12(startStr);
+  if (idx === totalStops - 1) return formatStop12(endStr);
+
+  const diff = endM >= startM ? endM - startM : (endM + 1440) - startM;
+  const currentM = (startM + Math.round((idx / (totalStops - 1)) * diff)) % 1440;
+  return minutesToTime12(currentM);
 }
 
 function formatStop12(timeStr) {
@@ -148,23 +172,64 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
     }
 
     function sanitizeStops(rawStops) {
-      return (rawStops || []).map((s, idx) => {
+      const isMorning = new Date().getHours() < 12;
+      const baseList = (rawStops || []).map((s, idx) => {
         const name = s.name || s.stopName || `Stop ${idx + 1}`;
         const key = name.toLowerCase().trim();
         const fallback = KNOWN_COORDS[key] || null;
 
         const stopLat = parseFloat(s.lat || s.latitude) || fallback?.lat || null;
         const stopLng = parseFloat(s.lng || s.longitude) || fallback?.lng || null;
-        const rawTime = s.morningArrival || s.arrivalTime || s.scheduledArrival || s.eveningArrival || s.time || '';
-        const time = formatStop12(rawTime);
+        const rawMorning = s.morningArrival || s.arrivalTime || s.scheduledArrival || s.morningTime || s.time || '';
+        const rawEvening = s.eveningArrival || s.dropTime || s.eveningTime || s.departureTime || '';
 
         return {
           id: s.id || `stop-${idx}`,
           name,
-          time,
+          rawMorning,
+          rawEvening,
           lat: stopLat,
           lng: stopLng,
           order: s.order || s.stopOrder || idx + 1
+        };
+      });
+
+      // After 12:00 PM, evening route runs in reverse: from Nandha Engg back to origin
+      const orderedList = isMorning ? baseList : [...baseList].reverse();
+      const totalStops = orderedList.length;
+
+      // Extract scheduled operating timings for evening and morning
+      const sched = bus.schedules || {};
+      const opTimings = bus.operatingTimings || {};
+      const mDep = sched.morningDeparture || opTimings.morning?.departure || bus.morningDeparture || '6:35 AM';
+      const mArr = sched.morningArrival || opTimings.morning?.arrival || bus.morningArrival || '8:40 AM';
+      const eDep = sched.eveningDeparture || opTimings.evening?.departure || bus.eveningDeparture || '4:50 PM';
+      const eArr = sched.eveningArrival || opTimings.evening?.arrival || bus.eveningArrival || '6:55 PM';
+
+      return orderedList.map((stop, idx) => {
+        let displayTime = '';
+        if (isMorning) {
+          if (stop.rawMorning) {
+            displayTime = formatStop12(stop.rawMorning);
+          } else {
+            displayTime = interpolateTime(mDep, mArr, idx, totalStops);
+          }
+        } else {
+          // Evening: Nandha Engg (eDep) -> Destination (eArr)
+          if (stop.rawEvening) {
+            displayTime = formatStop12(stop.rawEvening);
+          } else {
+            displayTime = interpolateTime(eDep, eArr, idx, totalStops);
+          }
+        }
+
+        return {
+          id: stop.id,
+          name: stop.name,
+          time: displayTime,
+          lat: stop.lat,
+          lng: stop.lng,
+          order: idx + 1
         };
       });
     }
@@ -330,17 +395,33 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
           <span
             className={`timeline-pulse-dot ${isMoving ? 'pulse' : ''}`}
             style={{
-              backgroundColor: !isOnline ? '#9CA3AF' : isMoving ? '#12B76A' : '#2563EB'
+              backgroundColor: !isOnline
+                ? '#9CA3AF'
+                : isMoving
+                  ? '#12B76A'
+                  : currentIdx === 0
+                    ? '#D97706'
+                    : '#2563EB'
             }}
           />
-          <span style={{ color: !isOnline ? '#6B7280' : isMoving ? '#027A48' : '#1D4ED8' }}>
+          <span style={{
+            color: !isOnline
+              ? '#6B7280'
+              : isMoving
+                ? '#027A48'
+                : currentIdx === 0
+                  ? '#B45309'
+                  : '#1D4ED8'
+          }}>
             {!isOnline
               ? 'Bus Offline'
               : isMoving && speed > 0
                 ? `Bus in movement · ${Math.round(speed)} km/h`
                 : isMoving
                   ? 'Bus in movement'
-                  : 'Bus at Stop'}
+                  : currentIdx === 0
+                    ? 'Bus Halted · Not yet started'
+                    : 'Bus at Stop'}
           </span>
         </div>
         <div className="timeline-status-right">
@@ -421,7 +502,7 @@ export default function StopTimeline({ bus, live, onPositionChange }) {
                     </div>
 
                     <span
-                      className={`stop-time ${isCurrent && !isMoving ? 'arrived-text' : isDeparted ? 'departed-text' : ''}`}
+                      className={`stop-time ${isCurrent && !isMoving ? (currentIdx === 0 ? 'halt-text' : 'arrived-text') : isDeparted ? 'departed-text' : ''}`}
                     >
                       {stop.time || '—'}
                     </span>

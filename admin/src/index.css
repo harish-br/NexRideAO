@@ -84,3 +84,14 @@ body {
 .marquee-track {
   white-space: nowrap;
 }
+
+/* Suppress unwanted Google Maps 3D/compass camera controls to prevent overlap */
+.gm-camera-control,
+button[aria-label*="camera" i],
+button[aria-label*="tilt" i],
+button[aria-label*="rotate" i],
+button[title*="camera" i],
+button[title*="tilt" i],
+button[title*="rotate" i] {
+  display: none !important;
+}

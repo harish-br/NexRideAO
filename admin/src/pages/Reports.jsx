@@ -3,8 +3,10 @@ import { db } from '../firebase';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { Search, Edit2, Trash2, X, Save } from 'lucide-react';
 import RefreshButton from '../components/common/RefreshButton';
+import { useSettings } from '../context/SettingsContext';
 
 export default function Reports() {
+  const { formatDateTime } = useSettings();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,13 +126,7 @@ export default function Reports() {
   };
   
   const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      const d = new Date(dateString);
-      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    } catch (e) {
-      return dateString;
-    }
+    return formatDateTime(dateString);
   };
 
   return (

@@ -8,8 +8,7 @@ import AuditLogDetails from '../components/audit/AuditLogDetails';
 import DocumentDownloadIcon from '../assets/svg/document-download.svg?react';
 import RefreshArrowIcon from '../assets/svg/refresh-arrow2.svg?react';
 import documentTextIcon from '../assets/svg/document-text.svg';
-
-const PAGE_SIZE = 50;
+import { useSettings } from '../context/SettingsContext';
 
 /* ─── Toast ─── */
 function Toast({ toasts, dismiss }) {
@@ -78,18 +77,6 @@ function getSeverityStyle(sev) {
   return SEV_STYLES[sev?.toLowerCase()] || SEV_STYLES.info;
 }
 
-/* ─── Timestamp ─── */
-function formatTimestamp(ts) {
-  if (!ts) return '-';
-  try {
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
-    return {
-      date: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    };
-  } catch { return { date: String(ts), time: '' }; }
-}
-
 /* ─── Initials ─── */
 function getInitials(name) {
   if (!name) return 'SY';
@@ -114,6 +101,20 @@ function SkeletonRow() {
 
 /* ─── Main Page ─── */
 export default function AuditLogs() {
+  const { rowsPerPage, autoRefresh, formatDate, formatTime } = useSettings();
+  const PAGE_SIZE = rowsPerPage;
+
+  const formatTimestamp = useCallback((ts) => {
+    if (!ts) return { date: '-', time: '' };
+    try {
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return {
+        date: formatDate(d),
+        time: formatTime(d, { seconds: true }),
+      };
+    } catch { return { date: String(ts), time: '' }; }
+  }, [formatDate, formatTime]);
+
   const [allFetchedLogs, setAllFetchedLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -169,7 +170,13 @@ export default function AuditLogs() {
       });
   }, [addToast]);
 
-  useEffect(() => { fetchLogs(); }, []);
+  useEffect(() => {
+    fetchLogs();
+    if (autoRefresh) {
+      const timer = setInterval(fetchLogs, 30000);
+      return () => clearInterval(timer);
+    }
+  }, [fetchLogs, autoRefresh]);
 
   /* ─── Debounced search ─── */
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -360,7 +367,7 @@ export default function AuditLogs() {
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexShrink: 0 }}>
             {lastRefreshed && (
               <span style={{ fontSize: '11px', color: '#98A2B3', whiteSpace: 'nowrap' }}>
-                Updated {lastRefreshed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                Updated {formatTime(lastRefreshed)}
               </span>
             )}
             <button

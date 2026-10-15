@@ -7,7 +7,10 @@ import { Plus, Edit, Trash2, Search, Edit2, UserCircle, ChevronLeft, ChevronRigh
 import DetailsView from '../components/common/DetailsView';
 import ScrollingText from '../components/common/ScrollingText';
 import RefreshButton from '../components/common/RefreshButton';
+import { useSettings } from '../context/SettingsContext';
+
 export default function Drivers() {
+  const { rowsPerPage, formatDate } = useSettings();
   const [drivers, setDrivers] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list', 'add', 'edit'
   const [selectedDriver, setSelectedDriver] = useState(null);
@@ -15,7 +18,7 @@ export default function Drivers() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = rowsPerPage;
 
   useEffect(() => {
     try {
@@ -371,7 +374,7 @@ export default function Drivers() {
                         }
                         return (
                           <>
-                            <span>{new Date(selectedDriver.licenseExpiry).toLocaleDateString()}</span>
+                            <span>{formatDate(selectedDriver.licenseExpiry)}</span>
                             <span style={{ fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '100px', background: `${color}15`, color: color }}>
                               {statusText}
                             </span>

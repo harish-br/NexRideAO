@@ -1,23 +1,49 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { db, rtdb } from '../firebase';
 import { ref, onValue, off } from 'firebase/database';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import StopTimeline from '../components/tracking/StopTimeline';
+import { deduplicateBuses, getDynamicRouteName } from '../utils/busUtils';
 
 // ─── Status helpers ────────────────────────────────────────────────────────────
 const STATUS_CFG = {
   'Active': { label: 'On Route', dot: '#12B76A', bg: '#ECFDF3', color: '#027A48' },
   'On Route': { label: 'On Route', dot: '#12B76A', bg: '#ECFDF3', color: '#027A48' },
   'At Stop': { label: 'At Stop', dot: '#2563EB', bg: '#EFF6FF', color: '#1D4ED8' },
+  'Halt': { label: 'Halt', dot: '#D97706', bg: '#FEF3C7', color: '#B45309' },
+  'Halted': { label: 'Halt', dot: '#D97706', bg: '#FEF3C7', color: '#B45309' },
   'Delayed': { label: 'Delayed', dot: '#F59E0B', bg: '#FFFBEB', color: '#92400E' },
   'Offline': { label: 'Offline', dot: '#9CA3AF', bg: '#F3F4F6', color: '#6B7280' },
-  'Halted': { label: 'Offline', dot: '#9CA3AF', bg: '#F3F4F6', color: '#6B7280' },
   'Maintenance': { label: 'Maintenance', dot: '#9CA3AF', bg: '#F3F4F6', color: '#6B7280' },
 };
+
+export function isBusAtStartingHalt(bus, live) {
+  if (live && live.isOnline === false) return false;
+  if (bus?.status === 'Offline') return false;
+
+  const rawStatus = (live?.status || bus?.status || '').toLowerCase().trim();
+  const speed = Number(live?.speed ?? bus?.speed ?? 0);
+  const stopIdx = Number(live?.currentStopIndex ?? bus?.currentStopIndex ?? 0);
+
+  if (rawStatus === 'halt' || rawStatus === 'halted') return true;
+
+  // If currently moving with positive speed, not at halt
+  if ((rawStatus === 'moving' || rawStatus === 'on route') && speed > 0) return false;
+
+  // For all buses, the starting stop (index 0) defaults to Halt (bus has not yet started)
+  if (stopIdx === 0 && speed <= 0) {
+    return true;
+  }
+
+  return false;
+}
 
 function getBusCfg(bus, live) {
   if (live && live.isOnline === false) {
     return STATUS_CFG['Offline'];
+  }
+  if (isBusAtStartingHalt(bus, live)) {
+    return STATUS_CFG['Halt'];
   }
   const s = live?.status || bus?.status;
   if (!s) return STATUS_CFG['Offline'];
@@ -67,19 +93,20 @@ function formatTime12(timeStr) {
 
 // ─── Bus card ───────────────────────────────────────────────────────────────
 function BusCard({ bus, expanded, onToggle, live, onPositionChange }) {
-  const route = bus.assignedRouteName || bus.routeName || bus.route || null;
+  // Morning: 12:00 AM to 12:00 PM; Evening: 12:00 PM to 12:00 AM
+  const isMorning = new Date().getHours() < 12;
+  const route = getDynamicRouteName(bus, isMorning);
   const driver = bus.assignedDriverName || bus.driverName || null;
 
   // Schedule — support nested (schedules.*) and flat (operatingTimings.*) schemas
   const sched = bus.schedules || {};
   const opTimings = bus.operatingTimings || {};
-  const mDep = sched.morningDeparture || opTimings.morning?.departure || bus.morningDeparture || null;
+  const mDep = sched.morningDeparture || opTimings.morning?.departure || bus.morningDeparture || bus.morningTime || null;
   const mArr = sched.morningArrival || opTimings.morning?.arrival || bus.morningArrival || null;
-  const eDep = sched.eveningDeparture || opTimings.evening?.departure || bus.eveningDeparture || null;
+  const eDep = sched.eveningDeparture || opTimings.evening?.departure || bus.eveningDeparture || bus.eveningTime || null;
   const eArr = sched.eveningArrival || opTimings.evening?.arrival || bus.eveningArrival || null;
 
   // Show morning (midnight–noon) or evening (noon–midnight)
-  const isMorning = new Date().getHours() < 12;
   const showDep = isMorning ? mDep : eDep;
   const showArr = isMorning ? mArr : eArr;
   const dep12 = formatTime12(showDep);
@@ -238,6 +265,7 @@ function BusCard({ bus, expanded, onToggle, live, onPositionChange }) {
 const TABS = [
   { key: 'all', label: 'All' },
   { key: 'on_route', label: 'On Route' },
+  { key: 'halt', label: 'Halt' },
   { key: 'at_stop', label: 'At Stop' },
   { key: 'delayed', label: 'Delayed' },
   { key: 'offline', label: 'Offline' },
@@ -245,7 +273,9 @@ const TABS = [
 
 function matchTab(bus, live, tab) {
   if (tab === 'all') return true;
-  const l = getBusCfg(bus, live).label.toLowerCase().replace(' ', '_');
+  const cfg = getBusCfg(bus, live);
+  const l = cfg.label.toLowerCase().replace(' ', '_');
+  if (tab === 'halt' && (l === 'halt' || l === 'halted')) return true;
   return l === tab;
 }
 
@@ -298,9 +328,28 @@ export default function LiveTracking({ onSelectBus }) {
   // Firestore buses listener
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'buses'), snap => {
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const ord = { Active: 0, 'On Route': 0, Delayed: 1, 'At Stop': 2, Offline: 3, Halted: 3, Maintenance: 4 };
-      data.sort((a, b) => (ord[a.status] ?? 2) - (ord[b.status] ?? 2));
+      const rawData = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Clean up accidental duplicate bare numeric docs (e.g. '67') if canonical 'bus_67' exists
+      snap.docs.forEach(d => {
+        const docId = d.id;
+        if (/^\d+$/.test(docId)) {
+          const canonicalDoc = snap.docs.find(other => other.id === `bus_${docId}`);
+          if (canonicalDoc) {
+            deleteDoc(doc(db, 'buses', docId)).catch(() => {});
+          }
+        }
+      });
+
+      const data = deduplicateBuses(rawData);
+      const ord = { 'Active': 0, 'On Route': 0, 'At Stop': 1, 'Halt': 2, 'Halted': 2, 'Delayed': 3, 'Offline': 4, 'Maintenance': 5 };
+      data.sort((a, b) => {
+        const liveA = getLiveForBus(a, liveMap);
+        const liveB = getLiveForBus(b, liveMap);
+        const labelA = getBusCfg(a, liveA).label;
+        const labelB = getBusCfg(b, liveB).label;
+        return (ord[labelA] ?? 2) - (ord[labelB] ?? 2);
+      });
       setBuses(data);
       setLoading(false);
 
@@ -338,14 +387,14 @@ export default function LiveTracking({ onSelectBus }) {
 
   // Use registered Firestore fleet with real RTDB live telemetry
   const allBuses = useMemo(() => {
-    const list = [...buses];
-    const ord = { Active: 0, 'On Route': 0, Delayed: 1, 'At Stop': 2, Offline: 3, Halted: 3, Maintenance: 4 };
+    const list = deduplicateBuses(buses);
+    const ord = { 'Active': 0, 'On Route': 0, 'At Stop': 1, 'Halt': 2, 'Halted': 2, 'Delayed': 3, 'Offline': 4, 'Maintenance': 5 };
     return list.sort((a, b) => {
       const liveA = getLiveForBus(a, liveMap);
       const liveB = getLiveForBus(b, liveMap);
-      const statusA = liveA?.status || a.status;
-      const statusB = liveB?.status || b.status;
-      return (ord[statusA] ?? 2) - (ord[statusB] ?? 2);
+      const labelA = getBusCfg(a, liveA).label;
+      const labelB = getBusCfg(b, liveB).label;
+      return (ord[labelA] ?? 2) - (ord[labelB] ?? 2);
     });
   }, [buses, liveMap]);
 

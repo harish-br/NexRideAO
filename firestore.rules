@@ -60,6 +60,11 @@ service cloud.firestore {
       match /notifications/{notifId} {
         allow read, write: if isAuthenticated();
       }
+
+      // 1e. User Settings Subcollection
+      match /settings/{document=**} {
+        allow read, write: if isAuthenticated();
+      }
     }
     
     // ==========================================

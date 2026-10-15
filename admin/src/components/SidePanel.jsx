@@ -34,7 +34,6 @@ import './SidePanel.css';
 
 const NAV_ITEMS = [
   { id: 'home', label: 'Dashboard', icon: HomeIcon },
-  { id: 'live', label: 'Live Tracking', icon: RecordCircleIcon },
   { id: 'buses', label: 'Buses', icon: BusIcon },
   { id: 'drivers', label: 'Drivers', icon: DriverIcon },
   { id: 'students', label: 'Students', icon: StudentIcon },
@@ -45,7 +44,7 @@ const NAV_ITEMS = [
   { id: 'settings', label: 'Settings', icon: SettingsIcon },
 ];
 
-export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFullView, userLocation, onSelectBus }) {
+export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFullView, userLocation, onSelectBus, user }) {
   
   const handleLogout = async () => {
     try {
@@ -93,10 +92,10 @@ export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFu
           onMouseEnter={() => setIsNavHovered(true)}
           onMouseLeave={() => setIsNavHovered(false)}
         >
-          {/* Brand / Live Fleet Button */}
+          {/* Top Live Tracking Action Button */}
           <div
             className={`brand-logo nav-item nav-icon ${activeNav === 'live' ? 'active' : ''}`}
-            title="Live Fleet Tracking"
+            title="Live Tracking"
             onClick={handleLiveClick}
             style={{ cursor: 'pointer' }}
           >
@@ -104,7 +103,7 @@ export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFu
               <RecordCircleIcon width={22} height={22} />
             </div>
             <div className="nav-label-wrapper">
-              <span className="nav-label">Live Fleet</span>
+              <span className="nav-label">Live Tracking</span>
               <span className="nav-live-badge">LIVE</span>
             </div>
           </div>
@@ -122,12 +121,8 @@ export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFu
                   className={`nav-item nav-icon ${isActive ? 'active' : ''}`}
                   title={item.label}
                   onClick={() => {
-                    if (item.id === 'live') {
-                      handleLiveClick();
-                    } else {
-                      setActiveNav(item.id);
-                      setIsFullView(true);
-                    }
+                    setActiveNav(item.id);
+                    setIsFullView(true);
                   }}
                 >
                   <div className="nav-icon-wrapper">
@@ -168,8 +163,9 @@ export default function SidePanel({ activeNav, setActiveNav, isFullView, setIsFu
           {activeNav === 'reports' && <Reports />}
           {activeNav === 'notifications' && <Notifications />}
           {activeNav === 'audit logs' && <AuditLogs />}
-          {activeNav === 'settings' && <Settings />}
+          {activeNav === 'settings' && <Settings user={user} />}
           {activeNav === 'live' && <LiveTracking onSelectBus={onSelectBus} />}
+
         </div>
       </div>
     </>

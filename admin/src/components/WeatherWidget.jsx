@@ -3,8 +3,10 @@ import SunIcon from '../assets/svg/sun.svg?react';
 import SunnyIcon from '../assets/svg/cloud-sunny.svg?react';
 import DrizzleIcon from '../assets/svg/cloud-drizzle.svg?react';
 import LightningIcon from '../assets/svg/cloud-lightning.svg?react';
+import { useSettings } from '../context/SettingsContext';
 
 export default function WeatherWidget({ userLocation }) {
+  const { timeFormat } = useSettings();
   const [weatherData, setWeatherData] = useState(null);
   const [currentTime, setCurrentTime] = useState(null);
   const [error, setError] = useState(false);
@@ -74,7 +76,7 @@ export default function WeatherWidget({ userLocation }) {
           timeZone: tz,
           hour: '2-digit',
           minute: '2-digit',
-          hour12: true
+          hour12: timeFormat !== '24h'
         };
         const dayOptions = {
           timeZone: tz,
@@ -93,7 +95,7 @@ export default function WeatherWidget({ userLocation }) {
     updateClock();
     const intervalId = setInterval(updateClock, 10000);
     return () => clearInterval(intervalId);
-  }, [weatherData, timeOffset]);
+  }, [weatherData, timeOffset, timeFormat]);
 
   const renderWeatherIcon = (code) => {
     const props = { width: 16, height: 16, style: { color: 'inherit', display: 'flex', alignItems: 'center' } };

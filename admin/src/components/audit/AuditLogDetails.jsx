@@ -1,16 +1,7 @@
 import React, { useEffect, useRef } from 'react';
+import { useSettings } from '../../context/SettingsContext';
 
 /* ── helpers ── */
-const fmt = (ts) => {
-  if (!ts) return { date: '—', time: '' };
-  try {
-    const d = ts.toDate ? ts.toDate() : new Date(ts);
-    return {
-      date: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-    };
-  } catch { return { date: String(ts), time: '' }; }
-};
 
 const initials = (name) => {
   if (!name) return 'SY';
@@ -65,6 +56,7 @@ const STA_DOT = {
 };
 
 export default function AuditLogDetails({ log, onClose }) {
+  const { formatDate, formatTime } = useSettings();
   const drawerRef = useRef(null);
 
   useEffect(() => {
@@ -77,7 +69,8 @@ export default function AuditLogDetails({ log, onClose }) {
 
   if (!log) return null;
 
-  const { date, time } = fmt(log.timestamp || log.createdAt);
+  const date = formatDate(log.timestamp || log.createdAt);
+  const time = formatTime(log.timestamp || log.createdAt, { seconds: true });
   const sev = SEV_STYLE[log.severity?.toLowerCase()] || SEV_STYLE.info;
   const dotColor = STA_DOT[log.status?.toLowerCase()] || '#00A86B';
   const ini = initials(log.actor?.name);

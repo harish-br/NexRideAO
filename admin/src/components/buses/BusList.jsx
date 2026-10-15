@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { Plus, Search, MoreVertical, Edit2, Trash2, ShieldAlert, ChevronLeft, ChevronRight } from 'lucide-react';
 import ScrollingText from '../common/ScrollingText';
 import RefreshButton from '../common/RefreshButton';
+import { useSettings } from '../../context/SettingsContext';
 
 export default function BusList({ buses, onAdd, onView, onEdit, onDelete }) {
+  const { rowsPerPage } = useSettings();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('All');
   const [currentPage, setCurrentPage] = React.useState(1);
   const [refreshing, setRefreshing] = useState(false);
-  const itemsPerPage = 10;
+  const itemsPerPage = rowsPerPage;
 
   const filteredBuses = buses.filter(bus => {
     const busNum = bus.busNumber || '';

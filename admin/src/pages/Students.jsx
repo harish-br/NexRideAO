@@ -6,8 +6,10 @@ import { Plus, Edit, Trash2, Search, Edit2, Filter, ChevronLeft, ChevronRight, U
 import DetailsView from '../components/common/DetailsView';
 import ScrollingText from '../components/common/ScrollingText';
 import RefreshButton from '../components/common/RefreshButton';
+import { useSettings } from '../context/SettingsContext';
 
 export default function Students() {
+  const { rowsPerPage } = useSettings();
   const [students, setStudents] = useState([]);
   const [viewMode, setViewMode] = useState('list'); // 'list', 'add', 'edit'
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -23,7 +25,7 @@ export default function Students() {
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 25;
+  const itemsPerPage = rowsPerPage;
 
   useEffect(() => {
     try {

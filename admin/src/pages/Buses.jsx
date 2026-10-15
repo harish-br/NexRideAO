@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
+import { deduplicateBuses } from '../utils/busUtils';
 
 import BusList from '../components/buses/BusList';
 import BusForm from '../components/buses/BusForm';
@@ -17,10 +18,11 @@ export default function Buses() {
   useEffect(() => {
     try {
       const unsubscribe = onSnapshot(collection(db, 'buses'), (snapshot) => {
-        const busesData = snapshot.docs.map(doc => ({
+        const rawBuses = snapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data()
         }));
+        const busesData = deduplicateBuses(rawBuses);
         
         // Sort by created date descending if available, else by bus number
         busesData.sort((a, b) => {

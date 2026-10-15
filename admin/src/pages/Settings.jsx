@@ -5,6 +5,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   signOut,
+  onAuthStateChanged,
 } from 'firebase/auth';
 import ProfileIcon      from '../assets/svg/profile-2user.svg?react';
 import SecurityIcon     from '../assets/svg/tag-user.svg?react';
@@ -18,6 +19,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { createAuditLog } from '../services/auditLogger';
+import { useSettings } from '../context/SettingsContext';
 
 // ─── Shared primitives ────────────────────────────────────────────────────────
 
@@ -472,46 +474,24 @@ function SecuritySection() {
 
 // ─── Section: Notifications ───────────────────────────────────────────────────
 
-const DEFAULT_NOTIF_PREFS = {
-  busAlerts:       true,
-  maintenanceAlerts: true,
-  driverAlerts:    true,
-  criticalAlerts:  true,
-  auditAlerts:     true,
-};
-
-function NotificationsSection({ uid, addToast }) {
-  const [prefs, setPrefs]     = useState(DEFAULT_NOTIF_PREFS);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState('');
-
-  useEffect(() => {
-    if (!uid) { setLoading(false); return; }
-    getDoc(doc(db, 'users', uid, 'settings', 'notifications'))
-      .then(snap => {
-        if (snap.exists()) setPrefs({ ...DEFAULT_NOTIF_PREFS, ...snap.data() });
-      })
-      .catch(err => console.warn('Could not load notification prefs:', err))
-      .finally(() => setLoading(false));
-  }, [uid]);
+function NotificationsSection({ addToast }) {
+  const { notifPrefs, updateNotifPrefs } = useSettings();
+  const [saving, setSaving] = useState('');
 
   const toggle = async (key) => {
     if (key === 'criticalAlerts') return; // required
-    const updated = { ...prefs, [key]: !prefs[key] };
-    setPrefs(updated);
+    const updated = { ...notifPrefs, [key]: !notifPrefs[key] };
     setSaving(key);
     try {
-      await setDoc(doc(db, 'users', uid, 'settings', 'notifications'), { ...updated, updatedAt: serverTimestamp() }, { merge: true });
-      await createAuditLog({ action: 'UPDATE', module: 'Settings', entityType: 'notification_preference', entityId: key, description: `Notification preference "${key}" set to ${updated[key]}`, severity: 'info' });
+      await updateNotifPrefs(updated);
+      addToast('Notification preference updated.');
     } catch (err) {
-      setPrefs(prefs); // rollback
+      console.error('Failed to save preference:', err);
       addToast('Failed to save preference.', 'error');
     } finally {
       setSaving('');
     }
   };
-
-  if (loading) return <div style={{ padding: '24px 0', color: T.color.secondary, fontSize: '13px' }}>Loading preferences…</div>;
 
   const rows = [
     { key: 'busAlerts',         label: 'Bus Alerts',           description: 'Alerts related to bus operations and status changes.' },
@@ -527,7 +507,7 @@ function NotificationsSection({ uid, addToast }) {
         <Row key={r.key} label={r.label} description={r.description} last={i === rows.length - 1}>
           {r.required
             ? <span style={{ fontSize: '11px', fontWeight: '600', color: T.color.secondary, background: T.color.bg, padding: '3px 10px', borderRadius: '100px', border: T.border }}>Required</span>
-            : <Toggle checked={prefs[r.key]} onChange={() => toggle(r.key)} disabled={!!saving} />
+            : <Toggle checked={notifPrefs[r.key]} onChange={() => toggle(r.key)} disabled={!!saving} />
           }
         </Row>
       ))}
@@ -537,50 +517,30 @@ function NotificationsSection({ uid, addToast }) {
 
 // ─── Section: Application ─────────────────────────────────────────────────────
 
-const DEFAULT_APP_PREFS = {
-  timeFormat: '12h',
-  dateFormat: 'DD/MM/YYYY',
-  rowsPerPage: '20',
-  autoRefresh: false,
-};
-
-function ApplicationSection({ uid, addToast }) {
-  const [prefs, setPrefs]     = useState(DEFAULT_APP_PREFS);
-  const [saved, setSaved]     = useState(DEFAULT_APP_PREFS);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const isDirty = JSON.stringify(prefs) !== JSON.stringify(saved);
+function ApplicationSection({ addToast }) {
+  const { appPrefs, updateAppPrefs } = useSettings();
+  const [prefs, setPrefs] = useState(appPrefs);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!uid) { setLoading(false); return; }
-    getDoc(doc(db, 'users', uid, 'settings', 'application'))
-      .then(snap => {
-        if (snap.exists()) {
-          const d = { ...DEFAULT_APP_PREFS, ...snap.data() };
-          setPrefs(d); setSaved(d);
-        }
-      })
-      .catch(err => console.warn('Could not load app prefs:', err))
-      .finally(() => setLoading(false));
-  }, [uid]);
+    setPrefs(appPrefs);
+  }, [appPrefs]);
 
+  const isDirty = JSON.stringify(prefs) !== JSON.stringify(appPrefs);
   const set = (key, val) => setPrefs(p => ({ ...p, [key]: val }));
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await setDoc(doc(db, 'users', uid, 'settings', 'application'), { ...prefs, updatedAt: serverTimestamp() }, { merge: true });
-      await createAuditLog({ action: 'UPDATE', module: 'Settings', entityType: 'application_preference', description: 'Updated application preferences', severity: 'info' });
-      setSaved(prefs);
-      addToast('Preferences saved.');
+      await updateAppPrefs(prefs);
+      addToast('Preferences saved successfully.');
     } catch (err) {
+      console.error('Failed to save preferences:', err);
       addToast('Failed to save preferences.', 'error');
     } finally {
       setSaving(false);
     }
   };
-
-  if (loading) return <div style={{ padding: '24px 0', color: T.color.secondary, fontSize: '13px' }}>Loading preferences…</div>;
 
   const RadioGroup = ({ label, description, name, options, value, onChange }) => (
     <Row label={label} description={description} last={false}>
@@ -650,7 +610,7 @@ function ApplicationSection({ uid, addToast }) {
           </select>
         </Row>
         <Row label="Auto-Refresh Data" description="Automatically refresh dashboard data in the background." last={true}>
-          <Toggle checked={prefs.autoRefresh} onChange={v => set('autoRefresh', v)} />
+          <Toggle checked={Boolean(prefs.autoRefresh)} onChange={v => set('autoRefresh', v)} />
         </Row>
       </SectionCard>
 
@@ -659,7 +619,7 @@ function ApplicationSection({ uid, addToast }) {
           <Btn variant="primary" onClick={handleSave} disabled={saving} small>
             {saving ? 'Saving…' : 'Save Changes'}
           </Btn>
-          <Btn onClick={() => setPrefs(saved)} disabled={saving} small>Discard</Btn>
+          <Btn onClick={() => setPrefs(appPrefs)} disabled={saving} small>Discard</Btn>
         </div>
       )}
     </div>
@@ -686,11 +646,22 @@ function LegalSection({ onViewLegal }) {
 
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 
-export default function Settings() {
+export default function Settings({ user: propUser }) {
   const [activeSection, setActiveSection] = useState('profile');
   const [legalView, setLegalView]         = useState(null); // 'terms' | 'privacy' | null
   const [toast, setToast]                 = useState({ msg: '', type: 'success' });
-  const user = auth.currentUser;
+  const [user, setUser]                   = useState(() => propUser || auth.currentUser);
+
+  useEffect(() => {
+    if (propUser) {
+      setUser(propUser);
+      return;
+    }
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+    });
+    return () => unsub();
+  }, [propUser]);
 
   const addToast = useCallback((msg, type = 'success') => {
     setToast({ msg, type });
@@ -707,8 +678,8 @@ export default function Settings() {
     switch (activeSection) {
       case 'profile':       return <ProfileSection user={user} />;
       case 'security':      return <SecuritySection />;
-      case 'notifications': return <NotificationsSection uid={user?.uid} addToast={addToast} />;
-      case 'application':   return <ApplicationSection uid={user?.uid} addToast={addToast} />;
+      case 'notifications': return <NotificationsSection addToast={addToast} />;
+      case 'application':   return <ApplicationSection addToast={addToast} />;
 
       case 'legal':         return <LegalSection onViewLegal={handleViewLegal} />;
       default:              return null;

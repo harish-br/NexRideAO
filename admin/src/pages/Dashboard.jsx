@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 import RefreshButton from '../components/common/RefreshButton';
+import { deduplicateBuses } from '../utils/busUtils';
 
 export default function Dashboard() {
   const [fleetData, setFleetData] = useState([]);
@@ -14,7 +15,8 @@ export default function Dashboard() {
   useEffect(() => {
     // Listen to buses
     const unsubBuses = onSnapshot(collection(db, 'buses'), (snapshot) => {
-      const buses = snapshot.docs.map(doc => doc.data());
+      const rawBuses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const buses = deduplicateBuses(rawBuses);
       setFleetData(buses);
       
       // Calculate vehicle docs from buses

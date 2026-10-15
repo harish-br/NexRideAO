@@ -4,6 +4,7 @@ import { collection, onSnapshot, deleteDoc, doc, addDoc, getDocs } from 'firebas
 import { Search, Plus, Trash2, Send, AlertCircle, X } from 'lucide-react';
 import DetailsView from '../components/common/DetailsView';
 import RefreshButton from '../components/common/RefreshButton';
+import { useSettings } from '../context/SettingsContext';
 
 const inputStyle = {
   padding: '10px 12px',
@@ -24,6 +25,7 @@ const FormGroup = ({ label, children }) => (
 );
 
 export default function Notifications() {
+  const { notifPrefs, formatDateTime } = useSettings();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -285,10 +287,27 @@ export default function Notifications() {
     setTimeout(() => handleBackToList(), 1800);
   };
 
-  const filteredNotifs = notifications.filter(n => 
-    (n.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (n.message || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredNotifs = notifications.filter(n => {
+    const matchesSearch = (n.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (n.message || n.body || '').toLowerCase().includes(searchTerm.toLowerCase());
+    if (!matchesSearch) return false;
+
+    // Filter by specific user's notification preferences
+    const t = (n.type || '').toUpperCase();
+    if (t.includes('BUS') || t.includes('DELAY') || t.includes('ROUTE')) {
+      if (notifPrefs.busAlerts === false) return false;
+    }
+    if (t.includes('MAINTENANCE') || t.includes('VEHICLE_HEALTH') || t.includes('INSPECTION')) {
+      if (notifPrefs.maintenanceAlerts === false) return false;
+    }
+    if (t.includes('DRIVER') || t.includes('ASSIGNMENT')) {
+      if (notifPrefs.driverAlerts === false) return false;
+    }
+    if (t.includes('AUDIT') || t.includes('ADMIN_EVENT')) {
+      if (notifPrefs.auditAlerts === false) return false;
+    }
+    return true;
+  });
 
   const getTypeStyle = (type) => {
     switch(type) {
@@ -300,13 +319,7 @@ export default function Notifications() {
   };
   
   const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      const d = new Date(dateString);
-      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    } catch (e) {
-      return dateString;
-    }
+    return formatDateTime(dateString);
   };
 
   return (

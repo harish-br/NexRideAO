@@ -6,8 +6,10 @@ import RouteDetails from '../components/routes/RouteDetails';
 import { Plus, Search, UserCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import ScrollingText from '../components/common/ScrollingText';
 import RefreshButton from '../components/common/RefreshButton';
+import { useSettings } from '../context/SettingsContext';
 
 export default function Routes() {
+  const { rowsPerPage } = useSettings();
   const [routes, setRoutes] = useState([]);
   const [viewMode, setViewMode] = useState('list');
   const [selectedRoute, setSelectedRoute] = useState(null);
@@ -15,7 +17,7 @@ export default function Routes() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = rowsPerPage;
 
   useEffect(() => {
     try {
